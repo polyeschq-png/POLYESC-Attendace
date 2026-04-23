@@ -314,7 +314,7 @@
     }
   </style>
 </head>
-<body>
+<body style="opacity:0;transition:opacity 0.3s">
 
 <div class="bg">
   <div class="blob blob1"></div>
@@ -396,7 +396,7 @@
 
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
-import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,onAuthStateChanged,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
 
 const firebaseConfig={
   apiKey:"AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",
@@ -410,9 +410,16 @@ const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const provider=new GoogleAuthProvider();
 
-// 이미 로그인돼 있으면 바로 랜딩으로
+// 세션 단위 유지 - 창/탭 닫으면 로그아웃
+await setPersistence(auth, browserSessionPersistence);
+
+// 이미 로그인돼 있으면 바로 랜딩으로, 아니면 페이지 표시
 onAuthStateChanged(auth,user=>{
-  if(user) window.location.href="landing.html";
+  if(user){
+    window.location.href="landing.html";
+  } else {
+    document.body.style.opacity='1';
+  }
 });
 
 function showError(msg){
