@@ -9,7 +9,7 @@
 <!-- Firebase SDK -->
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
-import{getAuth,GoogleAuthProvider,signOut,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+import{getAuth,GoogleAuthProvider,signOut,onAuthStateChanged,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
 import{getFirestore,doc,getDoc,setDoc,deleteDoc,collection,getDocs}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
 
 const firebaseConfig={
@@ -22,6 +22,7 @@ const firebaseConfig={
 };
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
+await setPersistence(auth, browserSessionPersistence);
 const db=getFirestore(app);
 
 window._db=db;
@@ -71,6 +72,7 @@ onAuthStateChanged(auth,user=>{
   if(nameEl) nameEl.textContent=user.displayName||user.email;
   if(emailEl) emailEl.textContent=user.email;
   // 앱 초기화
+  document.body.style.opacity='1';
   if(window._appInit) window._appInit();
 });
 </script>
@@ -220,7 +222,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
 .hol-tag button{background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;padding:0 1px}
 </style>
 </head>
-<body>
+<body style="opacity:0;transition:opacity 0.3s">
 <div class="app-layout">
 <nav class="sidebar">
   <div class="sidebar-logo">
