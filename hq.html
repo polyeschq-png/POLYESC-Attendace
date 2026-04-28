@@ -60,21 +60,87 @@ window.fbSignOut=async()=>{
   window.location.href='index.html';
 };
 
-// 로그인 상태 확인 - 미로그인이면 login.html로
-onAuthStateChanged(auth,user=>{
-  if(!user){
-    window.location.href='index.html';
-    return;
-  }
-  // 사용자 정보 표시
+// 권한별 허용 탭
+const ROLE_TABS={
+  owner:['upload','gw','late','ot','early','absent','missin','missout','report','staff','holidays','records','guide'],
+  admin:['late','ot','early','absent','missin','missout','report','guide'],
+  report:['report','guide'],
+};
+
+window._userRole='';
+
+// role에 따라 사이드바 탭 표시/숨김
+function applyRoleTabs(role){
+  const allowed=ROLE_TABS[role]||ROLE_TABS['report'];
+  // 모든 nav-item 순회
+  document.querySelectorAll('.nav-item[id^="nav-"]').forEach(btn=>{
+    const tab=btn.id.replace('nav-','');
+    btn.style.display=allowed.includes(tab)?'':'none';
+  });
+  // Owner 전용 권한관리 탭 표시
+  const permBtn=document.getElementById('nav-permissions');
+  if(permBtn) permBtn.style.display=role==='owner'?'':'none';
+  // 첫 번째 허용 탭으로 이동
+  const firstTab=allowed[0];
+  if(firstTab) sw(firstTab);
+}
+
+// 로그인 상태 확인
+onAuthStateChanged(auth,async user=>{
+  if(!user){window.location.href='index.html';return;}
   const nameEl=document.getElementById('user-name');
   const emailEl=document.getElementById('user-email');
   if(nameEl) nameEl.textContent=user.displayName||user.email;
   if(emailEl) emailEl.textContent=user.email;
-  // 앱 초기화
+
+  // Firestore에서 role 읽기
+  try{
+    const snap=await getDoc(doc(db,'users',user.email));
+    window._userRole=snap.exists()?snap.data().role||'report':'report';
+  }catch(e){
+    window._userRole='report';
+  }
+
+  // role 배지 표시
+  const roleBadge=document.getElementById('user-role-badge');
+  if(roleBadge){
+    const labels={owner:'👑 Owner',admin:'🔧 관리자',report:'📊 리포트'};
+    roleBadge.textContent=labels[window._userRole]||'리포트';
+  }
+
   document.body.style.opacity='1';
+  applyRoleTabs(window._userRole);
   if(window._appInit) window._appInit();
 });
+
+// Owner 전용: 권한 설정
+window.saveUserRole=async(email,role)=>{
+  if(!email||!role){alert('이메일과 권한을 선택해주세요.');return;}
+  await setDoc(doc(db,'users',email),{email,role,updatedAt:new Date().toISOString()},{merge:true});
+  alert(email+' → '+role+' 권한 저장 완료');
+  renderPermissionList();
+};
+window.deleteUserRole=async(email)=>{
+  if(!confirm(email+' 권한을 삭제할까요?'))return;
+  await deleteDoc(doc(db,'users',email));
+  renderPermissionList();
+};
+window.renderPermissionList=async()=>{
+  const snap=await getDocs(collection(db,'users'));
+  const tbody=document.getElementById('perm-list');
+  if(!tbody)return;
+  const labels={owner:'👑 Owner',admin:'🔧 관리자',report:'📊 리포트'};
+  let html='';
+  snap.forEach(d=>{
+    const {email,role}=d.data();
+    html+=`<tr>
+      <td class="nm">${email}</td>
+      <td><span class="badge ${role==='owner'?'bp':role==='admin'?'bg':'bb'}">${labels[role]||role}</span></td>
+      <td><button class="btn-sm btn-sm-d" onclick="deleteUserRole('${email}')">삭제</button></td>
+    </tr>`;
+  });
+  tbody.innerHTML=html||'<tr><td colspan="3" class="empty">등록된 사용자 없음</td></tr>';
+};
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
@@ -247,10 +313,12 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <button class="nav-item" id="nav-staff" onclick="sw('staff')"><span class="nav-ico">👤</span>직원관리</button>
   <button class="nav-item" id="nav-holidays" onclick="sw('holidays')"><span class="nav-ico">📅</span>공휴일관리</button>
   <button class="nav-item" id="nav-records" onclick="sw('records')"><span class="nav-ico">🗂</span>저장기록</button>
+  <button class="nav-item" id="nav-permissions" onclick="sw('permissions')" style="display:none"><span class="nav-ico">🔑</span>권한관리</button>
   <button class="nav-item" id="nav-guide" onclick="sw('guide')"><span class="nav-ico">📖</span>수당기준</button>
   <div class="sidebar-footer">
     <div id="user-name" style="color:rgba(255,255,255,.7);font-size:12px;font-weight:600;margin-bottom:2px"></div>
-    <div id="user-email" style="color:rgba(255,255,255,.35);font-size:10px;margin-bottom:8px;word-break:break-all"></div>
+    <div id="user-email" style="color:rgba(255,255,255,.35);font-size:10px;margin-bottom:4px;word-break:break-all"></div>
+    <div id="user-role-badge" style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:8px"></div>
     <button onclick="window.location.href='landing.html'" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:5px">🏠 메인으로</button>
     <button onclick="fbSignOut()" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;">로그아웃</button>
     <div style="margin-top:8px;color:rgba(255,255,255,.25)">본사 근태관리 시스템 v7</div>
@@ -492,6 +560,44 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
       <span>파일을 업로드하면 보고자료가 여기에 표시됩니다</span>
     </div>
   </div>
+</div>
+
+<!-- ════ 권한관리 (Owner 전용) ════ -->
+<div class="panel" id="panel-permissions">
+  <div class="info-box">🔑<div>사용자 권한을 관리합니다. <strong>Owner만 접근 가능</strong>합니다. 이메일 주소로 권한을 부여하세요.</div></div>
+  <div class="tw" style="margin-bottom:16px">
+    <div class="th2"><div class="th2-title">➕ 권한 부여</div></div>
+    <div style="padding:16px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <div style="font-size:10px;color:var(--tx2);margin-bottom:5px">이메일 주소</div>
+        <input type="email" id="perm-email" placeholder="user@polyesc.com" style="width:240px;background:var(--sur2);border:1px solid var(--bdr);color:var(--tx);border-radius:6px;padding:7px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--tx2);margin-bottom:5px">권한</div>
+        <select id="perm-role" style="background:var(--sur2);border:1px solid var(--bdr);color:var(--tx);border-radius:6px;padding:7px 12px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none">
+          <option value="admin">🔧 관리자</option>
+          <option value="report">📊 리포트</option>
+          <option value="owner">👑 Owner</option>
+        </select>
+      </div>
+      <button class="btn btn-g" onclick="saveUserRole(document.getElementById('perm-email').value.trim(),document.getElementById('perm-role').value)">저장</button>
+    </div>
+  </div>
+  <div class="tw">
+    <div class="th2"><div class="th2-title">👥 등록된 사용자</div></div>
+    <div class="tscroll">
+      <table class="dt">
+        <thead><tr><th>이메일</th><th>권한</th><th>관리</th></tr></thead>
+        <tbody id="perm-list"><tr><td colspan="3" class="empty">로딩 중...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="info-box" style="margin-top:14px;border-color:#fbbf24;background:#fffbeb">⚠️<div style="font-size:11px">
+    <strong>권한 설명</strong><br>
+    👑 Owner — 전체 탭 접근 + 권한관리<br>
+    🔧 관리자 — 근태현황 탭 전체 (파일 업로드·그룹웨어·직원관리 제외)<br>
+    📊 리포트 — 보고자료·수당기준만 접근
+  </div></div>
 </div>
 
 <!-- ════ 수당기준 ════ -->
@@ -879,9 +985,9 @@ async function loadRecordAndGo(key){
 // ══════════════════════════════════════════
 //  탭 전환
 // ══════════════════════════════════════════
-const TABS=['upload','gw','late','ot','early','absent','missin','missout','staff','holidays','records','report','guide'];
+const TABS=['upload','gw','late','ot','early','absent','missin','missout','report','staff','holidays','records','permissions','guide'];
 let _currentTab='upload';
-const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'격려수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',staff:'직원관리',holidays:'공휴일관리',records:'저장기록',report:'보고자료',guide:'수당기준'};
+const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'격려수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',report:'보고자료',staff:'직원관리',holidays:'공휴일관리',records:'저장기록',permissions:'권한관리',guide:'수당기준'};
 async function sw(name){
   if(_currentTab==='gw' && name!=='gw' && analysed){
     try{ await autoSaveGW(); }catch(e){ console.warn('자동저장 실패:',e); }
@@ -894,6 +1000,7 @@ async function sw(name){
   const tt=document.getElementById('topbar-page-title');if(tt)tt.textContent=PAGE_TITLES[name]||name;
   if(name==='gw') renderGW();
   if(name==='report') renderReportPreview();
+  if(name==='permissions') renderPermissionList();
   if(name==='records'){ try{ await renderRecordList(); }catch(e){ console.warn('기록 로드 실패:',e); } }
 }
 
