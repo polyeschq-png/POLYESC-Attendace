@@ -715,15 +715,12 @@ async function loadRecord(key){
   document.getElementById('sel-month').value=key;
   document.getElementById('hdr-month').textContent=key.replace('-','년 ')+'월';
 
-  // rawRows 복원 시도 (Firestore에 저장된 경우)
-  if(!rawRows.length){
-    try{
-      const saved=await window.fsGet('rawrows/'+key);
-      if(saved&&saved.rows){
-        rawRows=JSON.parse(saved.rows);
-      }
-    }catch(e){console.warn('rawRows 복원 실패:',e);}
-  }
+  // rawRows 항상 초기화 후 해당 월 데이터 새로 로드
+  rawRows=[];
+  try{
+    const saved=await window.fsGet('rawrows/'+key);
+    if(saved&&saved.rows) rawRows=JSON.parse(saved.rows);
+  }catch(e){console.warn('rawRows 복원 실패:',e);}
 
   if(rawRows.length) doAnalyse();
   else document.getElementById('sum-sec').style.display='none';
