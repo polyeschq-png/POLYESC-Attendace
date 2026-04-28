@@ -95,9 +95,13 @@ onAuthStateChanged(auth,async user=>{
 
   // Firestore에서 role 읽기
   try{
+    console.log('로그인 이메일:', user.email);
     const snap=await getDoc(doc(db,'users',user.email));
+    console.log('문서 존재:', snap.exists(), '데이터:', snap.exists()?snap.data():null);
     window._userRole=snap.exists()?snap.data().role||'report':'report';
+    console.log('최종 role:', window._userRole);
   }catch(e){
+    console.error('role 읽기 실패:', e);
     window._userRole='report';
   }
 
