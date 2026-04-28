@@ -57,13 +57,13 @@ window.fsList=async(colPath)=>{
 window.fbSignOut=async()=>{
   if(!confirm('로그아웃 할까요?'))return;
   await signOut(auth);
-  window.location.href='login.html';
+  window.location.href='index.html';
 };
 
 // 로그인 상태 확인 - 미로그인이면 login.html로
 onAuthStateChanged(auth,user=>{
   if(!user){
-    window.location.href='login.html';
+    window.location.href='index.html';
     return;
   }
   // 사용자 정보 표시
@@ -250,6 +250,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <div class="sidebar-footer">
     <div id="user-name" style="color:rgba(255,255,255,.7);font-size:12px;font-weight:600;margin-bottom:2px"></div>
     <div id="user-email" style="color:rgba(255,255,255,.35);font-size:10px;margin-bottom:8px;word-break:break-all"></div>
+    <button onclick="window.location.href='landing.html'" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:5px">🏠 메인으로</button>
     <button onclick="fbSignOut()" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;">로그아웃</button>
     <div style="margin-top:8px;color:rgba(255,255,255,.25)">본사 근태관리 시스템 v7</div>
   </div>
@@ -613,7 +614,7 @@ let CY=0,CM=0,CMAX=0;
 // rawRows는 용량이 커서 세션 메모리에만 유지 (DB 저장 안 함)
 
 async function saveStaffConfig(){
-  const data=HQ.map(s=>({name:s.name,rank:s.rank,dept:s.dept||'',fixedOut:!!s.fixedOut,noData:!!s.noData,resigned:!!s.resigned,hidden:!!s.hidden,resignDate:s.resignDate||'',joinDate:s.joinDate||''}));
+  const data=HQ.map(s=>({name:s.name,rank:s.rank,dept:s.dept||'',fixedOut:!!s.fixedOut,noData:!!s.noData,resigned:!!s.resigned,hidden:!!s.hidden,resignDate:s.resignDate||'',joinDate:s.joinDate||'',promotionDate:s.promotionDate||'',prevRank:s.prevRank||''}));
   await window.fsSet('config/staff',{list:data,updatedAt:new Date().toISOString()});
 }
 async function loadStaffConfig(){
@@ -621,8 +622,8 @@ async function loadStaffConfig(){
   if(!saved||!saved.list) return;
   saved.list.forEach(sv=>{
     const s=HQ.find(x=>x.name===sv.name);
-    if(s){s.rank=sv.rank||s.rank;s.dept=sv.dept||'';s.resigned=!!sv.resigned;s.hidden=!!sv.hidden;s.fixedOut=!!sv.fixedOut;s.noData=!!sv.noData;s.resignDate=sv.resignDate||'';s.joinDate=sv.joinDate||'';}
-    else{HQ.push({name:sv.name,rank:sv.rank||'사원',dept:sv.dept||'',fixedOut:!!sv.fixedOut,noData:!!sv.noData,resigned:!!sv.resigned,hidden:!!sv.hidden,resignDate:sv.resignDate||'',joinDate:sv.joinDate||''});ensureGW(sv.name);}
+    if(s){s.rank=sv.rank||s.rank;s.dept=sv.dept||'';s.resigned=!!sv.resigned;s.hidden=!!sv.hidden;s.fixedOut=!!sv.fixedOut;s.noData=!!sv.noData;s.resignDate=sv.resignDate||'';s.joinDate=sv.joinDate||'';s.promotionDate=sv.promotionDate||'';s.prevRank=sv.prevRank||'';}
+    else{HQ.push({name:sv.name,rank:sv.rank||'사원',dept:sv.dept||'',fixedOut:!!sv.fixedOut,noData:!!sv.noData,resigned:!!sv.resigned,hidden:!!sv.hidden,resignDate:sv.resignDate||'',joinDate:sv.joinDate||'',promotionDate:sv.promotionDate||'',prevRank:sv.prevRank||''});ensureGW(sv.name);}
   });
 }
 
@@ -657,6 +658,12 @@ async function saveRecord(){
     };
   });
   await window.fsSet('records/'+key, record);
+  // rawRows도 별도 문서에 저장 (불러오기 시 재분석용)
+  if(rawRows.length){
+    try{
+      await window.fsSet('rawrows/'+key,{rows:JSON.stringify(rawRows),savedAt:new Date().toISOString()});
+    }catch(e){console.warn('rawRows 저장 실패:',e);}
+  }
   showSaveIndicator();
   await renderRecordList();
   alert(key+' 기록이 저장되었습니다.');
@@ -690,7 +697,16 @@ async function loadRecord(key){
   document.getElementById('sel-month').value=key;
   document.getElementById('hdr-month').textContent=key.replace('-','년 ')+'월';
 
-  // rawRows는 세션 메모리에 있으면 사용, 없으면 재업로드 안내
+  // rawRows 복원 시도 (Firestore에 저장된 경우)
+  if(!rawRows.length){
+    try{
+      const saved=await window.fsGet('rawrows/'+key);
+      if(saved&&saved.rows){
+        rawRows=JSON.parse(saved.rows);
+      }
+    }catch(e){console.warn('rawRows 복원 실패:',e);}
+  }
+
   if(rawRows.length) doAnalyse();
   else document.getElementById('sum-sec').style.display='none';
 
@@ -933,9 +949,13 @@ function ts(min){
 }
 function sm(s){const p=s.split(':');return +p[0]*60 + +p[1];}
 
-// ══════════════════════════════════════════
-//  핵심 분석
-// ══════════════════════════════════════════
+// 특정 날짜(day)에 해당하는 직급 반환 (승진일 기준)
+function getRankOnDay(staffObj, day){
+  if(!staffObj.promotionDate||!staffObj.prevRank) return staffObj.rank;
+  const promoDI=dateIntFromStr(staffObj.promotionDate);
+  const thisDI=dateInt(CY,CM,day);
+  return thisDI>=promoDI?staffObj.rank:staffObj.prevRank;
+}
 // 날짜를 정수(YYYYMMDD)로 변환
 function dateInt(y,m,d){return y*10000+m*100+d;}
 function dateIntFromStr(s){if(!s)return 0;const p=s.split('-').map(Number);return p[0]*10000+p[1]*100+p[2];}
@@ -1050,7 +1070,6 @@ function doAnalyse(){
   Object.entries(empData).forEach(([name,emp])=>{
     const gw=GW[name];
     const staffObj=HQ.find(s=>s.name===name);
-    const curRank=staffObj?.rank||emp.rank;
     const mt=gw.manualTimes||{};
     // 입사일/퇴사일 정수
     const joinDI=staffObj?.joinDate?dateIntFromStr(staffObj.joinDate):0;
@@ -1062,6 +1081,8 @@ function doAnalyse(){
       if(joinDI&&thisDI<joinDI) continue;
       // 퇴사 후 날짜 무시
       if(resignDI&&thisDI>resignDI) continue;
+
+      const curRank=getRankOnDay(staffObj,day)||emp.rank;
 
       const offDay=isOff(CY,CM,day);
       const outDay=emp.fixedOut||gw.outDays.has(day);
@@ -1110,12 +1131,13 @@ function doAnalyse(){
   const otList=[];
   HQ.filter(s=>!s.noData).forEach(s=>{
     const emp=empData[s.name]||{};
-    const rank=HQ.find(x=>x.name===s.name)?.rank||'';
     GW[s.name].otList.forEach(item=>{
-      otList.push({name:s.name,dept:emp.dept||s.dept||'',rank,empno:emp.empno||'',day:item.day,pay:item.pay,note:item.note,isHol:item.isHol,manual:false});
+      const rankOnDay=getRankOnDay(s,item.day)||s.rank;
+      otList.push({name:s.name,dept:emp.dept||s.dept||'',rank:rankOnDay,empno:emp.empno||'',day:item.day,pay:item.pay,note:item.note,isHol:item.isHol,manual:false});
     });
     GW[s.name].manualOT.forEach(item=>{
-      if(item.pay!==0) otList.push({name:s.name,dept:emp.dept||s.dept||'',rank,empno:emp.empno||'',day:item.day,pay:item.pay,note:item.note||'수동추가',isHol:item.isHol,manual:true});
+      const rankOnDay=getRankOnDay(s,item.day)||s.rank;
+      if(item.pay!==0) otList.push({name:s.name,dept:emp.dept||s.dept||'',rank:rankOnDay,empno:emp.empno||'',day:item.day,pay:item.pay,note:item.note||'수동추가',isHol:item.isHol,manual:true});
     });
   });
 
@@ -1416,7 +1438,8 @@ function selectOtDay(e,name,day){
   const ex=gw.otList.findIndex(x=>x.day===day);
   if(ex>=0){if(!confirm(day+'일 수당을 삭제할까요?'))return;gw.otList.splice(ex,1);const b=document.getElementById('otdb-'+name+'-'+day);if(b)b.classList.remove('sel-ot');document.getElementById('otlist-'+name).innerHTML=renderOtItems(name);hidePicker(name);updateChips(name);doAnalyse();return;}
   const offDay=isOff(CY,CM,day);
-  const curRank=HQ.find(s=>s.name===name)?.rank||'';
+  const s=HQ.find(x=>x.name===name);
+  const curRank=getRankOnDay(s,day)||s?.rank||'';
   const picker=document.getElementById('otpicker-'+name);
   const title=document.getElementById('otpicker-title-'+name);
   const btns=document.getElementById('otpicker-btns-'+name);
@@ -1551,8 +1574,9 @@ function renderStaff(){
       <td><span class="badge btx" id="rdsp-${i}">${s.rank}</span></td>
       <td><div class="edit-wrap">
         <select id="rsel-${i}">${RANKS.map(r=>`<option value="${r}"${r===s.rank?' selected':''}>${r}</option>`).join('')}</select>
+        <input type="date" id="promo-${i}" placeholder="승진일" style="width:130px;background:var(--sur2);border:1px solid var(--bdr);color:var(--tx);border-radius:5px;padding:3px 6px;font-size:11px;font-family:'IBM Plex Mono',monospace;outline:none" value="${s.promotionDate||''}">
         <button type="button" class="btn-sm btn-sm-g" onclick="updateRank(${i})">적용</button>
-      </div></td>
+      </div>${s.promotionDate?`<div style="font-size:10px;color:var(--tx2);margin-top:3px">${s.promotionDate} 승진 (이전: ${s.prevRank||'-'})</div>`:''}</td>
       <td><span class="badge btx" id="ddsp-${i}">${s.dept||'미지정'}</span></td>
       <td><div class="edit-wrap">
         <input type="text" id="dsel-${i}" value="${s.dept||''}" placeholder="부서명">
@@ -1663,11 +1687,19 @@ async function toggleHideStaff(i){
 }
 
 async function updateRank(i){
-  HQ[i].rank=document.getElementById('rsel-'+i).value;
+  const newRank=document.getElementById('rsel-'+i).value;
+  const oldRank=HQ[i].rank;
+  if(newRank===oldRank){alert('현재 직급과 동일합니다.');return;}
+  const promoDate=document.getElementById('promo-'+i)?.value||'';
+  if(!promoDate){alert('승진일을 입력해주세요.');return;}
+  HQ[i].prevRank=oldRank;
+  HQ[i].rank=newRank;
+  HQ[i].promotionDate=promoDate;
   HQ[i]._rankOverride=true;
-  const d=document.getElementById('rdsp-'+i);if(d)d.textContent=HQ[i].rank;
+  const d=document.getElementById('rdsp-'+i);if(d)d.textContent=newRank+' ('+promoDate+' 승진)';
   await saveStaffConfig();
   if(rawRows.length) doAnalyse();
+  renderStaff();
 }
 
 async function updateDept(i){
