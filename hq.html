@@ -72,14 +72,14 @@ window._userRole='';
 // role에 따라 사이드바 탭 표시/숨김
 function applyRoleTabs(role){
   const allowed=ROLE_TABS[role]||ROLE_TABS['report'];
-  // 모든 nav-item 순회
   document.querySelectorAll('.nav-item[id^="nav-"]').forEach(btn=>{
     const tab=btn.id.replace('nav-','');
+    // records는 항상 표시
+    if(tab==='records'){btn.style.display='';return;}
+    // permissions는 owner만
+    if(tab==='permissions'){btn.style.display=role==='owner'?'':'none';return;}
     btn.style.display=allowed.includes(tab)?'':'none';
   });
-  // Owner 전용 권한관리 탭 표시
-  const permBtn=document.getElementById('nav-permissions');
-  if(permBtn) permBtn.style.display=role==='owner'?'':'none';
   // 첫 번째 허용 탭으로 이동
   const firstTab=allowed[0];
   if(firstTab) sw(firstTab);
