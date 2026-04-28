@@ -649,8 +649,8 @@ async function saveRecord(){
     const g=GW[s.name];
     record.gw[s.name]={
       outDays:[...g.outDays],
-      leaveDays:[...g.leaveDays.entries()],
-      leaveDays2:[...(g.leaveDays2||new Map()).entries()],
+      leaveDays:Object.fromEntries(g.leaveDays),
+      leaveDays2:Object.fromEntries(g.leaveDays2||new Map()),
       otList:g.otList,
       manualOT:g.manualOT,
       memo:g.memo,
@@ -684,8 +684,11 @@ async function loadRecord(key){
   Object.entries(rec.gw||{}).forEach(([name,g])=>{
     ensureGW(name);
     GW[name].outDays=new Set(g.outDays||[]);
-    GW[name].leaveDays=new Map((g.leaveDays||[]).map(([d,t])=>[+d,t]));
-    GW[name].leaveDays2=new Map((g.leaveDays2||[]).map(([d,t])=>[+d,t]));
+    // leaveDays: 객체(신규) 또는 배열(구버전) 모두 처리
+    const ld=g.leaveDays||{};
+    GW[name].leaveDays=Array.isArray(ld)?new Map(ld.map(([d,t])=>[+d,t])):new Map(Object.entries(ld).map(([d,t])=>[+d,t]));
+    const ld2=g.leaveDays2||{};
+    GW[name].leaveDays2=Array.isArray(ld2)?new Map(ld2.map(([d,t])=>[+d,t])):new Map(Object.entries(ld2).map(([d,t])=>[+d,t]));
     GW[name].otList=(g.otList||[]).map(x=>({...x}));
     GW[name].manualOT=(g.manualOT||[]).map(x=>({...x}));
     GW[name].memo=g.memo||'';
@@ -868,7 +871,9 @@ const TABS=['upload','gw','late','ot','early','absent','missin','missout','staff
 let _currentTab='upload';
 const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'야근수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',staff:'직원관리',holidays:'공휴일관리',records:'저장기록',guide:'수당기준'};
 async function sw(name){
-  if(_currentTab==='gw' && name!=='gw' && analysed) await autoSaveGW();
+  if(_currentTab==='gw' && name!=='gw' && analysed){
+    try{ await autoSaveGW(); }catch(e){ console.warn('자동저장 실패:',e); }
+  }
   _currentTab=name;
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
   const nb=document.getElementById('nav-'+name);if(nb)nb.classList.add('on');
@@ -876,32 +881,36 @@ async function sw(name){
   document.getElementById('panel-'+name).classList.add('on');
   const tt=document.getElementById('topbar-page-title');if(tt)tt.textContent=PAGE_TITLES[name]||name;
   if(name==='gw') renderGW();
-  if(name==='records') await renderRecordList();
+  if(name==='records'){ try{ await renderRecordList(); }catch(e){ console.warn('기록 로드 실패:',e); } }
 }
 
 async function autoSaveGW(){
   if(!analysed) return;
-  const key=String(CY)+'-'+String(CM).padStart(2,'0');
-  const record={
-    key,year:CY,month:CM,
-    savedAt:new Date().toLocaleString('ko-KR'),
-    gw:{},
-    staff:HQ.map(s=>({name:s.name,rank:s.rank,dept:s.dept||'',fixedOut:!!s.fixedOut,noData:!!s.noData,resigned:!!s.resigned,hidden:!!s.hidden,resignDate:s.resignDate||'',joinDate:s.joinDate||''})),
-  };
-  HQ.filter(s=>!s.noData&&!s.resigned&&!s.hidden).forEach(s=>{
-    const g=GW[s.name];
-    record.gw[s.name]={
-      outDays:[...g.outDays],
-      leaveDays:[...g.leaveDays.entries()],
-      leaveDays2:[...(g.leaveDays2||new Map()).entries()],
-      otList:g.otList,
-      manualOT:g.manualOT,
-      memo:g.memo,
-      manualTimes:g.manualTimes||{},
+  try{
+    const key=String(CY)+'-'+String(CM).padStart(2,'0');
+    const record={
+      key,year:CY,month:CM,
+      savedAt:new Date().toLocaleString('ko-KR'),
+      gw:{},
+      staff:HQ.map(s=>({name:s.name,rank:s.rank,dept:s.dept||'',fixedOut:!!s.fixedOut,noData:!!s.noData,resigned:!!s.resigned,hidden:!!s.hidden,resignDate:s.resignDate||'',joinDate:s.joinDate||'',promotionDate:s.promotionDate||'',prevRank:s.prevRank||''})),
     };
-  });
-  await window.fsSet('records/'+key, record);
-  showSaveIndicator();
+    HQ.filter(s=>!s.noData&&!s.resigned&&!s.hidden).forEach(s=>{
+      const g=GW[s.name];
+      record.gw[s.name]={
+        outDays:[...g.outDays],
+        leaveDays:Object.fromEntries(g.leaveDays),
+        leaveDays2:Object.fromEntries(g.leaveDays2||new Map()),
+        otList:g.otList,
+        manualOT:g.manualOT,
+        memo:g.memo,
+        manualTimes:g.manualTimes||{},
+      };
+    });
+    await window.fsSet('records/'+key, record);
+    showSaveIndicator();
+  }catch(e){
+    console.warn('autoSaveGW 실패:',e);
+  }
 }
 
 // ══════════════════════════════════════════
@@ -1499,21 +1508,46 @@ function openLeavePicker(e,name,day){
   const picker=document.getElementById('leavepicker-'+name);
   const title=document.getElementById('leavepicker-title-'+name);
   const btns=document.getElementById('leavepicker-btns-'+name);
+
+  // name을 dataset에 저장해서 onclick 따옴표 충돌 방지
+  picker.dataset.name=name;
+  picker.dataset.day=day;
+
   if(has1&&has2){
     title.textContent=day+'일 — 삭제할 휴가 선택:';
-    btns.innerHTML=`<button type="button" class="otb" onclick="removeLeave(event,'${name}',${day},1);hideLeavePicker('${name}')">❌ ${LEAVE_TYPES[gw.leaveDays.get(day)]} 삭제</button>
-      <button type="button" class="otb" onclick="removeLeave(event,'${name}',${day},2);hideLeavePicker('${name}')">❌ ${LEAVE_TYPES[ld2.get(day)]} 삭제</button>
-      <button type="button" class="otb" onclick="removeLeave(event,'${name}',${day},0);hideLeavePicker('${name}')">🗑 전체 삭제</button>`;
+    btns.innerHTML=
+      `<button type="button" class="otb" onclick="removeLeaveFromPicker(1)">❌ ${LEAVE_TYPES[gw.leaveDays.get(day)]} 삭제</button>`+
+      `<button type="button" class="otb" onclick="removeLeaveFromPicker(2)">❌ ${LEAVE_TYPES[ld2.get(day)]} 삭제</button>`+
+      `<button type="button" class="otb" onclick="removeLeaveFromPicker(0)">🗑 전체 삭제</button>`;
     picker.style.display='block';return;
   }
   const slot=has1?2:1;
   title.textContent=day+'일 ('+dow(CY,CM,day)+'요일) — 휴가 종류'+(slot===2?' (2번째)':'')+':';
-  btns.innerHTML=Object.entries(LEAVE_TYPES).map(([k,v])=>`<button type="button" class="otb" onclick="applyLeave(event,'${name}',${day},'${k}',${slot})">${v}</button>`).join('');
+  btns.innerHTML=Object.entries(LEAVE_TYPES).map(([k,v])=>
+    `<button type="button" class="otb" onclick="applyLeaveFromPicker('${k}',${slot})">${v}</button>`
+  ).join('');
   picker.style.display='block';
 }
 
+function applyLeaveFromPicker(type,slot){
+  const picker=document.getElementById('leavepicker-'+_gwSelected);
+  if(!picker) return;
+  const name=picker.dataset.name;
+  const day=+picker.dataset.day;
+  applyLeave(null,name,day,type,slot);
+}
+
+function removeLeaveFromPicker(slot){
+  const picker=document.getElementById('leavepicker-'+_gwSelected);
+  if(!picker) return;
+  const name=picker.dataset.name;
+  const day=+picker.dataset.day;
+  removeLeave(null,name,day,slot);
+  hideLeavePicker(name);
+}
+
 function applyLeave(e,name,day,type,slot){
-  e.stopPropagation();
+  if(e) e.stopPropagation();
   const gw=GW[name];
   const ld2=gw.leaveDays2||(gw.leaveDays2=new Map());
   if(slot===2) ld2.set(day,type); else gw.leaveDays.set(day,type);
@@ -1521,12 +1555,13 @@ function applyLeave(e,name,day,type,slot){
   if(b){b.classList.add('sel-leave');const l2=ld2.get(day);b.textContent=day+(l2?'²':'');b.title=[gw.leaveDays.get(day),l2].filter(Boolean).map(l=>LEAVE_TYPES[l]).join(' + ');}
   document.getElementById('leavelist-'+name).innerHTML=renderLeaveItems(name);
   hideLeavePicker(name);updateChips(name);doAnalyse();
+  autoSaveGW().catch(err=>console.warn('자동저장 실패:',err));
 }
 
 function hideLeavePicker(name){const p=document.getElementById('leavepicker-'+name);if(p)p.style.display='none';}
 
 function removeLeave(e,name,day,slot){
-  e.stopPropagation();
+  if(e) e.stopPropagation();
   const gw=GW[name];
   const ld2=gw.leaveDays2||(gw.leaveDays2=new Map());
   if(slot===0){gw.leaveDays.delete(day);ld2.delete(day);}
