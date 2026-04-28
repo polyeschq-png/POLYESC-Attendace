@@ -96,7 +96,7 @@ onAuthStateChanged(auth,async user=>{
   // Firestore에서 role 읽기
   try{
     console.log('로그인 이메일:', user.email);
-    const snap=await getDoc(doc(db,'users',user.email));
+    const snap=await getDoc(doc(db,'Users',user.email));
     console.log('문서 존재:', snap.exists(), '데이터:', snap.exists()?snap.data():null);
     window._userRole=snap.exists()?snap.data().role||'report':'report';
     console.log('최종 role:', window._userRole);
@@ -120,17 +120,17 @@ onAuthStateChanged(auth,async user=>{
 // Owner 전용: 권한 설정
 window.saveUserRole=async(email,role)=>{
   if(!email||!role){alert('이메일과 권한을 선택해주세요.');return;}
-  await setDoc(doc(db,'users',email),{email,role,updatedAt:new Date().toISOString()},{merge:true});
+  await setDoc(doc(db,'Users',email),{email,role,updatedAt:new Date().toISOString()},{merge:true});
   alert(email+' → '+role+' 권한 저장 완료');
   renderPermissionList();
 };
 window.deleteUserRole=async(email)=>{
   if(!confirm(email+' 권한을 삭제할까요?'))return;
-  await deleteDoc(doc(db,'users',email));
+  await deleteDoc(doc(db,'Users',email));
   renderPermissionList();
 };
 window.renderPermissionList=async()=>{
-  const snap=await getDocs(collection(db,'users'));
+  const snap=await getDocs(collection(db,'Users'));
   const tbody=document.getElementById('perm-list');
   if(!tbody)return;
   const labels={owner:'👑 Owner',admin:'🔧 관리자',report:'📊 리포트'};
