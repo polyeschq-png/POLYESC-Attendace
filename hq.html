@@ -237,7 +237,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <button class="nav-item" id="nav-gw" onclick="sw('gw')"><span class="nav-ico">📝</span>그룹웨어 반영</button>
   <div class="sidebar-section">근태 현황</div>
   <button class="nav-item" id="nav-late" onclick="sw('late')"><span class="nav-ico">⏰</span>지각자</button>
-  <button class="nav-item" id="nav-ot" onclick="sw('ot')"><span class="nav-ico">💰</span>야근수당</button>
+  <button class="nav-item" id="nav-ot" onclick="sw('ot')"><span class="nav-ico">💰</span>격려수당</button>
   <button class="nav-item" id="nav-early" onclick="sw('early')"><span class="nav-ico">🚪</span>조기퇴근</button>
   <button class="nav-item" id="nav-absent" onclick="sw('absent')"><span class="nav-ico">🚨</span>미출근</button>
   <button class="nav-item" id="nav-missin" onclick="sw('missin')"><span class="nav-ico">🔴</span>출근 누락</button>
@@ -246,6 +246,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <button class="nav-item" id="nav-staff" onclick="sw('staff')"><span class="nav-ico">👤</span>직원관리</button>
   <button class="nav-item" id="nav-holidays" onclick="sw('holidays')"><span class="nav-ico">📅</span>공휴일관리</button>
   <button class="nav-item" id="nav-records" onclick="sw('records')"><span class="nav-ico">🗂</span>저장기록</button>
+  <button class="nav-item" id="nav-report" onclick="sw('report')"><span class="nav-ico">📊</span>보고자료</button>
   <button class="nav-item" id="nav-guide" onclick="sw('guide')"><span class="nav-ico">📖</span>수당기준</button>
   <div class="sidebar-footer">
     <div id="user-name" style="color:rgba(255,255,255,.7);font-size:12px;font-weight:600;margin-bottom:2px"></div>
@@ -262,7 +263,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <div class="topbar-right">
     <span class="save-indicator" id="save-indicator">✓ 저장됨</span>
     <button class="btn btn-g" style="padding:6px 14px;font-size:12px" onclick="exportReport()">📊 보고자료</button>
-    <button class="btn btn-s" style="padding:6px 14px;font-size:12px;border-color:#16a34a;color:#16a34a" onclick="exportOTExcel()">📥 야근수당 엑셀</button>
+    <button class="btn btn-s" style="padding:6px 14px;font-size:12px;border-color:#16a34a;color:#16a34a" onclick="exportOTExcel()">📥 격려수당 엑셀</button>
     <button class="btn btn-p" style="padding:6px 14px;font-size:12px" onclick="saveRecord()">💾 저장</button>
   </div>
 </div>
@@ -270,7 +271,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
 
 <!-- ════ 업로드 ════ -->
 <div class="panel on" id="panel-upload">
-  <div class="info-box">ℹ️<div>출퇴근 RAW 엑셀을 업로드하세요. 본사 직원만 자동 필터링 (250행 이후 무시). 야근수당은 그룹웨어 반영 탭에서 직접 입력합니다.</div></div>
+  <div class="info-box">ℹ️<div>출퇴근 RAW 엑셀을 업로드하세요. 본사 직원만 자동 필터링 (250행 이후 무시). 격려수당은 그룹웨어 반영 탭에서 직접 입력합니다.</div></div>
   <div class="cfg-row">
     <div class="ci"><label>분석 연월</label><input type="month" id="sel-month" onchange="onMonthChange()"></div>
     <div class="ci"><label>지각 기준</label><input type="time" id="late-thr" value="09:00"></div>
@@ -288,7 +289,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
       <div class="sc bl"><div class="lbl">확인 인원</div><div class="val" id="s-total">0</div></div>
       <div class="sc rd"><div class="lbl">지각 건수</div><div class="val" id="s-late">0</div></div>
       <div class="sc yw"><div class="lbl">조기퇴근</div><div class="val" id="s-early">0</div></div>
-      <div class="sc gn"><div class="lbl">야근수당 합계</div><div class="val" id="s-pay" style="font-size:13px">0원</div></div>
+      <div class="sc gn"><div class="lbl">격려수당 합계</div><div class="val" id="s-pay" style="font-size:13px">0원</div></div>
       <div class="sc or"><div class="lbl">미출근</div><div class="val" id="s-absent">0</div></div>
       <div class="sc rd"><div class="lbl">출근 누락</div><div class="val" id="s-missin">0</div></div>
       <div class="sc pp"><div class="lbl">퇴근 누락</div><div class="val" id="s-missout">0</div></div>
@@ -324,11 +325,11 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <p class="fn">※ 외근·연차·공휴일·주말 자동 제외 | 오전반차: 14:00 이전 출근 면제 | 오후반차: 13:00 이후 퇴근 면제</p>
 </div>
 
-<!-- ════ 야근수당 ════ -->
+<!-- ════ 격려수당 ════ -->
 <div class="panel" id="panel-ot">
   <div class="tw">
     <div class="th2">
-      <div class="th2-title">💰 야근수당 <span class="badge bg" id="ot-badge" style="margin-left:6px">0건</span></div>
+      <div class="th2-title">💰 격려수당 <span class="badge bg" id="ot-badge" style="margin-left:6px">0건</span></div>
       <input class="srch" placeholder="이름 검색" oninput="filt('ot-tb',this.value)" style="margin-left:auto">
     </div>
     <div class="tscroll">
@@ -477,6 +478,20 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
     <button class="btn btn-d" onclick="clearAllRecords()">🗑 전체 기록 삭제</button>
   </div>
   <div id="rec-list"><div class="empty">저장된 기록이 없습니다</div></div>
+</div>
+
+<!-- ════ 보고자료 ════ -->
+<div class="panel" id="panel-report">
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px">
+    <button class="btn btn-g" onclick="exportOTExcel()">📥 격려수당 엑셀</button>
+    <button class="btn btn-s" onclick="openReportPopup()">🖨 팝업으로 보기/인쇄</button>
+  </div>
+  <div id="report-preview" style="background:#fff;border:1px solid var(--bdr);border-radius:10px;padding:24px;min-height:400px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#1e2132">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--tx3);gap:8px">
+      <span style="font-size:32px">📋</span>
+      <span>파일을 업로드하면 보고자료가 여기에 표시됩니다</span>
+    </div>
+  </div>
 </div>
 
 <!-- ════ 수당기준 ════ -->
@@ -867,9 +882,9 @@ async function loadRecordAndGo(key){
 // ══════════════════════════════════════════
 //  탭 전환
 // ══════════════════════════════════════════
-const TABS=['upload','gw','late','ot','early','absent','missin','missout','staff','holidays','records','guide'];
+const TABS=['upload','gw','late','ot','early','absent','missin','missout','staff','holidays','records','report','guide'];
 let _currentTab='upload';
-const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'야근수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',staff:'직원관리',holidays:'공휴일관리',records:'저장기록',guide:'수당기준'};
+const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'격려수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',staff:'직원관리',holidays:'공휴일관리',records:'저장기록',report:'보고자료',guide:'수당기준'};
 async function sw(name){
   if(_currentTab==='gw' && name!=='gw' && analysed){
     try{ await autoSaveGW(); }catch(e){ console.warn('자동저장 실패:',e); }
@@ -881,6 +896,7 @@ async function sw(name){
   document.getElementById('panel-'+name).classList.add('on');
   const tt=document.getElementById('topbar-page-title');if(tt)tt.textContent=PAGE_TITLES[name]||name;
   if(name==='gw') renderGW();
+  if(name==='report') renderReportPreview();
   if(name==='records'){ try{ await renderRecordList(); }catch(e){ console.warn('기록 로드 실패:',e); } }
 }
 
@@ -1153,6 +1169,7 @@ function doAnalyse(){
   analysed={lateList,earlyList,absentList,missingInList,missingOutList,otList,y:CY,m:CM};
   refreshSummary();
   renderResults();
+  if(_currentTab==='report') renderReportPreview();
 }
 
 function refreshSummary(){
@@ -1208,7 +1225,7 @@ function renderResults(){
     :'<tr><td colspan="8" class="empty">✅ 지각자 없음</td></tr>';
   document.getElementById('late-badge').textContent=lateList.length+'건';
 
-  // ── 야근수당
+  // ── 격려수당
   const byDept={};
   otList.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')||(a.name.localeCompare(b.name,'ko'))||(a.day-b.day)).forEach(r=>{
     const d=r.dept||'(부서미정)';
@@ -1342,14 +1359,14 @@ function renderGWDetail(name){
     +(s.fixedOut?'<span class="badge bb" style="font-size:10px">외근고정</span>':'')
     +'</div>'
 
-    +'<div class="gw-section"><div class="gw-section-title">💰 야근수당 — 날짜 클릭 시 수당 선택</div><div class="gw-section-body">'
+    +'<div class="gw-section"><div class="gw-section-title">💰 격려수당 — 날짜 클릭 시 수당 선택</div><div class="gw-section-body">'
     +'<div class="day-grid" id="otgrid-'+name+'">'+days.map(d=>{const off=isOff(CY,CM,d);const hasPay=gw.otList.some(x=>x.day===d);let cls=off?'offday':'';if(hasPay)cls+=' sel-ot';return'<button type="button" class="db '+cls.trim()+'" id="otdb-'+name+'-'+d+'" onclick="selectOtDay(event,\''+name+'\','+d+')">'+d+'</button>';}).join('')
     +'</div><div class="day-hint">★ 초록 = 수당 등록 / 흐림 = 공휴일·주말</div>'
     +'<div id="otpicker-'+name+'" class="ot-picker" style="display:none"><div class="ot-picker-title" id="otpicker-title-'+name+'"></div><div class="ot-btns" id="otpicker-btns-'+name+'"></div></div>'
     +'<div class="ot-list" id="otlist-'+name+'">'+renderOtItems(name)+'</div>'
     +'</div></div>'
 
-    +'<div class="gw-section"><div class="gw-section-title">➕ 수동 야근수당 <span style="font-size:9px;color:var(--tx3);font-weight:400">전달 미지급·임의금액·마이너스 가능</span></div><div class="gw-section-body">'
+    +'<div class="gw-section"><div class="gw-section-title">➕ 수동 격려수당 <span style="font-size:9px;color:var(--tx3);font-weight:400">전달 미지급·임의금액·마이너스 가능</span></div><div class="gw-section-body">'
     +'<div class="ot-list" id="manuallist-'+name+'">'+renderManualItems(name)+'</div>'
     +'<div style="margin-top:7px"><button type="button" class="btn-sm btn-sm-b" onclick="addManualRow(event,\''+name+'\')">+ 수동 추가</button></div>'
     +'</div></div>'
@@ -1778,12 +1795,12 @@ function filt(tid,kw){
 // ══════════════════════════════════════════
 //  보고자료 생성 및 저장
 // ══════════════════════════════════════════
-//  야근수당 엑셀 보고서 (xlsx-js-style)
+//  격려수당 엑셀 보고서 (xlsx-js-style)
 // ══════════════════════════════════════════
 function exportOTExcel(){
   if(!analysed){alert('먼저 파일을 업로드하세요.');return;}
   const{otList,y,m}=analysed;
-  if(!otList.length){alert('야근수당 내역이 없습니다.');return;}
+  if(!otList.length){alert('격려수당 내역이 없습니다.');return;}
 
   // xlsx-js-style이 로드됐으면 XLSXStyle, 아니면 기본 XLSX 사용
   const XS = (typeof XLSXStyle!=='undefined') ? XLSXStyle : XLSX;
@@ -1857,7 +1874,7 @@ function exportOTExcel(){
     pushRow(6,[]);
 
     // 헤더
-    pushRow(22,[c('부서',S.header),c('직급',S.header),c('이름',S.header),c('야근수당 합계',S.header)]);
+    pushRow(22,[c('부서',S.header),c('직급',S.header),c('이름',S.header),c('격려수당 합계',S.header)]);
 
     // 부서 그룹 구성 (부서별로 묶어서 부서셀 병합)
     const deptGroups={};
@@ -1918,19 +1935,39 @@ function exportOTExcel(){
 
   // ── 워크북 생성 — 전체 시트 하나만
   const wb=XS.utils.book_new();
-  XS.utils.book_append_sheet(wb, buildSheet(otList, monthStr+' 야근수당 내역'), '야근수당');
+  XS.utils.book_append_sheet(wb, buildSheet(otList, monthStr+' 격려수당 내역'), '격려수당');
 
-  const fileName=y+'년_'+String(m).padStart(2,'0')+'월_야근수당.xlsx';
+  const fileName=y+'년_'+String(m).padStart(2,'0')+'월_격려수당.xlsx';
   XS.writeFile(wb, fileName);
+}
+
+async function renderReportPreview(){
+  const el=document.getElementById('report-preview');
+  if(!analysed){
+    el.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--tx3);gap:8px"><span style="font-size:32px">📋</span><span>파일을 업로드하면 보고자료가 여기에 표시됩니다</span></div>';
+    return;
+  }
+  const html=await buildReportHTML('');
+  el.innerHTML='<iframe id="report-iframe" style="width:100%;height:calc(100vh - 200px);border:none;border-radius:8px" srcdoc=""></iframe>';
+  document.getElementById('report-iframe').srcdoc=html;
+}
+
+async function openReportPopup(){
+  if(!analysed){alert('먼저 파일을 업로드하세요.');return;}
+  const memo=prompt('보고자료 하단에 추가할 설명을 입력하세요.\n(없으면 빈칸으로 확인)','')??'';
+  const html=await buildReportHTML(memo);
+  const win=window.open('','_blank');
+  if(!win){alert('팝업이 차단되었습니다. 팝업을 허용해주세요.');return;}
+  win.document.write(html);
+  win.document.close();
 }
 
 function exportReport(){
   if(!analysed){alert('먼저 파일을 업로드하세요.');return;}
-  const memo=prompt('보고자료 하단에 추가할 설명을 입력하세요.\n(없으면 빈칸으로 확인)','')??'';
-  buildReport(memo);
+  openReportPopup();
 }
 
-async function buildReport(extraMemo){
+async function buildReportHTML(extraMemo){
   const{lateList,otList,y,m}=analysed;
   const totalOT=otList.reduce((s,r)=>s+r.pay,0);
   const today=new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'});
@@ -1975,7 +2012,7 @@ async function buildReport(extraMemo){
   }).join('');
   const totDiff=cur.total-prev.total;
 
-  // 야근수당 상세
+  // 격려수당 상세
   const byDept={};
   otList.forEach(r=>{const d=r.dept||'미지정';if(!byDept[d])byDept[d]=[];byDept[d].push(r);});
   const deptOtRows=Object.entries(byDept).sort((a,b)=>a[0].localeCompare(b[0],'ko')).map(([dept,rows])=>{
@@ -2040,15 +2077,15 @@ tr.dept-hdr td{background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;b
 <div class="page">
 <div class="report-hdr">
   <h1>📋 ${y}년 ${m}월 본사 근태 보고자료</h1>
-  <p>작성일: ${today} &nbsp;|&nbsp; 대상 인원: ${Object.keys(empData).length}명 &nbsp;|&nbsp; 지각 ${lateList.length}건 &nbsp;|&nbsp; 야근수당 ${otList.length}건 / ${totalOT.toLocaleString()}원</p>
+  <p>작성일: ${today} &nbsp;|&nbsp; 대상 인원: ${Object.keys(empData).length}명 &nbsp;|&nbsp; 지각 ${lateList.length}건 &nbsp;|&nbsp; 격려수당 ${otList.length}건 / ${totalOT.toLocaleString()}원</p>
 </div>
 <div class="sum-row">
   <div class="sum-card"><div class="num c-blue">${Object.keys(empData).length}명</div><div class="lbl">전체 확인 인원</div></div>
   <div class="sum-card"><div class="num c-red">${lateList.length}건</div><div class="lbl">지각</div></div>
-  <div class="sum-card"><div class="num c-green" style="font-size:${totalOT>=10000000?'17px':'22px'}">${totalOT.toLocaleString()}원</div><div class="lbl">야근수당 합계 (${otList.length}건)</div></div>
+  <div class="sum-card"><div class="num c-green" style="font-size:${totalOT>=10000000?'17px':'22px'}">${totalOT.toLocaleString()}원</div><div class="lbl">격려수당 합계 (${otList.length}건)</div></div>
 </div>
 <div class="cmp-card">
-  <div class="cmp-title">💰 야근수당 전월 비교 ${!prevRec?'<span style="font-size:11px;color:#94a3b8;font-weight:400">— 전달 저장 기록 없음</span>':''}</div>
+  <div class="cmp-title">💰 격려수당 전월 비교 ${!prevRec?'<span style="font-size:11px;color:#94a3b8;font-weight:400">— 전달 저장 기록 없음</span>':''}</div>
   <table class="cmp-tbl">
     <thead><tr><th>부서</th><th>${prevRec?prevY+'년 '+prevM+'월':'전달'}</th><th>${y}년 ${m}월</th><th>증감</th></tr></thead>
     <tbody>
@@ -2063,7 +2100,7 @@ tr.dept-hdr td{background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;b
   </div>
 </div>
 <div class="section">
-  <div class="sec-hdr"><h2>💰 야근수당 내역</h2><span class="sec-badge green">${otList.length}건 · ${totalOT.toLocaleString()}원</span><span style="margin-left:auto;font-size:11px;color:#94a3b8">부서별 정렬</span></div>
+  <div class="sec-hdr"><h2>💰 격려수당 내역</h2><span class="sec-badge green">${otList.length}건 · ${totalOT.toLocaleString()}원</span><span style="margin-left:auto;font-size:11px;color:#94a3b8">부서별 정렬</span></div>
   <table><thead><tr><th>이름</th><th>직급</th><th>날짜</th><th>구분</th><th style="text-align:right">수당금액</th><th>비고</th></tr></thead><tbody>${deptOtRows}</tbody></table>
 </div>
 <div class="section">
@@ -2075,11 +2112,7 @@ ${memoSection}
 </div></div></div></div>
 </body></html>`;
 
-  const win=window.open('','_blank');
-  if(!win){alert('팝업이 차단되었습니다. 팝업을 허용해주세요.');return;}
-  win.document.write(html);
-  win.document.close();
-  showSaveIndicator();
+  return html;
 }
 </script>
 </div></div></div>
