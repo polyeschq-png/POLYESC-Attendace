@@ -242,11 +242,11 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <button class="nav-item" id="nav-absent" onclick="sw('absent')"><span class="nav-ico">🚨</span>미출근</button>
   <button class="nav-item" id="nav-missin" onclick="sw('missin')"><span class="nav-ico">🔴</span>출근 누락</button>
   <button class="nav-item" id="nav-missout" onclick="sw('missout')"><span class="nav-ico">🔵</span>퇴근 누락</button>
+  <button class="nav-item" id="nav-report" onclick="sw('report')"><span class="nav-ico">📊</span>보고자료</button>
   <div class="sidebar-section">관리</div>
   <button class="nav-item" id="nav-staff" onclick="sw('staff')"><span class="nav-ico">👤</span>직원관리</button>
   <button class="nav-item" id="nav-holidays" onclick="sw('holidays')"><span class="nav-ico">📅</span>공휴일관리</button>
   <button class="nav-item" id="nav-records" onclick="sw('records')"><span class="nav-ico">🗂</span>저장기록</button>
-  <button class="nav-item" id="nav-report" onclick="sw('report')"><span class="nav-ico">📊</span>보고자료</button>
   <button class="nav-item" id="nav-guide" onclick="sw('guide')"><span class="nav-ico">📖</span>수당기준</button>
   <div class="sidebar-footer">
     <div id="user-name" style="color:rgba(255,255,255,.7);font-size:12px;font-weight:600;margin-bottom:2px"></div>
@@ -1975,27 +1975,28 @@ async function buildReportHTML(extraMemo){
   const prevRec=window.fsGet ? (await window.fsGet('records/'+prevKey)) : null;
 
   function calcSummary(rec){
-    if(!rec) return{total:0,byDept:{},weekday:0,holiday:0,manual:0};
-    let total=0,weekday=0,holiday=0,manual=0;const byDept={};
+    if(!rec) return{total:0,byDept:{},weekday:0,holiday:0};
+    let total=0,weekday=0,holiday=0;const byDept={};
     const staffMap={};
     (rec.staff||[]).forEach(sv=>{staffMap[sv.name]=sv.dept||'미지정';});
     Object.entries(rec.gw||{}).forEach(([nm,g])=>{
       const dept=staffMap[nm]||'미지정';
       let dp=0;
       (g.otList||[]).forEach(item=>{const p=item.pay||0;total+=p;dp+=p;if(item.isHol)holiday+=p;else weekday+=p;});
-      (g.manualOT||[]).forEach(item=>{const p=item.pay||0;if(p<=0)return;total+=p;dp+=p;manual+=p;});
+      // 수동추가도 평일 수당으로 합산
+      (g.manualOT||[]).forEach(item=>{const p=item.pay||0;if(p===0)return;total+=p;dp+=p;weekday+=p;});
       if(dp>0){if(!byDept[dept])byDept[dept]=0;byDept[dept]+=dp;}
     });
-    return{total,byDept,weekday,holiday,manual};
+    return{total,byDept,weekday,holiday};
   }
 
-  const cur={total:totalOT,weekday:0,holiday:0,manual:0,byDept:{}};
+  const cur={total:totalOT,weekday:0,holiday:0,byDept:{}};
   otList.forEach(r=>{
     const dept=r.dept||'미지정';
     if(!cur.byDept[dept])cur.byDept[dept]=0;
     cur.byDept[dept]+=r.pay;
-    if(r.manual)cur.manual+=r.pay;
-    else if(r.isHol)cur.holiday+=r.pay;
+    // 수동추가는 평일 수당으로 합산
+    if(r.isHol)cur.holiday+=r.pay;
     else cur.weekday+=r.pay;
   });
   const prev=calcSummary(prevRec);
@@ -2093,7 +2094,6 @@ tr.dept-hdr td{background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;b
   <div class="sub-grid">
     <div class="sub-item"><div class="sub-lbl">평일 수당</div><div class="sub-prev">${prevRec?prev.weekday.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#2563eb">${cur.weekday.toLocaleString()}원</div><div class="sub-diff" style="color:${dc(cur.weekday-prev.weekday)}">${fmt(cur.weekday-prev.weekday,!!prevRec)}</div></div>
     <div class="sub-item"><div class="sub-lbl">주말/공휴일</div><div class="sub-prev">${prevRec?prev.holiday.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#7c3aed">${cur.holiday.toLocaleString()}원</div><div class="sub-diff" style="color:${dc(cur.holiday-prev.holiday)}">${fmt(cur.holiday-prev.holiday,!!prevRec)}</div></div>
-    <div class="sub-item"><div class="sub-lbl">수동 추가</div><div class="sub-prev">${prevRec?prev.manual.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#475569">${cur.manual.toLocaleString()}원</div><div class="sub-diff" style="color:${dc(cur.manual-prev.manual)}">${fmt(cur.manual-prev.manual,!!prevRec)}</div></div>
   </div>
 </div>
 <div class="section">
