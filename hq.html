@@ -2092,9 +2092,9 @@ tr.dept-hdr td{background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;b
     </tbody>
   </table>
   <div class="sub-grid">
-    <div class="sub-item"><div class="sub-lbl">평일 수당</div><div class="sub-prev">${prevRec?prev.weekday.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#2563eb">${cur.weekday.toLocaleString()}원</div><div class="sub-diff" style="color:${dc(cur.weekday-prev.weekday)}">${fmt(cur.weekday-prev.weekday,!!prevRec)}</div></div>
-    <div class="sub-item"><div class="sub-lbl">주말/공휴일</div><div class="sub-prev">${prevRec?prev.holiday.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#7c3aed">${cur.holiday.toLocaleString()}원</div><div class="sub-diff" style="color:${dc(cur.holiday-prev.holiday)}">${fmt(cur.holiday-prev.holiday,!!prevRec)}</div></div>
-    <div class="sub-item" style="border:1.5px solid #bfdbfe"><div class="sub-lbl" style="font-weight:700;color:#1d4ed8">합계</div><div class="sub-prev">${prevRec?prev.total.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#1d4ed8;font-size:16px">${cur.total.toLocaleString()}원</div><div class="sub-diff" style="color:${dc(totDiff)}">${fmt(totDiff,!!prevRec)}</div></div>
+    <div class="sub-item"><div class="sub-lbl">평일 수당</div><div class="sub-prev">${prevRec?prev.weekday.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#1e293b">${cur.weekday.toLocaleString()}원</div><div class="sub-diff" style="color:${cur.weekday-prev.weekday>0?'#dc2626':cur.weekday-prev.weekday<0?'#2563eb':'#64748b'}">${fmt(cur.weekday-prev.weekday,!!prevRec)}</div></div>
+    <div class="sub-item"><div class="sub-lbl">주말/공휴일</div><div class="sub-prev">${prevRec?prev.holiday.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#1e293b">${cur.holiday.toLocaleString()}원</div><div class="sub-diff" style="color:${cur.holiday-prev.holiday>0?'#dc2626':cur.holiday-prev.holiday<0?'#2563eb':'#64748b'}">${fmt(cur.holiday-prev.holiday,!!prevRec)}</div></div>
+    <div class="sub-item"><div class="sub-lbl">합계</div><div class="sub-prev">${prevRec?prev.total.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#1e293b">${cur.total.toLocaleString()}원</div><div class="sub-diff" style="color:${totDiff>0?'#dc2626':totDiff<0?'#2563eb':'#64748b'}">${fmt(totDiff,!!prevRec)}</div></div>
   </div>
 </div>
 <div class="section">
