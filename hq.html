@@ -66,6 +66,7 @@ const ROLE_TABS={
   admin:['late','ot','early','absent','missin','missout','report','records','guide'],
   report:['report','records','guide'],
 };
+window.ROLE_TABS=ROLE_TABS;
 
 window._userRole='';
 
@@ -859,6 +860,7 @@ async function renderRecordList(){
   if(!keys.length){el.innerHTML='<div class="empty">저장된 기록이 없습니다</div>';return;}
   el.innerHTML=keys.map(k=>{
     const r=allRec[k];
+    const isOwner=window._userRole==='owner';
     return`<div class="rec-card">
       <div>
         <div class="rec-label">📋 ${r.year}년 ${r.month}월</div>
@@ -866,7 +868,7 @@ async function renderRecordList(){
       </div>
       <div style="display:flex;gap:7px;margin-left:auto">
         <button class="btn-sm btn-sm-b" onclick="loadRecordAndGo('${k}')">불러오기</button>
-        <button class="btn-sm btn-sm-d" onclick="deleteRecord('${k}')">삭제</button>
+        ${isOwner?`<button class="btn-sm btn-sm-d" onclick="deleteRecord('${k}')">삭제</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -977,16 +979,20 @@ function hideRecordBanner(){
 async function loadAndApplyRecord(key){
   await loadRecord(key);
   hideRecordBanner();
-  const allowed=ROLE_TABS[window._userRole]||ROLE_TABS['report'];
+  const role=window._userRole||'report';
+  const allowed=(window.ROLE_TABS&&window.ROLE_TABS[role])||['report','records','guide'];
   sw(allowed.includes('gw')?'gw':'report');
 }
+window.loadAndApplyRecord=loadAndApplyRecord;
 
 async function loadRecordAndGo(key){
   await loadRecord(key);
   hideRecordBanner();
-  const allowed=ROLE_TABS[window._userRole]||ROLE_TABS['report'];
+  const role=window._userRole||'report';
+  const allowed=(window.ROLE_TABS&&window.ROLE_TABS[role])||['report','records','guide'];
   sw(allowed.includes('gw')?'gw':'report');
 }
+window.loadRecordAndGo=loadRecordAndGo;
 
 // ══════════════════════════════════════════
 //  탭 전환
