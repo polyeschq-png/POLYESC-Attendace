@@ -90,7 +90,7 @@ onAuthStateChanged(auth,async user=>{
   if(!user){window.location.href='index.html';return;}
   const nameEl=document.getElementById('user-name');
   const emailEl=document.getElementById('user-email');
-  if(nameEl) nameEl.textContent=user.displayName||user.email;
+  if(nameEl) nameEl.textContent=user.email?.split('@')[0]||user.displayName||user.email;
   if(emailEl) emailEl.textContent=user.email;
 
   // Firestore에서 role 읽기
@@ -319,12 +319,12 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <button class="nav-item" id="nav-records" onclick="sw('records')"><span class="nav-ico">💾</span>월별 기록</button>
   <button class="nav-item" id="nav-guide" onclick="sw('guide')"><span class="nav-ico">📖</span>수당기준</button>
   <div class="sidebar-footer">
-    <div id="user-name" style="color:rgba(255,255,255,.7);font-size:12px;font-weight:600;margin-bottom:2px"></div>
-    <div id="user-email" style="color:rgba(255,255,255,.35);font-size:10px;margin-bottom:4px;word-break:break-all"></div>
-    <div id="user-role-badge" style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:8px"></div>
+    <div id="user-name" style="color:rgba(255,255,255,.9);font-size:12px;font-weight:700;margin-bottom:2px"></div>
+    <div id="user-email" style="color:rgba(255,255,255,.4);font-size:10px;margin-bottom:3px;word-break:break-all"></div>
+    <div id="user-role-badge" style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:10px"></div>
     <button onclick="window.location.href='landing.html'" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:5px">🏠 메인으로</button>
-    <button onclick="fbSignOut()" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;">로그아웃</button>
-    <div style="margin-top:8px;color:rgba(255,255,255,.25)">본사 근태관리 시스템 v7</div>
+    <button onclick="fbSignOut()" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(220,38,38,.4);color:#f87171;border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;font-weight:600">로그아웃</button>
+    <div style="margin-top:8px;color:rgba(255,255,255,.2);font-size:10px">본사 근태관리 시스템 v7</div>
   </div>
 </nav>
 <div class="app-body">
