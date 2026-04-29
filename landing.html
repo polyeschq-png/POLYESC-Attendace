@@ -360,10 +360,12 @@ window.handleSignOut=async()=>{
     function goTo(type) {
       if (type === 'hq') {
         window.location.href = 'hq.html';
+      } else if (type === 'campus') {
+        window.location.href = 'campus.html';
       } else if (type === 'permissions') {
         window.location.href = 'permissions.html';
       } else {
-        const names = { campus: '캠퍼스 근태', all: '전체근로자관리' };
+        const names = { all: '전체근로자관리' };
         alert('"' + names[type] + '" 페이지는 준비 중입니다.');
       }
     }
