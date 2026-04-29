@@ -53,15 +53,24 @@
 
     .header-right {
       display: flex;
-      gap: 24px;
+      gap: 16px;
+      align-items: center;
       font-size: 0.88rem;
       color: #555;
     }
-
-    .header-right span:last-child {
-      font-weight: 700;
-      color: var(--blue-deep);
+    .logout-btn {
+      padding: 6px 16px;
+      background: #fff;
+      border: 1.5px solid #fca5a5;
+      border-radius: 8px;
+      color: #dc2626;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer;
+      transition: all .15s;
     }
+    .logout-btn:hover { background: #fef2f2; border-color: #dc2626; }
 
     main {
       flex: 1;
@@ -214,11 +223,11 @@ margin-top: 40px;
       <span>(주) 폴리에스씨 인사팀</span>
     </div>
     <div class="header-right">
-      <span id="user-display" style="color:#555"></span>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-        <span id="user-role-label" style="font-size:11px;color:#888;font-weight:400"></span>
-        <span style="cursor:pointer;color:#dc2626;font-weight:500" onclick="handleSignOut()">로그아웃</span>
+        <span id="user-display" style="color:#333;font-weight:500"></span>
+        <span id="user-role-label" style="font-size:11px;color:#888"></span>
       </div>
+      <button class="logout-btn" onclick="handleSignOut()">로그아웃</button>
     </div>
   </header>
 
