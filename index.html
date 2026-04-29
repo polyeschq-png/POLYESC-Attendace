@@ -396,7 +396,8 @@
 
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
-import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,onAuthStateChanged,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,onAuthStateChanged,browserSessionPersistence,setPersistence,signOut}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+import{getFirestore,doc,getDoc}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
 
 const firebaseConfig={
   apiKey:"AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",
@@ -408,15 +409,15 @@ const firebaseConfig={
 };
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
+const db=getFirestore(app);
 const provider=new GoogleAuthProvider();
 
-// 세션 단위 유지 - 창/탭 닫으면 로그아웃
 await setPersistence(auth, browserSessionPersistence);
 
-// 이미 로그인돼 있으면 바로 랜딩으로, 아니면 페이지 표시
-onAuthStateChanged(auth,user=>{
+onAuthStateChanged(auth,async user=>{
   if(user){
-    window.location.href="landing.html";
+    // 로그인 함수에서 이미 체크했으므로 바로 이동
+    window.location.href='landing.html';
   } else {
     document.body.style.opacity='1';
   }
@@ -432,6 +433,22 @@ function hideError(){
   el.style.display='none';
 }
 
+// 등록 여부 확인 공통 함수
+async function checkUserAccess(user, btn, originalText){
+  try{
+    const snap=await getDoc(doc(db,'Users',user.email));
+    if(!snap.exists()){
+      await signOut(auth);
+      if(btn){btn.classList.remove('loading');btn.textContent=originalText;btn.disabled=false;}
+      showError('승인되지 않은 아이디입니다. 계정을 요청하세요.');
+      return false;
+    }
+  }catch(e){
+    // Firestore 오류 시 일단 통과
+  }
+  return true;
+}
+
 // 이메일/비밀번호 로그인
 window.handleEmailLogin=async()=>{
   const email=document.getElementById('email').value.trim();
@@ -442,7 +459,9 @@ window.handleEmailLogin=async()=>{
   try{
     btn.classList.add('loading');
     btn.textContent='로그인 중...';
-    await signInWithEmailAndPassword(auth,email,password);
+    const cred=await signInWithEmailAndPassword(auth,email,password);
+    const ok=await checkUserAccess(cred.user, btn, 'Sign In');
+    if(ok) window.location.href='landing.html';
   }catch(e){
     btn.classList.remove('loading');
     btn.textContent='Sign In';
@@ -464,7 +483,12 @@ window.handleGoogleLogin=async()=>{
   try{
     btn.style.opacity='0.6';
     btn.style.pointerEvents='none';
-    await signInWithPopup(auth,provider);
+    const cred=await signInWithPopup(auth,provider);
+    const ok=await checkUserAccess(cred.user, null, '');
+    if(!ok){
+      btn.style.opacity='1';
+      btn.style.pointerEvents='auto';
+    }
   }catch(e){
     btn.style.opacity='1';
     btn.style.pointerEvents='auto';
