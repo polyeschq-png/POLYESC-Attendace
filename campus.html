@@ -2360,28 +2360,32 @@ function initFirebase() {
     return;
   }
   const { auth, onAuthStateChanged } = window._fb;
-  onAuthStateChanged(auth, user => {
+  onAuthStateChanged(auth, async user => {
     currentUser = user;
     if (user) {
       // 사이드바 사용자 정보 표시
       const userId = document.getElementById('sb-user-id');
       if (userId) userId.textContent = user.email;
 
-      // 권한 배지 (이메일 도메인 또는 Firebase custom claims 기반)
-      // 현재는 이메일로 간단 구분 — 추후 custom claims로 확장 가능
+      // Firestore Users에서 role 읽기 (hq와 동일 방식)
+      const ROLE_LABELS = {owner:'👑 Owner', admin:'🔧 관리자', report:'📊 리포트'};
       const roleBadge = document.getElementById('sb-role-badge');
-      if (roleBadge) {
-        const role = user.email?.includes('admin') || user.email?.includes('hq') ? 'Owner' : 'Staff';
-        roleBadge.textContent = role;
-        roleBadge.style.display = 'inline';
-        roleBadge.style.background = role === 'Owner' ? 'var(--green)' : 'var(--blue)';
+      try {
+        const { db, doc, getDoc } = window._fb;
+        const snap = await getDoc(doc(db, 'Users', user.email));
+        const role = snap.exists() ? snap.data().role || 'report' : 'report';
+        if (roleBadge) {
+          roleBadge.textContent = ROLE_LABELS[role] || '📊 리포트';
+          roleBadge.style.display = 'inline';
+        }
+      } catch(e) {
+        if (roleBadge) { roleBadge.textContent = '📊 리포트'; roleBadge.style.display = 'inline'; }
       }
 
       document.getElementById('fb-status').textContent = `✅ ${user.email}`;
       loadHistory();
       loadSettingsFromFirebase();
     } else {
-      // 미로그인 시 로그인 페이지로 리다이렉트
       window.location.href = 'index.html';
     }
     document.body.style.opacity = '1';
