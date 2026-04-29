@@ -75,13 +75,12 @@ function applyRoleTabs(role){
   const allowed=ROLE_TABS[role]||ROLE_TABS['report'];
   document.querySelectorAll('.nav-item[id^="nav-"]').forEach(btn=>{
     const tab=btn.id.replace('nav-','');
-    // records는 항상 표시
     if(tab==='records'){btn.style.display='';return;}
-    // permissions는 owner만
-    if(tab==='permissions'){btn.style.display=role==='owner'?'':'none';return;}
     btn.style.display=allowed.includes(tab)?'':'none';
   });
-  // 첫 번째 허용 탭으로 이동
+  // 전체 기록 삭제 버튼 Owner만 표시
+  const delBtn=document.getElementById('records-del-btn');
+  if(delBtn) delBtn.style.display=role==='owner'?'':'none';
   const firstTab=allowed[0];
   if(firstTab) sw(firstTab);
 }
@@ -317,7 +316,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <div class="sidebar-section">관리</div>
   <button class="nav-item" id="nav-staff" onclick="sw('staff')"><span class="nav-ico">👤</span>직원관리</button>
   <button class="nav-item" id="nav-holidays" onclick="sw('holidays')"><span class="nav-ico">📅</span>공휴일관리</button>
-  <button class="nav-item" id="nav-records" onclick="sw('records')"><span class="nav-ico">💾</span>저장기록</button>
+  <button class="nav-item" id="nav-records" onclick="sw('records')"><span class="nav-ico">💾</span>월별 기록</button>
   <button class="nav-item" id="nav-guide" onclick="sw('guide')"><span class="nav-ico">📖</span>수당기준</button>
   <div class="sidebar-footer">
     <div id="user-name" style="color:rgba(255,255,255,.7);font-size:12px;font-weight:600;margin-bottom:2px"></div>
@@ -543,10 +542,10 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   </div>
 </div>
 
-<!-- ════ 저장기록 ════ -->
+<!-- ════ 월별 기록 ════ -->
 <div class="panel" id="panel-records">
   <div class="info-box">ℹ️<div>저장된 월별 기록입니다. 불러오기를 하면 해당 월의 그룹웨어 반영 내용이 복원됩니다.</div></div>
-  <div class="btn-row">
+  <div class="btn-row" id="records-del-btn" style="display:none">
     <button class="btn btn-d" onclick="clearAllRecords()">🗑 전체 기록 삭제</button>
   </div>
   <div id="rec-list"><div class="empty">저장된 기록이 없습니다</div></div>
@@ -998,7 +997,7 @@ window.loadRecordAndGo=loadRecordAndGo;
 // ══════════════════════════════════════════
 const TABS=['upload','gw','late','ot','early','absent','missin','missout','report','staff','holidays','records','guide'];
 let _currentTab='upload';
-const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'격려수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',report:'보고자료',staff:'직원관리',holidays:'공휴일관리',records:'저장기록',guide:'수당기준'};
+const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'격려수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',report:'보고자료',staff:'직원관리',holidays:'공휴일관리',records:'월별 기록',guide:'수당기준'};
 async function sw(name){
   if(_currentTab==='gw' && name!=='gw' && analysed){
     try{ await autoSaveGW(); }catch(e){ console.warn('자동저장 실패:',e); }
