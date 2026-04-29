@@ -317,8 +317,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <div class="sidebar-section">관리</div>
   <button class="nav-item" id="nav-staff" onclick="sw('staff')"><span class="nav-ico">👤</span>직원관리</button>
   <button class="nav-item" id="nav-holidays" onclick="sw('holidays')"><span class="nav-ico">📅</span>공휴일관리</button>
-  <button class="nav-item" id="nav-records" onclick="sw('records')"><span class="nav-ico">🗂</span>저장기록</button>
-  <button class="nav-item" id="nav-permissions" onclick="sw('permissions')" style="display:none"><span class="nav-ico">🔑</span>권한관리</button>
+  <button class="nav-item" id="nav-records" onclick="sw('records')"><span class="nav-ico">💾</span>저장기록</button>
   <button class="nav-item" id="nav-guide" onclick="sw('guide')"><span class="nav-ico">📖</span>수당기준</button>
   <div class="sidebar-footer">
     <div id="user-name" style="color:rgba(255,255,255,.7);font-size:12px;font-weight:600;margin-bottom:2px"></div>
@@ -997,9 +996,9 @@ window.loadRecordAndGo=loadRecordAndGo;
 // ══════════════════════════════════════════
 //  탭 전환
 // ══════════════════════════════════════════
-const TABS=['upload','gw','late','ot','early','absent','missin','missout','report','staff','holidays','records','permissions','guide'];
+const TABS=['upload','gw','late','ot','early','absent','missin','missout','report','staff','holidays','records','guide'];
 let _currentTab='upload';
-const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'격려수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',report:'보고자료',staff:'직원관리',holidays:'공휴일관리',records:'저장기록',permissions:'권한관리',guide:'수당기준'};
+const PAGE_TITLES={upload:'파일 업로드',gw:'그룹웨어 반영',late:'지각자 현황',ot:'격려수당',early:'조기퇴근 현황',absent:'미출근',missin:'출근 누락',missout:'퇴근 누락',report:'보고자료',staff:'직원관리',holidays:'공휴일관리',records:'저장기록',guide:'수당기준'};
 async function sw(name){
   if(_currentTab==='gw' && name!=='gw' && analysed){
     try{ await autoSaveGW(); }catch(e){ console.warn('자동저장 실패:',e); }
@@ -1012,7 +1011,6 @@ async function sw(name){
   const tt=document.getElementById('topbar-page-title');if(tt)tt.textContent=PAGE_TITLES[name]||name;
   if(name==='gw') renderGW();
   if(name==='report') renderReportPreview();
-  if(name==='permissions') renderPermissionList();
   if(name==='records'){ try{ await renderRecordList(); }catch(e){ console.warn('기록 로드 실패:',e); } }
 }
 
