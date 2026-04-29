@@ -110,11 +110,13 @@ async function renderList(){
   const tbody=document.getElementById('perm-list');
   let html='';
   snap.forEach(d=>{
-    const{email,role}=d.data();
+    const docId=d.id; // 문서 ID로 삭제
+    const {email,role}=d.data();
+    const displayEmail=email||docId;
     html+=`<tr>
-      <td>${email}</td>
+      <td>${displayEmail}</td>
       <td><span class="badge ${BADGE[role]||'badge-report'}">${LABELS[role]||role}</span></td>
-      <td><button class="btn btn-red" onclick="window.deleteRole('${email}')">삭제</button></td>
+      <td><button class="btn btn-red" onclick="window.deleteRole('${docId}')">삭제</button></td>
     </tr>`;
   });
   tbody.innerHTML=html||'<tr><td colspan="3" style="text-align:center;color:#9ca3af;padding:20px">등록된 사용자 없음</td></tr>';
@@ -123,7 +125,7 @@ async function renderList(){
 window.saveUserRole=async()=>{
   const email=document.getElementById('perm-email').value.trim();
   const role=document.getElementById('perm-role').value;
-  if(!email){alert('이메일을 입력해주세요.');return;}
+  if(!email||email==='undefined'||!email.includes('@')){alert('올바른 이메일 주소를 입력해주세요.');return;}
   await setDoc(doc(db,'Users',email),{email,role,updatedAt:new Date().toISOString()},{merge:true});
   alert(email+' → '+LABELS[role]+' 저장 완료');
   document.getElementById('perm-email').value='';
