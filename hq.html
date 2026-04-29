@@ -977,13 +977,15 @@ function hideRecordBanner(){
 async function loadAndApplyRecord(key){
   await loadRecord(key);
   hideRecordBanner();
-  sw('gw');
+  const allowed=ROLE_TABS[window._userRole]||ROLE_TABS['report'];
+  sw(allowed.includes('gw')?'gw':'report');
 }
 
 async function loadRecordAndGo(key){
   await loadRecord(key);
   hideRecordBanner();
-  sw('gw');
+  const allowed=ROLE_TABS[window._userRole]||ROLE_TABS['report'];
+  sw(allowed.includes('gw')?'gw':'report');
 }
 
 // ══════════════════════════════════════════
