@@ -433,10 +433,10 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
   <header>
     <span class="hdr-title" id="hdr-tab-title">💾 월별 기록</span>
     <span class="hdr-badge" id="hdr-month"></span>
+    <button class="btn btn-primary btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;margin-left:8px;">💾 저장</button>
     <div class="header-right">
       <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()" id="hdr-btn-excel" style="display:none;">⬇ Excel</button>
       <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()" id="hdr-btn-pdf" style="display:none;">⬇ PDF</button>
-      <button class="btn btn-primary btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;">💾 기록 저장</button>
     </div>
   </header>
 
@@ -585,9 +585,6 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
     <div class="panel" id="panel-result">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
         <div id="res-campus-title" style="font-size:15px;font-weight:600;flex:1;"></div>
-        <button class="btn btn-success btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;">
-          💾 기록 저장
-        </button>
       </div>
       <div class="sum-row">
         <div class="scard red"><div class="num" id="s-late">0</div><div class="lbl">지각자</div></div>
