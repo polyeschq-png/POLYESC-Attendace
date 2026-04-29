@@ -414,9 +414,11 @@ const provider=new GoogleAuthProvider();
 
 await setPersistence(auth, browserSessionPersistence);
 
+let _loginInProgress=false;
+
 onAuthStateChanged(auth,async user=>{
+  if(_loginInProgress) return; // 로그인 함수 실행 중이면 무시
   if(user){
-    // 로그인 함수에서 이미 체크했으므로 바로 이동
     window.location.href='landing.html';
   } else {
     document.body.style.opacity='1';
@@ -438,7 +440,9 @@ async function checkUserAccess(user, btn, originalText){
   try{
     const snap=await getDoc(doc(db,'Users',user.email));
     if(!snap.exists()){
+      _loginInProgress=true; // signOut 후 onAuthStateChanged 무시
       await signOut(auth);
+      _loginInProgress=false;
       if(btn){btn.classList.remove('loading');btn.textContent=originalText;btn.disabled=false;}
       showError('승인되지 않은 아이디입니다. 계정을 요청하세요.');
       return false;
@@ -457,12 +461,15 @@ window.handleEmailLogin=async()=>{
   hideError();
   if(!email||!password){showError('이메일과 비밀번호를 입력해주세요.');return;}
   try{
+    _loginInProgress=true;
     btn.classList.add('loading');
     btn.textContent='로그인 중...';
     const cred=await signInWithEmailAndPassword(auth,email,password);
     const ok=await checkUserAccess(cred.user, btn, 'Sign In');
+    _loginInProgress=false;
     if(ok) window.location.href='landing.html';
   }catch(e){
+    _loginInProgress=false;
     btn.classList.remove('loading');
     btn.textContent='Sign In';
     const msgs={
@@ -481,15 +488,18 @@ window.handleGoogleLogin=async()=>{
   const btn=document.getElementById('googleBtn');
   hideError();
   try{
+    _loginInProgress=true;
     btn.style.opacity='0.6';
     btn.style.pointerEvents='none';
     const cred=await signInWithPopup(auth,provider);
     const ok=await checkUserAccess(cred.user, null, '');
+    _loginInProgress=false;
     if(!ok){
       btn.style.opacity='1';
       btn.style.pointerEvents='auto';
     }
   }catch(e){
+    _loginInProgress=false;
     btn.style.opacity='1';
     btn.style.pointerEvents='auto';
     if(e.code!=='auth/popup-closed-by-user')
