@@ -81,8 +81,8 @@ function applyRoleTabs(role){
   // 전체 기록 삭제 버튼 Owner만 표시
   const delBtn=document.getElementById('records-del-btn');
   if(delBtn) delBtn.style.display=role==='owner'?'':'none';
-  const firstTab=allowed[0];
-  if(firstTab) sw(firstTab);
+  // 첫 화면은 항상 월별 기록
+  sw('records');
 }
 
 // 로그인 상태 확인
@@ -323,7 +323,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
     <div id="user-email" style="color:rgba(255,255,255,.4);font-size:10px;margin-bottom:3px;word-break:break-all"></div>
     <div id="user-role-badge" style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:10px"></div>
     <button onclick="window.location.href='landing.html'" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;margin-bottom:5px">🏠 메인으로</button>
-    <button onclick="fbSignOut()" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(220,38,38,.4);color:#f87171;border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;font-weight:600">로그아웃</button>
+    <button onclick="fbSignOut()" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:#f87171;border-radius:6px;padding:5px 0;font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;font-weight:600">로그아웃</button>
     <div style="margin-top:8px;color:rgba(255,255,255,.2);font-size:10px">본사 근태관리 시스템 v7</div>
   </div>
 </nav>
