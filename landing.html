@@ -329,7 +329,7 @@ onAuthStateChanged(auth,async user=>{
 
   // 이름 표시
   const nameEl=document.getElementById('user-display');
-  if(nameEl) nameEl.textContent=user.displayName||user.email;
+  if(nameEl) nameEl.textContent=user.email?.split('@')[0]||user.displayName||user.email;
 
   // role 읽기
   let role='report';
