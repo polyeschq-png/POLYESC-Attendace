@@ -1613,6 +1613,9 @@ function runAnalysis() {
     // 출퇴근 모두 정상처리 특이사항 적용
     if (exApplied(name, campus, date, 'normalall')) continue;
 
+    // 외근이거나 신청내역 있으면 정상처리
+    if (row.attendType === '외근' || (row.request && row.request.trim())) continue;
+
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
     if (!emp && !baseCIStr) continue; // not in roster
@@ -1743,6 +1746,8 @@ function rerunAnalysis() {
     const { name, dept:campus, date, position } = row;
     if (isOnLeave(name, campus, date)) continue;
     if (exApplied(name, campus, date, 'normalall')) continue;
+    // 외근이거나 신청내역 있으면 정상처리
+    if (row.attendType === '외근' || (row.request && row.request.trim())) continue;
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
     if (!emp && !baseCIStr) continue;
