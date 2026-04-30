@@ -1680,13 +1680,6 @@ function runAnalysis() {
   }
 
   resPage=1; cctvPage=1; unrePage=1;
-  // 불러온 기록의 월로 헤더 갱신
-  const [ry, rm] = monthKey.split('-').map(Number);
-  const hdrel = document.getElementById('hdr-month');
-  if (hdrel) hdrel.textContent = `${ry}년 ${rm}월`;
-  // dt-start도 맞춰줌
-  const dtStart = document.getElementById('dt-start');
-  if (dtStart) dtStart.value = monthKey + '-01';
   updateSummary();
   renderResultTable();
   renderCCTVTable();
