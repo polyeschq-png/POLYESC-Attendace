@@ -415,10 +415,13 @@ const provider=new GoogleAuthProvider();
 await setPersistence(auth, browserSessionPersistence);
 
 let _loginInProgress=false;
+let _redirecting=false;
 
 onAuthStateChanged(auth,async user=>{
-  if(_loginInProgress) return; // 로그인 함수 실행 중이면 무시
+  if(_loginInProgress) return;
+  if(_redirecting) return;
   if(user){
+    _redirecting=true;
     window.location.href='landing.html';
   } else {
     document.body.style.opacity='1';
@@ -488,18 +491,17 @@ window.handleGoogleLogin=async()=>{
   const btn=document.getElementById('googleBtn');
   hideError();
   try{
-    _loginInProgress=true;
     btn.style.opacity='0.6';
     btn.style.pointerEvents='none';
     const cred=await signInWithPopup(auth,provider);
     const ok=await checkUserAccess(cred.user, null, '');
-    _loginInProgress=false;
-    if(!ok){
+    if(ok){
+      window.location.href='landing.html';
+    } else {
       btn.style.opacity='1';
       btn.style.pointerEvents='auto';
     }
   }catch(e){
-    _loginInProgress=false;
     btn.style.opacity='1';
     btn.style.pointerEvents='auto';
     if(e.code!=='auth/popup-closed-by-user')
