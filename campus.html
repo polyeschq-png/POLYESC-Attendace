@@ -2370,10 +2370,11 @@ function initFirebase() {
 
       // Firestore Users에서 role 읽기
       const ROLE_LABELS = {owner:'👑 Owner', admin:'🔧 관리자', report:'📊 리포트'};
+      let role = 'report';
       try {
         const { db, doc, getDoc } = window._fb;
         const snap = await getDoc(doc(db, 'Users', user.email));
-        const role = snap.exists() ? snap.data().role || 'report' : 'report';
+        role = snap.exists() ? snap.data().role || 'report' : 'report';
         if (roleBadge) roleBadge.textContent = ROLE_LABELS[role] || '📊 리포트';
       } catch(e) {
         if (roleBadge) roleBadge.textContent = '📊 리포트';
@@ -2392,10 +2393,7 @@ function initFirebase() {
         el.style.display = allowed.includes(el.dataset.tab) ? '' : 'none';
       });
 
-      // 월별기록 삭제버튼 - owner만 표시
       window._campusRole = role;
-
-      // 첫 화면 - 항상 월별기록
       switchTab('history');
       loadHistory();
       loadSettingsFromFirebase();
