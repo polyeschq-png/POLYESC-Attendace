@@ -396,7 +396,7 @@
 
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
-import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,onAuthStateChanged,browserSessionPersistence,setPersistence,signOut}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,signOut,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
 import{getFirestore,doc,getDoc}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
 
 const firebaseConfig={
@@ -414,45 +414,44 @@ const provider=new GoogleAuthProvider();
 
 await setPersistence(auth, browserSessionPersistence);
 
-let _loginInProgress=false;
-let _redirecting=false;
-
-onAuthStateChanged(auth,async user=>{
-  if(_loginInProgress) return;
-  if(_redirecting) return;
-  if(user){
-    _redirecting=true;
-    window.location.href='landing.html';
-  } else {
+// 세션 유지된 로그인 확인 (페이지 로드 시)
+await auth.authStateReady();
+const currentUser=auth.currentUser;
+if(currentUser){
+  try{
+    const snap=await getDoc(doc(db,'Users',currentUser.email));
+    if(snap.exists()){
+      window.location.href='landing.html';
+    } else {
+      await signOut(auth);
+      document.body.style.opacity='1';
+    }
+  }catch(e){
     document.body.style.opacity='1';
   }
-});
+} else {
+  document.body.style.opacity='1';
+}
 
 function showError(msg){
   const el=document.getElementById('error-msg');
-  el.textContent=msg;
-  el.style.display='block';
+  el.textContent=msg;el.style.display='block';
 }
 function hideError(){
   const el=document.getElementById('error-msg');
   el.style.display='none';
 }
 
-// 등록 여부 확인 공통 함수
-async function checkUserAccess(user, btn, originalText){
+// Users 등록 여부 확인
+async function checkUserAccess(user){
   try{
     const snap=await getDoc(doc(db,'Users',user.email));
     if(!snap.exists()){
-      _loginInProgress=true; // signOut 후 onAuthStateChanged 무시
       await signOut(auth);
-      _loginInProgress=false;
-      if(btn){btn.classList.remove('loading');btn.textContent=originalText;btn.disabled=false;}
       showError('승인되지 않은 아이디입니다. 계정을 요청하세요.');
       return false;
     }
-  }catch(e){
-    // Firestore 오류 시 일단 통과
-  }
+  }catch(e){ /* Firestore 오류 시 통과 */ }
   return true;
 }
 
@@ -464,17 +463,16 @@ window.handleEmailLogin=async()=>{
   hideError();
   if(!email||!password){showError('이메일과 비밀번호를 입력해주세요.');return;}
   try{
-    _loginInProgress=true;
-    btn.classList.add('loading');
-    btn.textContent='로그인 중...';
+    btn.classList.add('loading');btn.textContent='로그인 중...';
     const cred=await signInWithEmailAndPassword(auth,email,password);
-    const ok=await checkUserAccess(cred.user, btn, 'Sign In');
-    _loginInProgress=false;
-    if(ok) window.location.href='landing.html';
+    const ok=await checkUserAccess(cred.user);
+    if(ok){
+      window.location.href='landing.html';
+    } else {
+      btn.classList.remove('loading');btn.textContent='Sign In';
+    }
   }catch(e){
-    _loginInProgress=false;
-    btn.classList.remove('loading');
-    btn.textContent='Sign In';
+    btn.classList.remove('loading');btn.textContent='Sign In';
     const msgs={
       'auth/invalid-credential':'이메일 또는 비밀번호가 올바르지 않습니다.',
       'auth/user-not-found':'등록되지 않은 이메일입니다.',
@@ -491,25 +489,21 @@ window.handleGoogleLogin=async()=>{
   const btn=document.getElementById('googleBtn');
   hideError();
   try{
-    btn.style.opacity='0.6';
-    btn.style.pointerEvents='none';
+    btn.style.opacity='0.6';btn.style.pointerEvents='none';
     const cred=await signInWithPopup(auth,provider);
-    const ok=await checkUserAccess(cred.user, null, '');
+    const ok=await checkUserAccess(cred.user);
     if(ok){
       window.location.href='landing.html';
     } else {
-      btn.style.opacity='1';
-      btn.style.pointerEvents='auto';
+      btn.style.opacity='1';btn.style.pointerEvents='auto';
     }
   }catch(e){
-    btn.style.opacity='1';
-    btn.style.pointerEvents='auto';
+    btn.style.opacity='1';btn.style.pointerEvents='auto';
     if(e.code!=='auth/popup-closed-by-user')
       showError('Google 로그인 실패: '+e.message);
   }
 };
 
-// Enter 키 지원
 document.addEventListener('keydown',e=>{if(e.key==='Enter')window.handleEmailLogin();});
 </script>
 <style>
