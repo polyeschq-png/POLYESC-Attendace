@@ -2217,20 +2217,27 @@ function refreshReport() {
       <td>
         <div style="display:flex;flex-direction:column;gap:5px;">
           ${rec.date
-            ? `<span style="color:var(--green);font-size:12px;font-family:var(--mono);">✅ ${rec.date}</span>
-               <span style="font-size:11px;color:var(--text3);cursor:pointer;" onclick="setReceipt('${campus}','${monthKey}','date','');refreshReport()">✕ 초기화</span>`
-            : `<input type="text" placeholder="YYYY-MM-DD" maxlength="10"
-                 ${rec.unnecessary?'disabled style="opacity:.35;"':''}
-                 style="width:110px;padding:4px 7px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
+            ? `<input type="text" placeholder="YYYY-MM-DD" maxlength="10" value="${rec.date}"
+                 style="width:110px;padding:4px 7px;font-size:12px;border:1px solid var(--green);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
                  oninput="maskDateInput(this,'${campus}','${monthKey}')"
-                 onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">
-               <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text2);">
-                 <input type="checkbox" style="width:auto;accent-color:var(--accent);"
-                   ${rec.unnecessary?'checked':''}
-                   onchange="setReceipt('${campus}','${monthKey}','unnecessary',this.checked)">
-                 불필요
-               </label>
-               ${!rec.unnecessary ? '<span style="color:var(--red);font-size:12px;">미수신</span>' : '<span style="color:var(--text3);font-size:12px;">불필요</span>'}`
+                 onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">`
+            : rec.unnecessary
+              ? `<select style="width:110px;padding:4px 6px;font-size:12px;border:1px solid var(--border2);border-radius:5px;background:var(--white);color:var(--text);"
+                   onchange="handleReceiptSelect(this,'${campus}','${monthKey}')">
+                   <option value="">-- 선택 --</option>
+                   <option value="unnecessary" selected>불필요</option>
+                   <option value="unreceived">미수신</option>
+                 </select>`
+              : `<input type="text" placeholder="YYYY-MM-DD" maxlength="10"
+                   style="width:110px;padding:4px 7px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
+                   oninput="maskDateInput(this,'${campus}','${monthKey}')"
+                   onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">
+                 <select style="width:110px;padding:4px 6px;font-size:12px;border:1px solid var(--border2);border-radius:5px;background:var(--white);color:var(--text);"
+                   onchange="handleReceiptSelect(this,'${campus}','${monthKey}')">
+                   <option value="">-- 선택 --</option>
+                   <option value="unnecessary">불필요</option>
+                   <option value="unreceived">미수신</option>
+                 </select>`
           }
         </div>
       </td>
@@ -2241,20 +2248,31 @@ function refreshReport() {
 }
 
 
+function handleReceiptSelect(el, campus, monthKey){
+  const val = el.value;
+  if(val === 'unnecessary'){
+    setReceipt(campus, monthKey, 'unnecessary', true);
+    setReceipt(campus, monthKey, 'date', '');
+  } else if(val === 'unreceived'){
+    setReceipt(campus, monthKey, 'unnecessary', false);
+    setReceipt(campus, monthKey, 'date', '');
+  }
+  refreshReport();
+}
+
 function maskDateInput(el, campus, monthKey){
-  // 숫자만 추출
   let v = el.value.replace(/\D/g,'');
-  // 최대 8자리
   if(v.length>8) v=v.slice(0,8);
-  // YYYY-MM-DD 포맷 적용
   let result='';
   if(v.length<=4) result=v;
   else if(v.length<=6) result=v.slice(0,4)+'-'+v.slice(4);
   else result=v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6);
   el.value=result;
-  // 완성된 날짜(10자)면 저장
   if(result.length===10){
-    setReceipt(campus,monthKey,'date',result);
+    // 날짜 입력 완료 시 unnecessary 초기화 후 저장 → 드롭박스 사라짐
+    setReceipt(campus, monthKey, 'unnecessary', false);
+    setReceipt(campus, monthKey, 'date', result);
+    refreshReport();
   }
 }
 
