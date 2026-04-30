@@ -1,2704 +1,519 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>근태 관리</title>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, orderBy, query }
-    from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
-  import { getAuth, signOut, onAuthStateChanged, browserSessionPersistence, setPersistence }
-    from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",
-    authDomain: "polyesc-attendance.firebaseapp.com",
-    projectId: "polyesc-attendance",
-    storageBucket: "polyesc-attendance.firebasestorage.app",
-    messagingSenderId: "430669631304",
-    appId: "1:430669631304:web:eb06ac4ba8d1d5108fed7d"
-  };
+    :root {
+      --cyan: #00c6e0;
+      --blue: #3a6bdb;
+      --purple: #8b5cf6;
+      --deep: #1a2560;
+      --white: #ffffff;
+      --gray: #6b7280;
+      --light-gray: #f3f4f6;
+      --border: rgba(100, 150, 255, 0.25);
+    }
 
-  let app, db, auth;
-  try {
-    app  = initializeApp(FIREBASE_CONFIG);
-    db   = getFirestore(app);
-    auth = getAuth(app);
-    await setPersistence(auth, browserSessionPersistence);
-    window._fb = { db, auth, doc, getDoc, setDoc, collection, getDocs, query, orderBy,
-                   signOut, onAuthStateChanged };
-    window._fbReady = true;
-  } catch(e) {
-    console.warn('Firebase 초기화 실패:', e.message);
-    window._fbReady = false;
-  }
-</script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
-:root {
-  /* 브랜드 컬러 */
-  --green:    #7db249;
-  --green-dk: #5e8a35;
-  --green-lt: #e8f4dc;
-  --navy:     #e4f0d5;
-  --navy-dk:  #cde6b5;
-  --navy-md:  #d4ebc0;
-  --navy-lt:  #ddf0c8;
-  /* 중립 */
-  --bg:       #f4f6f8;
-  --white:    #ffffff;
-  --border:   #dde2ea;
-  --border2:  #c8d0db;
-  /* 텍스트 */
-  --text:     #1e2a3a;
-  --text2:    #4a5568;
-  --text3:    #8a96a8;
-  /* 상태 */
-  --red:      #e53e3e;
-  --orange:   #dd6b20;
-  --yellow:   #d69e2e;
-  --blue:     #3182ce;
-  --purple:   #7c3aed;
-  /* 기타 */
-  --radius:   8px;
-  --shadow:   0 1px 3px rgba(0,0,0,.08);
-  --shadow-md:0 4px 12px rgba(0,0,0,.10);
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'Noto Sans KR', sans-serif;
-  /* 하위호환 */
-  --accent:   #7db249;
-  --surface:  #ffffff;
-  --surface2: #f4f6f8;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; display: flex; opacity: 0; transition: opacity 0.3s; }
+    html, body {
+      height: 100%;
+      font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+      overflow: hidden;
+    }
 
-/* ── 왼쪽 사이드바 (네이비) ── */
-.sidebar {
-  width: 200px; min-width: 200px;
-  background: var(--navy);
-  display: flex; flex-direction: column;
-  height: 100vh; position: fixed; left: 0; top: 0; z-index: 50;
-  overflow-y: auto;
-}
-.sb-bottom-btn {
-  display: block; width: 100%;
-  padding: 8px 10px; border-radius: 6px;
-  font-size: 12px; font-weight: 500; font-family: var(--sans);
-  cursor: pointer; border: none;
-  background: rgba(0,0,0,.06); color: var(--text2);
-  text-align: left; margin-bottom: 4px;
-  transition: all .15s;
-}
-.sb-bottom-btn:hover { background: rgba(0,0,0,.1); color: var(--text); }
-.sb-logout { color: var(--red) !important; }
-.sb-logout:hover { background: #fff0f0 !important; }
-.sidebar.hidden { display: none; }
+    /* ── Background ── */
+    .bg {
+      position: fixed; inset: 0;
+      background: linear-gradient(135deg, #00c6e0 0%, #3a6bdb 45%, #8b5cf6 100%);
+      z-index: 0;
+    }
 
-.sb-logo {
-  display: flex; align-items: center; gap: 10px;
-  padding: 16px 14px 14px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
-.sb-logo img { height: 28px; object-fit: contain; }
-.sb-logo .sb-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
-.sb-logo .sb-sub { font-size: 10px; color: var(--text2); letter-spacing: .3px; }
+    /* Fluid blobs */
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(70px);
+      opacity: 0.5;
+      animation: drift 12s ease-in-out infinite alternate;
+    }
+    .blob1 { width: 500px; height: 500px; background: #00e5ff; top: -100px; left: -100px; animation-delay: 0s; }
+    .blob2 { width: 400px; height: 400px; background: #7c3aed; bottom: -80px; left: 20%; animation-delay: -4s; }
+    .blob3 { width: 350px; height: 350px; background: #2563eb; top: 10%; right: -60px; animation-delay: -8s; }
+    .blob4 { width: 250px; height: 250px; background: #06b6d4; bottom: 20%; right: 15%; animation-delay: -2s; }
 
-.sb-section { padding: 14px 10px 4px; }
-.sb-section-label {
-  font-size: 10px; font-weight: 700; color: var(--green-dk);
-  text-transform: uppercase; letter-spacing: .8px;
-  padding: 0 6px 6px;
-}
-.sb-item {
-  display: flex; align-items: center; gap: 9px;
-  padding: 8px 10px; border-radius: 6px;
-  cursor: pointer; color: var(--text2);
-  font-size: 13px; font-weight: 500;
-  transition: all .15s; margin-bottom: 1px;
-}
-.sb-item:hover { background: rgba(0,0,0,.05); color: var(--text); }
-.sb-item.active { background: var(--green); color: #fff; }
-.sb-item .sb-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
-.sb-item .sb-count {
-  margin-left: auto; font-size: 11px;
-  font-family: var(--mono);
-  background: rgba(0,0,0,.08); border-radius: 10px;
-  padding: 1px 6px; color: var(--text2);
-}
-.sb-item.active .sb-count { background: rgba(255,255,255,.4); color: var(--green-dk); }
+    @keyframes drift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(30px, 20px) scale(1.07); }
+    }
 
-/* 캠퍼스 리스트 (탭 오른쪽 패널) */
-.campus-panel {
-  width: 160px; min-width: 160px;
-  background: var(--white);
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
-  padding: 12px 0;
-}
-.campus-panel.hidden { display: none; }
-.cp-label {
-  font-size: 10px; font-weight: 700; color: var(--text3);
-  text-transform: uppercase; letter-spacing: .7px;
-  padding: 0 12px 8px;
-}
-.cp-item {
-  display: flex; align-items: center; gap: 7px;
-  padding: 7px 12px; cursor: pointer;
-  color: var(--text2); font-size: 12px;
-  transition: background .1s;
-}
-.cp-item:hover { background: var(--bg); color: var(--text); }
-.cp-item.active { background: var(--green-lt); color: var(--green-dk); font-weight: 600; }
-.cp-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--border2); flex-shrink: 0;
-}
-.cp-item.active .cp-dot { background: var(--green); }
-.cp-count {
-  margin-left: auto; font-size: 10px;
-  font-family: var(--mono); color: var(--text3);
-}
-.cp-item.active .cp-count { color: var(--green); }
+    /* Grid overlay */
+    .grid-overlay {
+      position: fixed; inset: 0; z-index: 1;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 50px 50px;
+    }
 
-/* ── 메인 영역 ── */
-.main-wrap {
-  margin-left: 200px;
-  flex: 1; display: flex; flex-direction: column; min-height: 100vh;
-}
-.main-wrap.no-sidebar { margin-left: 0; }
+    /* ── Layout ── */
+    .page {
+      position: relative; z-index: 2;
+      display: flex; height: 100vh; align-items: center; justify-content: center;
+    }
 
-/* ── 상단 헤더 ── */
-header {
-  background: var(--white);
-  border-bottom: 1px solid var(--border);
-  padding: 0 20px;
-  height: 52px;
-  display: flex; align-items: center; gap: 12px;
-  position: sticky; top: 0; z-index: 40;
-}
-.hdr-title { font-size: 16px; font-weight: 700; color: var(--text); }
-.hdr-badge {
-  background: var(--green); color: #fff;
-  font-size: 11px; font-weight: 700;
-  padding: 3px 10px; border-radius: 99px;
-}
-.header-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .card-wrapper {
+      display: flex;
+      width: min(900px, 95vw);
+      height: min(560px, 90vh);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.12);
+      animation: rise 0.7s cubic-bezier(0.22,1,0.36,1) both;
+    }
 
-/* ── 컨텐츠 영역 ── */
-.tab-layout { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 52px); }
-.content { flex: 1; overflow-y: auto; padding: 20px 24px; background: var(--bg); }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(40px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
 
-/* ── PANEL ── */
-.panel { display: none; }
-.panel.active { display: block; }
+    /* ── Left Panel ── */
+    .left {
+      flex: 1;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px) saturate(1.4);
+      border-right: 1px solid rgba(255,255,255,0.15);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 48px 40px;
+      gap: 28px;
+      animation: fadeLeft 0.8s 0.2s both;
+    }
+    @keyframes fadeLeft { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
 
-/* ── 업로드 존 ── */
-.upload-zone {
-  border: 2px dashed var(--border2);
-  border-radius: var(--radius); padding: 48px;
-  text-align: center; cursor: pointer;
-  background: var(--white); position: relative;
-  transition: all .2s;
-}
-.upload-zone:hover, .upload-zone.drag { border-color: var(--green); background: var(--green-lt); }
-.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
-.upload-zone h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-.upload-zone p { color: var(--text2); font-size: 13px; }
+    .logo-mark {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(255,255,255,0.7);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .logo-mark::before {
+      content: '';
+      position: absolute;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.5);
+    }
+    .logo-inner {
+      width: 18px; height: 18px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(255,255,255,0.6);
+    }
 
-/* ── INNER TABS ── */
-.itabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
-.itab {
-  padding: 8px 16px; cursor: pointer; color: var(--text2);
-  font-size: 13px; font-weight: 500;
-  border-bottom: 2px solid transparent;
-  transition: all .15s; margin-bottom: -2px;
-}
-.itab:hover { color: var(--text); }
-.itab.active { color: var(--green); border-bottom-color: var(--green); font-weight: 600; }
+    .left-title {
+      text-align: center;
+      color: white;
+    }
+    .left-title .sub {
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 8px;
+      font-weight: 300;
+    }
+    .left-title h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      line-height: 1.2;
+    }
 
-/* ── 요약 카드 ── */
-.sum-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
-.scard {
-  background: var(--white); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 14px;
-  box-shadow: var(--shadow);
-}
-.scard .num { font-size: 26px; font-weight: 700; font-family: var(--mono); line-height: 1; margin-bottom: 3px; }
-.scard .lbl { font-size: 11px; color: var(--text2); }
-.scard.red   .num { color: var(--red); }
-.scard.orange .num { color: var(--orange); }
-.scard.yellow .num { color: var(--yellow); }
-.scard.blue  .num { color: var(--blue); }
-.scard.green .num { color: var(--green); }
+    .left-desc {
+      font-size: 13px;
+      color: rgba(255,255,255,0.65);
+      text-align: center;
+      line-height: 1.7;
+      font-weight: 300;
+      max-width: 220px;
+    }
 
-/* ── 테이블 ── */
-.twrap {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden; box-shadow: var(--shadow);
-}
-.thead-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-.thead-bar h3 { font-size: 14px; font-weight: 600; }
-table { width: 100%; border-collapse: collapse; }
-th {
-  background: #f8fafc; padding: 9px 12px; text-align: left;
-  font-size: 11px; font-weight: 700; color: var(--text2);
-  text-transform: uppercase; letter-spacing: .5px;
-  border-bottom: 1px solid var(--border); white-space: nowrap;
-}
-td { padding: 9px 12px; border-bottom: 1px solid #f0f4f8; font-size: 13px; color: var(--text); }
-tr:last-child td { border-bottom: none; }
-tr:hover td { background: #fafcfe; }
-.mono { font-family: var(--mono); font-size: 12px; }
+    .left-badges {
+      display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.8);
+      background: rgba(255,255,255,0.07);
+      letter-spacing: 0.05em;
+    }
 
-/* ── CHIPS ── */
-.chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-.chip-red    { background: #fff0f0; color: var(--red); }
-.chip-orange { background: #fff4ed; color: var(--orange); }
-.chip-yellow { background: #fffbeb; color: var(--yellow); }
-.chip-green  { background: var(--green-lt); color: var(--green-dk); }
-.chip-blue   { background: #ebf4ff; color: var(--blue); }
-.chip-gray   { background: #f4f6f8; color: var(--text2); }
-.chip-purple { background: #f5f0ff; color: var(--purple); }
+    /* ── Right Panel ── */
+    .right {
+      width: 380px;
+      background: white;
+      display: flex; flex-direction: column;
+      padding: 48px 44px;
+      animation: fadeRight 0.8s 0.3s both;
+    }
+    @keyframes fadeRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
-/* ── 버튼 ── */
-.btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 7px 14px; border-radius: 6px;
-  font-size: 13px; font-weight: 500; cursor: pointer;
-  border: none; transition: all .15s; font-family: var(--sans);
-}
-.btn-primary { background: var(--green); color: #fff; }
-.btn-primary:hover { background: var(--green-dk); }
-.btn-ghost { background: var(--white); color: var(--text2); border: 1px solid var(--border); }
-.btn-ghost:hover { background: var(--bg); color: var(--text); }
-.btn-danger { background: #fff0f0; color: var(--red); border: 1px solid #fecaca; }
-.btn-danger:hover { background: #fee2e2; }
-.btn-success { background: var(--green); color: #fff; }
-.btn-success:hover { background: var(--green-dk); }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
+    .right-top {
+      text-align: right;
+      margin-bottom: 28px;
+    }
+    .right-top a {
+      font-size: 12.5px;
+      color: var(--blue);
+      text-decoration: none;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    .right-top a:hover { opacity: 1; }
 
-/* ── 폼 ── */
-label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
-input[type=text], input[type=date], input[type=number], select, textarea {
-  width: 100%; background: var(--white);
-  border: 1px solid var(--border2); border-radius: 6px;
-  color: var(--text); padding: 7px 10px;
-  font-size: 13px; font-family: var(--sans); outline: none;
-  transition: border-color .15s;
-}
-input:focus, select:focus, textarea:focus { border-color: var(--green); }
-select option { background: var(--white); }
-input[type=checkbox] { width: auto; accent-color: var(--green); }
+    .right h2 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 36px;
+      letter-spacing: -0.02em;
+    }
 
-/* ── 설정 카드 ── */
-.cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
-.cfg-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
-.cfg-card h4 { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+    /* Input fields */
+    .field {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .field svg {
+      position: absolute;
+      left: 14px; top: 50%; transform: translateY(-50%);
+      color: #9ca3af;
+      width: 17px; height: 17px;
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+    .field input {
+      width: 100%;
+      height: 48px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 0 16px 0 42px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #111827;
+      background: #fafbff;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .field input::placeholder { color: #c4c9d4; }
+    .field input:focus {
+      border-color: var(--blue);
+      background: white;
+      box-shadow: 0 0 0 3px rgba(58,107,219,0.12);
+    }
+    .field input:focus + svg,
+    .field:focus-within svg { color: var(--blue); }
 
-/* ── 태그 ── */
-.htags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.htag { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 3px 9px; font-size: 12px; display: flex; align-items: center; gap: 5px; font-family: var(--mono); }
-.htag .del { cursor: pointer; color: var(--text3); font-size: 13px; }
-.htag .del:hover { color: var(--red); }
-.add-row { display: flex; gap: 7px; margin-top: 6px; }
-.add-row input { flex: 1; }
+    /* Field: icon after input in DOM but visually overlaid — reorder */
+    .field input { order: 2; }
+    .field svg { order: 1; }
 
-/* ── 특이사항 카드 ── */
-.ex-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
-.ex-grid { display: grid; gap: 8px; align-items: end; }
-.ex-sub { display: flex; gap: 8px; margin-top: 10px; align-items: end; }
+    .field-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 28px;
+      margin-top: 4px;
+    }
+    .field-row a {
+      color: var(--gray);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .field-row a:hover { color: var(--blue); }
+    .field-row a.accent { color: var(--blue); font-weight: 500; }
 
-/* ── 페이지네이션 ── */
-.pagination { display: flex; align-items: center; gap: 4px; padding: 12px 16px; border-top: 1px solid var(--border); }
-.pgbtn { width: 32px; height: 32px; border-radius: 5px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; border: 1px solid var(--border); color: var(--text2); background: var(--white); font-family: var(--mono); transition: all .15s; }
-.pgbtn:hover { background: var(--bg); color: var(--text); border-color: var(--green); }
-.pgbtn.active { background: var(--green); color: #fff; border-color: var(--green); }
-.pgbtn:disabled { opacity: .35; cursor: not-allowed; }
-.pginfo { margin-left: auto; font-size: 12px; color: var(--text3); font-family: var(--mono); }
+    /* Sign in button */
+    .btn-signin {
+      width: 100%;
+      height: 50px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(90deg, #3a6bdb, #00c6e0);
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 6px 20px rgba(58,107,219,0.35);
+    }
+    .btn-signin::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,0);
+      transition: background 0.2s;
+    }
+    .btn-signin:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(58,107,219,0.45); }
+    .btn-signin:hover::after { background: rgba(255,255,255,0.08); }
+    .btn-signin:active { transform: translateY(0); }
 
-/* ── 안내 박스 ── */
-.info-box { background: #f0f7e8; border: 1px solid #c6e0a0; border-radius: var(--radius); padding: 11px 14px; font-size: 13px; color: var(--text2); margin-bottom: 14px; }
-.info-box strong { color: var(--green-dk); }
-.warn-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: var(--radius); padding: 11px 14px; font-size: 13px; color: var(--text2); margin-bottom: 14px; }
+    /* Or with */
+    .or-row {
+      display: flex; align-items: center; gap: 12px;
+      margin: 22px 0 18px;
+    }
+    .or-row .line { flex: 1; height: 1px; background: #e5e7eb; }
+    .or-row span { font-size: 12px; color: #9ca3af; white-space: nowrap; }
 
-/* ── 섹션 타이틀 ── */
-.sec-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
-.sec-title span { flex: 1; }
+    /* Social icons */
+    .socials {
+      display: flex; justify-content: center; gap: 16px;
+    }
+    .social-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: 1.5px solid #e5e7eb;
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+    }
+    .social-btn:hover {
+      border-color: var(--blue);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(58,107,219,0.15);
+    }
+    .social-btn svg { width: 18px; height: 18px; }
 
-/* ── 필터바 ── */
-.fbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
-.fbar input[type=text] { width: 180px; }
-.fbar select { width: auto; }
+    /* Loading shimmer on submit */
+    .btn-signin.loading {
+      pointer-events: none;
+      background: linear-gradient(90deg, #3a6bdb 25%, #00c6e0 50%, #3a6bdb 75%);
+      background-size: 200%;
+      animation: shimmer 1.2s linear infinite;
+    }
+    @keyframes shimmer { from { background-position: 200%; } to { background-position: -200%; } }
 
-/* ── 빈 상태 ── */
-.empty { text-align: center; padding: 50px 20px; color: var(--text3); }
-.empty .icon { font-size: 32px; margin-bottom: 10px; }
-.empty h3 { color: var(--text2); font-size: 14px; margin-bottom: 4px; }
-
-/* ── 토스트 ── */
-.toast { position: fixed; bottom: 20px; right: 20px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 15px; font-size: 13px; z-index: 9999; transform: translateY(100px); opacity: 0; transition: all .3s; max-width: 300px; box-shadow: var(--shadow-md); }
-.toast.show { transform: translateY(0); opacity: 1; }
-.toast.ok { border-color: var(--green); }
-.toast.err { border-color: var(--red); }
-
-/* ── 모달 ── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-.modal { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 520px; max-width: 90vw; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-md); }
-.modal-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-.modal-title .close { margin-left: auto; cursor: pointer; color: var(--text3); font-size: 18px; line-height: 1; }
-.modal-title .close:hover { color: var(--red); }
-
-/* ── 보고자료 테이블 ── */
-.rpt-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.rpt-table th { background: #f8fafc; padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.rpt-table td { padding: 10px 12px; border-bottom: 1px solid #f0f4f8; font-size: 13px; vertical-align: top; }
-.rpt-table tr:last-child td { border-bottom: none; }
-.rpt-table tr:hover td { background: #fafcfe; }
-.receipt-input { background: var(--white); border: 1px solid var(--border2); border-radius: 5px; color: var(--text); padding: 5px 8px; font-size: 12px; width: 140px; font-family: var(--mono); }
-.receipt-input:focus { outline: none; border-color: var(--green); }
-.receipt-sel { background: var(--white); border: 1px solid var(--border2); border-radius: 5px; color: var(--text); padding: 4px 6px; font-size: 12px; }
-.receipt-sel:focus { outline: none; border-color: var(--green); }
-.rpt-names { display: flex; flex-direction: column; gap: 3px; }
-.rpt-name-item { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #f0f4f8; }
-.rpt-name-item:last-child { border-bottom: none; }
-.rpt-name-item .rpt-cnt { font-family: var(--mono); font-size: 11px; background: var(--green-lt); border-radius: 4px; padding: 1px 6px; color: var(--green-dk); font-weight: 600; white-space: nowrap; }
-
-/* ── 스크롤바 ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-
-.divider { height: 1px; background: var(--border); margin: 16px 0; }
-.row { display: flex; gap: 10px; flex-wrap: wrap; }
-.col { flex: 1; min-width: 0; }
-</style>
+    /* Responsive */
+    @media (max-width: 640px) {
+      .left { display: none; }
+      .right { width: 100%; padding: 40px 28px; }
+      .card-wrapper { height: auto; min-height: 480px; }
+    }
+  </style>
 </head>
-<body>
+<body style="opacity:0;transition:opacity 0.3s">
 
-<!-- ── 왼쪽 사이드바 (네이비) ── -->
-<div class="sidebar" id="sidebar">
-  <div class="sb-logo">
-    <img src="Poly 폴리어학원_blue_2.png" alt="Poly" id="sb-logo-img"
-      style="height:28px;object-fit:contain;"
-      onerror="this.style.display='none'">
-    <div style="flex:1;min-width:0;">
-      <div class="sb-title">근태 관리</div>
-      <div class="sb-sub">㈜폴리이에스씨</div>
-    </div>
-  </div>
+<div class="bg">
+  <div class="blob blob1"></div>
+  <div class="blob blob2"></div>
+  <div class="blob blob3"></div>
+  <div class="blob blob4"></div>
+</div>
+<div class="grid-overlay"></div>
 
-  <div class="sb-section">
-    <div class="sb-item" data-tab="report" onclick="switchTab('report')">
-      <span class="sb-icon">📊</span> 보고자료
-    </div>
-    <div class="sb-item" data-tab="upload" onclick="switchTab('upload')">
-      <span class="sb-icon">📂</span> 파일 업로드
-    </div>
-    <div class="sb-item" data-tab="exceptions" onclick="switchTab('exceptions')">
-      <span class="sb-icon">📌</span> 특이사항 설정
-    </div>
-    <div class="sb-item" data-tab="result" onclick="switchTab('result')">
-      <span class="sb-icon">🔍</span> 분석 결과
-    </div>
-    <div class="sb-item active" data-tab="history" onclick="switchTab('history')">
-      <span class="sb-icon">💾</span> 월별 기록
-    </div>
-    <div class="sb-item" data-tab="settings" onclick="switchTab('settings')">
-      <span class="sb-icon">⚙️</span> 기준 관리
-    </div>
-  </div>
+<div class="page">
+  <div class="card-wrapper">
 
-  <!-- 사이드바 하단 -->
-  <div style="margin-top:auto;padding:12px 10px;border-top:1px solid rgba(0,0,0,.08);">
-    <div id="sb-nickname" style="font-size:12px;font-weight:700;color:var(--green-dk);margin-bottom:2px"></div>
-    <div id="sb-user-id" style="font-size:10px;color:var(--text3);margin-bottom:2px;word-break:break-all"></div>
-    <div id="sb-role-badge" style="font-size:10px;color:var(--text3);margin-bottom:10px"></div>
-    <button class="sb-bottom-btn" onclick="window.location.href='landing.html'">
-      🏠 메인으로
-    </button>
-    <button class="sb-bottom-btn sb-logout" onclick="doLogout()">
-      🚪 로그아웃
-    </button>
+    <!-- Left Panel -->
+    <div class="left">
+      <img src="Poly_Emblem_Blue_A.png" alt="Company Logo" style="width: 90px; height: auto; object-fit: contain; filter: brightness(0) invert(1) drop-shadow(0 4px 12px rgba(0,0,0,0.2));"/>
+      <div class="left-title">
+        <p class="sub">Welcome to</p>
+        <h1>My<br/>Workspace</h1>
+      </div>
+      <p class="left-desc">
+        업무 생산성을 높여주는<br/>
+        스마트한 도구들을 한 곳에서<br/>
+        만나보세요.
+      </p>
+      <div class="left-badges">
+        <span class="badge">Analytics</span>
+        <span class="badge">Reports</span>
+        <span class="badge">Automation</span>
+      </div>
+    </div>
+
+     <!-- Right Panel -->
+    <div class="right">
+      <div class="right-top">
+        <a href="#">계정 요청하기 →</a>
+      </div>
+
+      <h2>Log In</h2>
+
+      <div class="field">
+        <input type="email" id="email" placeholder="이메일 주소" autocomplete="email"/>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        </svg>
+      </div>
+
+      <div class="field">
+        <input type="password" id="password" placeholder="비밀번호" autocomplete="current-password"/>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+
+      <div id="error-msg" style="font-size:12px;color:#ef4444;margin-bottom:10px;min-height:16px;display:none"></div>
+
+      <button class="btn-signin" id="signInBtn" onclick="handleEmailLogin()">Sign In</button>
+
+      <div class="or-row">
+        <span class="line"></span>
+        <span>or with</span>
+        <span class="line"></span>
+      </div>
+
+      <div class="socials">
+        <!-- Google -->
+        <div class="social-btn" id="googleBtn" title="Google" onclick="handleGoogleLogin()">
+          <svg viewBox="0 0 48 48" width="20" height="20">
+            <path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/>
+            <path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16 19.2 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 16.3 2 9.7 7.5 6.3 14.7z"/>
+            <path fill="#FBBC05" d="M24 46c5.5 0 10.5-1.8 14.4-5l-6.7-5.5C29.7 37.2 27 38 24 38c-5.1 0-9.4-3.4-11-8l-7 5.4C9.4 42.1 16.2 46 24 46z"/>
+            <path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.8 2.3-2.3 4.3-4.2 5.7l6.7 5.5C38.1 42 44 34 44 24c0-1.3-.2-2.7-.5-4z"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
-<!-- ── 메인 영역 ── -->
-<div class="main-wrap" id="main-wrap">
-  <!-- 상단 헤더 -->
-  <header>
-    <span class="hdr-title" id="hdr-tab-title">💾 월별 기록</span>
-    <span class="hdr-badge" id="hdr-month"></span>
-    <button class="btn btn-primary btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;margin-left:8px;">💾 저장</button>
-    <div class="header-right">
-      <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()" id="hdr-btn-excel" style="display:none;">⬇ Excel</button>
-      <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()" id="hdr-btn-pdf" style="display:none;">⬇ PDF</button>
-    </div>
-  </header>
-
-  <!-- 탭 + 캠퍼스 패널 + 컨텐츠 -->
-  <div class="tab-layout">
-    <!-- 캠퍼스 패널 (특이사항/분석결과 탭에서 오른쪽에 표시) -->
-    <div class="campus-panel hidden" id="campus-panel">
-      <div class="cp-label">캠퍼스</div>
-      <div id="campus-list-panel"></div>
-    </div>
-
-    <div class="content" id="main-content">
-
-    <!-- ════════════ TAB: REPORT ════════════ -->
-    <div class="panel" id="panel-report">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-        <span style="font-size:15px;font-weight:600;" id="rpt-title">📊 보고자료</span>
-        <span style="flex:1;"></span>
-        <button class="btn btn-ghost btn-sm" onclick="refreshReport()">🔄 새로고침</button>
-        <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()">⬇ Excel</button>
-        <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">⬇ PDF</button>
-      </div>
-      <div class="warn-box" id="rpt-no-data">
-        ⚠ 분석된 데이터가 없습니다. 먼저 <strong>파일 업로드 후 분석</strong>을 실행하거나, <strong>누적 기록</strong>에서 불러오세요.
-      </div>
-      <div id="rpt-wrap" style="display:none;">
-        <!-- 인쇄/PDF용 래퍼 -->
-        <div id="rpt-printable">
-          <div id="rpt-print-header" style="display:none;margin-bottom:16px;">
-            <div style="font-size:18px;font-weight:700;" id="rpt-print-title"></div>
-            <div style="font-size:12px;color:#666;margin-top:4px;" id="rpt-print-date"></div>
-          </div>
-          <div class="twrap">
-            <table class="rpt-table" id="rpt-table">
-              <thead>
-                <tr>
-                  <th style="width:10%;">캠퍼스</th>
-                  <th style="width:20%;">보고서 수신일</th>
-                  <th style="width:35%;">지각 인원</th>
-                  <th style="width:35%;">근무시간 미달 인원</th>
-                </tr>
-              </thead>
-              <tbody id="rpt-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ════════════ TAB: UPLOAD ════════════ -->
-    <div class="panel" id="panel-upload">
-      <div class="info-box">
-        그룹웨어에서 다운받은 <strong>근태현황 Excel 파일</strong>을 업로드하세요 (한 달 단위 1개 파일).
-      </div>
-      <div class="upload-zone" id="upload-zone"
-           ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
-        <input type="file" accept=".xlsx,.xls" onchange="handleFileSelect(event)">
-        <div class="icon">📂</div>
-        <h3>Excel 파일을 드래그하거나 클릭하여 업로드</h3>
-        <p>그룹웨어 근태현황 파일 (.xlsx, .xls)</p>
-        <div id="file-info" style="margin-top:10px;"></div>
-      </div>
-
-      <div id="upload-cfg" style="display:none;">
-        <div class="cfg-grid">
-          <div class="cfg-card">
-            <h4>📅 분석 기간</h4>
-            <div class="row" style="margin-bottom:10px;">
-              <div class="col"><label>시작일</label><input type="date" id="dt-start" onchange="updateHeaderMonth()"></div>
-              <div class="col"><label>종료일</label><input type="date" id="dt-end"></div>
-            </div>
-            <label>추가 공휴일 <span style="font-size:11px;color:var(--text3);">(대한민국 법정 공휴일 자동 제외 + 직접 추가)</span></label>
-            <div class="htags" id="holiday-tags"></div>
-            <div class="add-row">
-              <input type="date" id="hol-input">
-              <button class="btn btn-ghost btn-sm" onclick="addHoliday()">+ 추가</button>
-            </div>
-          </div>
-          <div class="cfg-card">
-            <h4>⚙ 분석 옵션</h4>
-            <div style="display:flex;flex-direction:column;gap:10px;">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-                <input type="checkbox" id="opt-wronglate" checked> 오지각 처리자 → 정상출근 전환
-              </label>
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
-                <input type="checkbox" id="opt-yuchi" checked> 유치부주임 근무시간 미달 제외
-              </label>
-              <div>
-                <label>근무시간 미달 기준 (시간)</label>
-                <input type="number" id="work-thr" value="10" min="1" max="24" style="width:80px;">
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-          <button class="btn btn-primary" onclick="runAnalysis()">🔍 분석 시작</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ════════════ TAB: EXCEPTIONS ════════════ -->
-    <div class="panel" id="panel-exceptions">
-      <div class="sec-title">
-        <span id="ex-title">📌 특이사항 설정</span>
-        <button class="btn btn-ghost btn-sm" onclick="addException()">+ 특이사항 추가</button>
-      </div>
-      <div class="info-box">
-        <strong>셔틀탑승·외근</strong> → 지각 제외 &nbsp;|&nbsp;
-        <strong>출근시간 변경</strong> → 해당 날짜 한해 적용 &nbsp;|&nbsp;
-        <strong>근무시간 미달 제외</strong> → 해당 인원 미달 무시
-      </div>
-      <div id="ex-list"></div>
-    </div>
-
-    <!-- ════════════ TAB: HISTORY ════════════ -->
-    <div class="panel active" id="panel-history">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-        <div class="sec-title" style="margin-bottom:0;border:none;flex:1;"><span>💾 월별 기록</span></div>
-        <div id="fb-status" style="font-size:12px;color:var(--text3);display:none;"></div>
-        <div id="fb-login-area" style="display:none;"></div>
-      </div>
-      <div class="info-box">
-        분석 완료 후 <strong>기록 저장</strong>을 누르면 Firebase에 저장됩니다. 어느 기기에서나 동일하게 조회 가능합니다.
-      </div>
-      <div class="twrap">
-        <div class="thead-bar">
-          <h3>월별 저장 기록</h3>
-          <span style="flex:1;"></span>
-          <button class="btn btn-ghost btn-sm" onclick="loadHistory()">🔄 새로고침</button>
-        </div>
-        <table>
-          <thead><tr>
-            <th>분석월</th><th>저장일시</th><th>지각</th><th>근무시간미달</th><th>정상전환</th><th>CCTV</th><th></th>
-          </tr></thead>
-          <tbody id="history-tbody">
-            <tr><td colspan="7"><div class="empty"><div class="icon">📁</div>
-              <h3>저장된 기록 없음</h3>
-              <p style="margin-top:6px;font-size:13px;">분석 후 "기록 저장" 버튼을 눌러주세요</p>
-            </div></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- ════════════ TAB: RESULT ════════════ -->
-    <div class="panel" id="panel-result">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-        <div id="res-campus-title" style="font-size:15px;font-weight:600;flex:1;"></div>
-      </div>
-      <div class="sum-row">
-        <div class="scard red"><div class="num" id="s-late">0</div><div class="lbl">지각자</div></div>
-        <div class="scard orange"><div class="num" id="s-short">0</div><div class="lbl">근무시간 미달</div></div>
-        <div class="scard yellow"><div class="num" id="s-wl">0</div><div class="lbl">오지각→정상 전환</div></div>
-        <div class="scard blue"><div class="num" id="s-cctv">0</div><div class="lbl">CCTV 확인 필요</div></div>
-      </div>
-      <!-- inner tabs -->
-      <div class="itabs">
-        <div class="itab active" data-itab="res-main" onclick="switchITab('res-main')">📊 분석 결과</div>
-        <div class="itab" data-itab="res-cctv" onclick="switchITab('res-cctv')">🎥 CCTV 확인 필요 <span id="cctv-badge" style="display:none;background:var(--yellow);color:#000;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;font-weight:700;"></span></div>
-        <div class="itab" data-itab="res-unre" onclick="switchITab('res-unre')">⚠ 추가 필요 대상 <span id="unre-badge" style="display:none;background:var(--orange);color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;"></span></div>
-      </div>
-      <!-- result sub-panel -->
-      <div id="res-main">
-        <div class="fbar">
-          <input type="text" id="rf-search" placeholder="이름 검색..." oninput="renderResultTable()">
-          <select id="rf-type" onchange="renderResultTable()">
-            <option value="">전체 유형</option>
-            <option value="late">지각</option>
-            <option value="short">근무시간 미달</option>
-            <option value="wronglate">오지각→정상</option>
-          </select>
-          <span style="margin-left:auto;font-size:12px;color:var(--text3);" id="res-count"></span>
-        </div>
-        <div class="twrap">
-          <table>
-            <thead><tr>
-              <th>캠퍼스</th><th>이름</th><th>직급</th><th>일자</th>
-              <th>출근</th><th>퇴근</th><th>근무시간</th><th>기준시간</th><th>유형</th><th>비고</th>
-            </tr></thead>
-            <tbody id="res-tbody"></tbody>
-          </table>
-          <div class="pagination" id="res-pg"></div>
-        </div>
-      </div>
-      <!-- unregistered sub-panel -->
-      <div id="res-unre" style="display:none;">
-        <div class="warn-box">
-          ⚠ <strong>리스트에 미등록된 인원</strong>입니다. 관리 대상 캠퍼스에 근태기록이 있으나 기준 리스트에 없습니다.<br>
-          승진·신규입사 등으로 누락됐을 수 있으니 확인 후 <strong>⚙ 기준 관리</strong>에서 추가해 주세요.
-        </div>
-        <div class="twrap">
-          <table>
-            <thead><tr><th>캠퍼스</th><th>이름</th><th>직급(파일기준)</th><th>근태기록일수</th><th>날짜목록</th><th>처리</th></tr></thead>
-            <tbody id="unre-tbody"></tbody>
-          </table>
-          <div class="pagination" id="unre-pg"></div>
-        </div>
-      </div>
-
-      <!-- cctv sub-panel -->
-      <div id="res-cctv" style="display:none;">
-        <div class="fbar">
-          <input type="text" id="cf-search" placeholder="이름 검색..." oninput="renderCCTVTable()">
-          <span style="margin-left:auto;font-size:12px;color:var(--text3);" id="cctv-count"></span>
-        </div>
-        <div class="twrap">
-          <table>
-            <thead><tr>
-              <th>캠퍼스</th><th>이름</th><th>직급</th><th>일자</th><th>미등록</th><th>확인여부</th><th>메모</th>
-            </tr></thead>
-            <tbody id="cctv-tbody"></tbody>
-          </table>
-          <div class="pagination" id="cctv-pg"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ════════════ TAB: SETTINGS ════════════ -->
-    <div class="panel" id="panel-settings">
-      <!-- 2 sub-sections via inner tabs -->
-      <div class="itabs" style="margin-bottom:14px;">
-        <div class="itab active" data-itab="set-emp" onclick="switchITab('set-emp')">👤 출근 기준 관리</div>
-        <div class="itab" data-itab="set-leave" onclick="switchITab('set-leave')">🏖 휴직자 관리</div>
-        <div class="itab" data-itab="set-holiday" onclick="switchITab('set-holiday')">📅 공휴일 관리</div>
-      </div>
-
-      <!-- Employee list -->
-      <div id="set-emp">
-        <div class="fbar">
-          <input type="text" id="ef-search" placeholder="이름/캠퍼스..." oninput="renderEmpTable()">
-          <select id="ef-campus" onchange="renderEmpTable()">
-            <option value="">전체 캠퍼스</option>
-          </select>
-          <button class="btn btn-ghost btn-sm" onclick="addEmployee()" style="margin-left:auto;">+ 인원 추가</button>
-        </div>
-        <div class="twrap">
-          <table>
-            <thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>출근기준</th><th>입사/승진일</th><th>비고</th><th></th></tr></thead>
-            <tbody id="emp-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Leave management -->
-      <div id="set-leave" style="display:none;">
-        <div class="info-box">
-          휴직자는 <strong>휴직 기간 내 근무기록을 분석에서 제외</strong>합니다. 종료일을 비우면 현재도 휴직 중으로 처리됩니다.
-        </div>
-        <div style="margin-bottom:12px;">
-          <button class="btn btn-ghost btn-sm" onclick="addLeave()">+ 휴직자 추가</button>
-        </div>
-        <div class="twrap">
-          <table>
-            <thead><tr><th>캠퍼스</th><th>이름</th><th>휴직 시작일</th><th>휴직 종료일</th><th>사유</th><th></th></tr></thead>
-            <tbody id="leave-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- 공휴일 관리 패널 -->
-      <div id="set-holiday" style="display:none;">
-        <div class="info-box">
-          <strong>내장 공휴일</strong>은 2024~2026년 대한민국 법정공휴일입니다. 잘못된 날짜는 삭제하고, 누락된 날짜는 추가하세요. 주말은 자동 제외됩니다.
-        </div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:300px;">
-            <div class="sec-title"><span>📌 내장 공휴일</span></div>
-            <div id="builtin-holiday-list" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-          </div>
-          <div style="flex:1;min-width:300px;">
-            <div class="sec-title"><span>➕ 추가 공휴일</span></div>
-            <div id="extra-holiday-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
-            <div class="add-row">
-              <input type="date" id="hol-input2">
-              <input type="text" id="hol-name-input" placeholder="명칭 (예: 창립기념일)" style="flex:2;">
-              <button class="btn btn-ghost btn-sm" onclick="addHolidayFromSettings()">+ 추가</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    </div><!-- /content -->
-  </div><!-- /tab-layout -->
-</div><!-- /main-wrap -->
-
-<div class="toast" id="toast"></div>
-
-<script>
-// ══════════════════════════════════════
-// ① STATIC DATA — employees
-// ══════════════════════════════════════
-let EMPLOYEES = [
-  {"checkInTime":"09:10","name":"Kayleigh Ilsley","position":"교수부장","campus":"광교","note":""},
-  {"checkInTime":"11:00","name":"이정민 (Jamie)","position":"교수부장","campus":"유성","note":""},
-  {"checkInTime":"11:00","name":"유재완","position":"원장","campus":"목동매그넷","note":""},
-  {"checkInTime":"11:00","name":"조정민 (Min)","position":"상담실장","campus":"목동매그넷","note":""},
-  {"checkInTime":"12:00","name":"장미희 (Michelle)","position":"상담실장","campus":"일산엠폴리","note":""},
-  {"checkInTime":"12:00","name":"정선아 (Jessica)","position":"상담실장","campus":"분당엠폴리","note":""},
-  {"checkInTime":"09:00","name":"이원우 (Michael)","position":"원장","campus":"광명","note":""},
-  {"checkInTime":"09:00","name":"김션 (Sean)","position":"원장","campus":"일산","note":""},
-  {"checkInTime":"09:00","name":"김지하 (Jiha)","position":"부원장","campus":"대전","note":""},
-  {"checkInTime":"09:00","name":"권오미 (Alyssia)","position":"원장","campus":"유성","note":""},
-  {"checkInTime":"09:00","name":"엄세연 (Lory Eom)","position":"교수부장","campus":"송도","note":""},
-  {"checkInTime":"09:00","name":"양수경 (Victoria)","position":"교수부장","campus":"위례","note":""},
-  {"checkInTime":"09:00","name":"이영미 (Charlotte)","position":"원장","campus":"정발","note":""},
-  {"checkInTime":"09:00","name":"옥민경(Lesley)","position":"유치부주임","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"이성우 (Brian)","position":"원장","campus":"송도","note":""},
-  {"checkInTime":"09:00","name":"정성경 (Laura)","position":"원장","campus":"수지","note":""},
-  {"checkInTime":"09:00","name":"홍서영 (Sophia)","position":"부원장","campus":"정발","note":""},
-  {"checkInTime":"09:00","name":"Jarret Kurber (제럿)","position":"부원장","campus":"일산","note":""},
-  {"checkInTime":"09:00","name":"박시정 (Lena)","position":"유치부주임","campus":"유성","note":""},
-  {"checkInTime":"09:00","name":"김민선 (Sunny)","position":"상담실장","campus":"대전","note":""},
-  {"checkInTime":"09:00","name":"박희도 (Colin)","position":"원장","campus":"중계","note":""},
-  {"checkInTime":"09:00","name":"현태준 (David)","position":"부원장","campus":"유성","note":""},
-  {"checkInTime":"09:00","name":"심경희 (Grace)","position":"원장","campus":"송파","note":""},
-  {"checkInTime":"09:00","name":"박성희(Lois)","position":"교수부장","campus":"광명","note":""},
-  {"checkInTime":"09:00","name":"장영진 (Eric)","position":"원장","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"변보배 (Christie) (4103)","position":"부원장","campus":"중계","note":""},
-  {"checkInTime":"09:00","name":"이득진(Irene)","position":"유치부주임","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"이화숙 (Helen)","position":"원장","campus":"광교","note":""},
-  {"checkInTime":"09:00","name":"신연지 (Vivian)","position":"유치부주임","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"전은정 (Jenna)","position":"유치부주임","campus":"송파","note":""},
-  {"checkInTime":"09:00","name":"이선진 (Elina)","position":"유치부주임","campus":"송도","note":""},
-  {"checkInTime":"09:00","name":"김혜진 (Heather)","position":"교수부장","campus":"대치폴리매그넷","note":""},
-  {"checkInTime":"09:00","name":"전은혜 (Joyce)","position":"유치부주임","campus":"대전","note":""},
-  {"checkInTime":"09:00","name":"김연주 (Dora)","position":"교수부장","campus":"유성","note":""},
-  {"checkInTime":"09:00","name":"정주희 (Lina)","position":"상담실장","campus":"중계","note":""},
-  {"checkInTime":"09:00","name":"서재원 (Kobe)","position":"부원장","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"이한나 (Hannah)","position":"교수부장","campus":"광명","note":""},
-  {"checkInTime":"09:00","name":"이선영 (Retisha)","position":"유치부주임","campus":"정발","note":""},
-  {"checkInTime":"09:00","name":"Elly Chang","position":"교수부장","campus":"광명","note":""},
-  {"checkInTime":"09:00","name":"김성신 (Julie)","position":"유치부주임","campus":"수지2","note":""},
-  {"checkInTime":"09:00","name":"오주미 (Melissa) (9906)","position":"교수부장","campus":"대치폴리매그넷","note":""},
-  {"checkInTime":"09:00","name":"주용훈 (Joseph)","position":"원장","campus":"대치폴리매그넷","note":""},
-  {"checkInTime":"09:00","name":"오경희 (Emily)","position":"유치부주임","campus":"일산","note":""},
-  {"checkInTime":"09:00","name":"김정향 (Jasper)","position":"유치부주임","campus":"대전","note":""},
-  {"checkInTime":"09:00","name":"박다솜 (Diane)","position":"교수부장","campus":"운정","note":""},
-  {"checkInTime":"09:00","name":"이정훈 (Samuel) (내선번호 9717)","position":"교수부장","campus":"수지","note":""},
-  {"checkInTime":"09:00","name":"김부송 (Kate)","position":"교수부장","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"홍우리 (Olivia)","position":"원장","campus":"분당","note":""},
-  {"checkInTime":"09:00","name":"염가현 (Ellie)","position":"상담실장","campus":"일산","note":""},
-  {"checkInTime":"09:00","name":"최동숙(Judy)","position":"원장","campus":"운정","note":""},
-  {"checkInTime":"09:00","name":"최은하 (Julie)","position":"상담실장","campus":"송도","note":""},
-  {"checkInTime":"09:00","name":"조은희 (Emily)","position":"교수부장","campus":"송도","note":""},
-  {"checkInTime":"09:00","name":"이은영 (Ashley)","position":"교수부장","campus":"수지2","note":""},
-  {"checkInTime":"09:00","name":"추명문 (Moon)","position":"상담실장","campus":"정발","note":""},
-  {"checkInTime":"09:00","name":"지승희 (Katherine)_대전 8554","position":"원장","campus":"대전","note":""},
-  {"checkInTime":"09:00","name":"황지영(Monica)","position":"교수부장","campus":"운정","note":""},
-  {"checkInTime":"09:00","name":"정언정 (Sally)","position":"유치부주임","campus":"중계","note":""},
-  {"checkInTime":"08:30","name":"황윤진 (Angie)","position":"유치부주임","campus":"광교","note":""},
-  {"checkInTime":"08:30","name":"김창숙(Rebecca)","position":"유치부주임","campus":"광교","note":""},
-  {"checkInTime":"09:00","name":"박준호 (Joshua)","position":"원장","campus":"위례","note":""},
-  {"checkInTime":"09:00","name":"이윤승 (Jenny)","position":"상담실장","campus":"광명","note":""},
-  {"checkInTime":"09:00","name":"강수하 (Sue)","position":"원장","campus":"광명","note":""},
-  {"checkInTime":"13:30","name":"두안진 (Matthew) (9240)","position":"교수부장","campus":"목동엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"Daniel Sutcliffe","position":"교수부장","campus":"목동엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"이승민 (Jane)","position":"교수부장","campus":"목동엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"14:15","name":"하노엘 (Ella) (9242)","position":"HT","campus":"목동엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"신하늘 (Jenna)","position":"교수부장","campus":"대전엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"한영은 (Emma)","position":"부원장","campus":"대전엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"김주영 (Emily)","position":"부원장","campus":"영통엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"로버트제시 (Robert)","position":"교수부장","campus":"분당엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"12:30","name":"류청락 (Olivia)","position":"원장","campus":"영통엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:00","name":"최윤실 (Chloe)","position":"상담실장","campus":"영통엠폴리","note":""},
-  {"checkInTime":"12:30","name":"고인성 (Eric)","position":"원장","campus":"목동엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"14:10","name":"고은혜 (Grace)","position":"HT","campus":"대전엠폴리","note":""},
-  {"checkInTime":"12:30","name":"김효진 (HJ) (8546)","position":"원장","campus":"대전엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:15","name":"강수현 (Sue)","position":"교수부장","campus":"대전엠폴리","note":"임시"},
-  {"checkInTime":"10:00","name":"우아영","position":"상담실장","campus":"분당","note":""},
-  {"checkInTime":"12:30","name":"박보빈 (Bobin)","position":"원장","campus":"분당엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"김은하 (Leah)","position":"부원장","campus":"MIL","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"강민규 (Brian)","position":"원장","campus":"MIL","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"홍준호 (Andrew)","position":"교수부장","campus":"분당엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"13:30","name":"이효현 (Hyohyun)","position":"교수부장","campus":"분당엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"14:10","name":"박민수 (Minsu)","position":"HT","campus":"분당엠폴리","note":""},
-  {"checkInTime":"10:00","name":"오은정 (Erica)","position":"상담실장","campus":"광교","note":""},
-  {"checkInTime":"10:00","name":"최유화 (Jamie)","position":"교수부장","campus":"광교","note":""},
-  {"checkInTime":"14:10","name":"이성은 (Rachel)","position":"HT","campus":"영통엠폴리","note":""},
-  {"checkInTime":"14:10","name":"김소연 (Soy)","position":"HT","campus":"영통엠폴리","note":""},
-  {"checkInTime":"11:00","name":"정지혜 (Tammy)","position":"부원장","campus":"목동매그넷","note":""},
-  {"checkInTime":"14:10","name":"김현진 (Lindsey) (9402)","position":"HT","campus":"일산엠폴리","note":""},
-  {"checkInTime":"12:30","name":"강수하 (Sue)","position":"원장","campus":"일산엠폴리","note":"엠폴리관리자"},
-  {"checkInTime":"09:00","name":"탁지은 (Elizabeth)","position":"부원장","campus":"광교","note":""},
-  {"checkInTime":"09:00","name":"Erica Luckett","position":"교수부장","campus":"일산엠폴리","note":""},
-  {"checkInTime":"09:00","name":"박청은 (Christy) (9455)","position":"부원장","campus":"분당","note":""},
-  {"checkInTime":"09:00","name":"이정윤(Yunny) (9831)","position":"상담실장","campus":"운정","note":""},
-  {"checkInTime":"09:00","name":"김지희 (Jessie)","position":"교수부장","campus":"광명","note":""},
-  {"checkInTime":"09:00","name":"차하은(Sandy)","position":"상담실장","campus":"정발","note":""},
-  {"checkInTime":"09:00","name":"박지윤(Chloe) (9827)","position":"상담실장","campus":"위례","note":""},
-  {"checkInTime":"09:00","name":"소리에 (Reina)","position":"교수부장","campus":"유성","note":""},
-  {"checkInTime":"09:00","name":"노현경 (Lina)","position":"상담실장","campus":"유성","note":""},
-  {"checkInTime":"09:00","name":"최민주 (Mari)","position":"교수부장","campus":"대전","note":""},
-  {"checkInTime":"09:00","name":"윤선희 (Sunny)","position":"교수부장","campus":"수지","note":""},
-  {"checkInTime":"09:00","name":"박희진 (Joy)","position":"상담실장","campus":"중계","note":""},
-  {"checkInTime":"09:00","name":"차지민 (Jenny)","position":"교수부장","campus":"수지2","note":""},
-  {"checkInTime":"09:00","name":"박선영 (Sunny) (9818)","position":"상담실장","campus":"수지2","note":""},
-  {"checkInTime":"09:00","name":"김주연","position":"교수부장","campus":"대전","note":""},
-  {"checkInTime":"09:00","name":"김하영 (Chloe) (9947/8502)","position":"교수부장","campus":"분당","note":""},
-  {"checkInTime":"09:00","name":"박보빈 (Bobin)","position":"부원장","campus":"송파","note":""},
-  {"checkInTime":"09:00","name":"김미진 (Bonnie)","position":"교수부장","campus":"MIL","note":""},
-  // 추가 13명 (리스트.xlsx 누락분)
-  {"checkInTime":"09:00","name":"송민혁 (Brian) (9456)","position":"교수부장","campus":"분당","note":""},
-  {"checkInTime":"09:00","name":"Brennon Clark","position":"교수부장","campus":"대치폴리매그넷","note":""},
-  {"checkInTime":"09:00","name":"Jill Wooster","position":"교수부장","campus":"정발","note":""},
-  {"checkInTime":"09:00","name":"Nina Garcia","position":"교수부장","campus":"송도","note":""},
-  {"checkInTime":"09:00","name":"권경자(Jenny)(9794)","position":"상담실장","campus":"송파","note":""},
-  {"checkInTime":"09:00","name":"김윤이 (Lydia)","position":"교수부장","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"김종민 (Jay)","position":"교수부장","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"김주인 (Joseph)","position":"교수부장","campus":"목동","note":""},
-  {"checkInTime":"09:00","name":"이유선(Annie) (9718)","position":"교수부장","campus":"수지","note":""},
-  {"checkInTime":"09:00","name":"임채린 (Jane)","position":"유치부주임","campus":"대전","note":""},
-  {"checkInTime":"09:00","name":"전다은 (Dana)","position":"교수부장","campus":"위례","note":""},
-  {"checkInTime":"09:00","name":"전희진(Sunny)","position":"유치부주임","campus":"송파","note":""},
-  {"checkInTime":"09:00","name":"최지은 (Jini)","position":"교수부장","campus":"위례","note":""}
-];
-
-// ② KOREA PUBLIC HOLIDAYS 2024-2027
-// ── 대한민국 법정공휴일 (검증완료 2024~2026) ──
-// 수정내역: 2025-03-03추가(삼일절대체), 2025-05-06제거(오류),
-//           2026-05-26제거(오류), 2026-10-05제거(오류), 2026-10-08제거(오류),
-//           2026-09-26추가(추석다음), 2024-04-10제거(총선일-공휴일아님)
-const KR_HOLIDAYS_RAW = [
-  // 2024
-  "2024-01-01",  // 신정
-  "2024-02-09","2024-02-10","2024-02-11","2024-02-12",  // 설날연휴+대체
-  "2024-03-01",  // 삼일절
-  "2024-05-05","2024-05-06",  // 어린이날+대체(일요일)
-  "2024-05-15",  // 부처님오신날
-  "2024-06-06",  // 현충일
-  "2024-08-15",  // 광복절
-  "2024-09-16","2024-09-17","2024-09-18",  // 추석연휴
-  "2024-10-03",  // 개천절
-  "2024-10-09",  // 한글날
-  "2024-12-25",  // 크리스마스
-  // 2025
-  "2025-01-01",  // 신정
-  "2025-01-28","2025-01-29","2025-01-30",  // 설날연휴
-  "2025-03-01",  // 삼일절(토)
-  "2025-03-03",  // 삼일절 대체공휴일(토→월)
-  "2025-05-05",  // 어린이날(월)
-  "2025-05-15",  // 부처님오신날
-  "2025-06-06",  // 현충일
-  "2025-08-15",  // 광복절
-  "2025-10-03",  // 개천절
-  "2025-10-05","2025-10-06","2025-10-07",  // 추석연휴
-  "2025-10-09",  // 한글날
-  "2025-12-25",  // 크리스마스
-  // 2026
-  "2026-01-01",  // 신정
-  "2026-02-16","2026-02-17","2026-02-18",  // 설날연휴
-  "2026-03-01",  // 삼일절(일)
-  "2026-03-02",  // 삼일절 대체공휴일(일→월)
-  "2026-05-05",  // 어린이날(화)
-  "2026-05-25",  // 부처님오신날
-  "2026-06-06",  // 현충일(토-주말이므로 근무일 아님)
-  "2026-08-15",  // 광복절(토)
-  "2026-08-17",  // 광복절 대체공휴일(토→월)
-  "2026-09-24","2026-09-25","2026-09-26",  // 추석연휴
-  "2026-10-03",  // 개천절(토)
-  "2026-10-09",  // 한글날
-  "2026-12-25",  // 크리스마스
-];
-let KR_HOLIDAYS_BUILTIN = [...KR_HOLIDAYS_RAW]; // 수정 가능한 내장 공휴일 배열
-const KR_HOLIDAYS = null; // deprecated — isNonWorkday에서 KR_HOLIDAYS_BUILTIN 사용
-
-// ③ CAMPUSES EXCLUDED FROM WORK HOUR CHECK (요청 #6)
-const SHORT_WORK_EXCLUDED_CAMPUSES = new Set([
-  "MIL","목동매그넷","목동엠폴리","영통엠폴리","분당엠폴리","일산엠폴리","대전엠폴리"
-]);
-
-// ③-b 관리 대상 캠퍼스 (본사부서 제외용)
-const MANAGED_CAMPUSES = new Set([
-  "MIL","광교","광명","대전","대전엠폴리","대치폴리매그넷","목동","목동매그넷","목동엠폴리",
-  "분당","분당엠폴리","송도","송파","수지","수지2","영통엠폴리","운정","위례","유성",
-  "일산","일산엠폴리","정발","중계"
-]);
-
-// ③-c 분석 제외 직급 (상담교사 등)
-const EXCLUDED_POSITIONS = new Set(["상담교사","강사","회계","교수부장(T)"]);
-
-// ④ STATE
-let EXCEPTIONS = [];
-let LEAVES = [];
-let HOLIDAYS = [];
-let RAW_DATA = [];
-let RESULTS = [];
-let UNREGISTERED = []; // 리스트 미등록이지만 근태기록 있는 인원
-let HISTORY = [];     // 누적 분석 기록 [{monthKey, analysedAt, results, summary}]
-let REPORT_RECEIPTS = {}; // 보고서 수신 {monthKey: {campusName: {status, date}}}
-let currentUser = null; // Firebase 로그인 유저
-let selectedCampus = '전체';
-let currentTab = 'history';
-let currentITab = { result:'res-main', settings:'set-emp' };
-
-// Pagination state
-const PAGE_SIZE = 15;
-let resPage = 1;
-let cctvPage = 1;
-let unrePage = 1;
-
-// ══════════════════════════════════════
-// INIT
-// ══════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-  loadState();
-  updateHeaderMonth();
-  setDefaultDates();
-  renderAll();
-  switchTab('history');
-  setTimeout(() => { if (typeof initFirebase === 'function') initFirebase(); }, 500);
-});
-
-function updateHeaderMonth() {
-  // 분석 기간 시작일 기준으로 표시, 없으면 이전달
-  const start = document.getElementById('dt-start')?.value;
-  const el = document.getElementById('hdr-month');
-  if (!el) return;
-  if (start) {
-    const [y, m] = start.split('-').map(Number);
-    el.textContent = `${y}년 ${m}월`;
-  } else {
-    const now = new Date();
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    el.textContent = `${prev.getFullYear()}년 ${prev.getMonth()+1}월`;
-  }
-}
-
-function setDefaultDates() {
-  // 기본값: 이전달 1일 ~ 말일
-  const now = new Date();
-  const y = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear();
-  const m = now.getMonth() === 0 ? 12 : now.getMonth(); // 이전달 (1-based)
-  const last = new Date(y, m, 0).getDate();
-  document.getElementById('dt-start').value = `${y}-${String(m).padStart(2,'0')}-01`;
-  document.getElementById('dt-end').value = `${y}-${String(m).padStart(2,'0')}-${String(last).padStart(2,'0')}`;
-}
-
-function renderAll() {
-  renderCampusPanel();
-  renderExList();
-  renderLeaveTable();
-  renderEmpTable();
-  populateCampusSelects();
-  renderHolidayTags();
-}
-
-// ══════════════════════════════════════
-// TAB SWITCHING
-// ══════════════════════════════════════
-function switchTab(tab) {
-  currentTab = tab;
-
-  // 사이드바 메뉴 active
-  document.querySelectorAll('.sb-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.tab === tab);
-  });
-
-  // 패널 표시
-  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
-  const panel = document.getElementById('panel-' + tab);
-  if (panel) panel.classList.add('active');
-
-  // 헤더 타이틀
-  const titles = {
-    upload: '📂 파일 업로드', report: '📊 보고자료',
-    exceptions: '📌 특이사항 설정', result: '🔍 분석 결과',
-    history: '💾 월별 기록', settings: '⚙️ 기준 관리'
-  };
-  document.getElementById('hdr-tab-title').textContent = titles[tab] || tab;
-
-  // 헤더 버튼
-  ['hdr-btn-excel','hdr-btn-pdf'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = tab === 'report' ? '' : 'none';
-  });
-
-  // 저장 버튼 - 분석 데이터 있으면 항상 표시
-  const saveBtn = document.getElementById('save-history-btn');
-  if (saveBtn) saveBtn.style.display = (typeof RAW_DATA !== 'undefined' && RAW_DATA.length) ? 'inline-flex' : 'none';
-
-  // 캠퍼스 패널 (예외/결과 탭만 표시)
-  const showCampus = tab === 'exceptions' || tab === 'result';
-  document.getElementById('campus-panel').classList.toggle('hidden', !showCampus);
-
-
-
-  // 탭별 동작
-  if (tab === 'report') refreshReport();
-  if (tab === 'history') loadHistory();
-  if (tab === 'result') {
-    renderResultTable(); renderCCTVTable(); renderUnregisteredTable(); updateSummary();
-  }
-}
-
-function switchTabResult(type) {
-  // 분석결과 탭으로 이동 후 해당 서브탭 선택
-  switchTab('result');
-  const itabMap = { late:'res-main', short:'res-main', wronglate:'res-main', cctv:'res-cctv', unre:'res-unre' };
-  const typeFilterMap = { late:'late', short:'short', wronglate:'wronglate', cctv:'', unre:'' };
-  const itab = itabMap[type] || 'res-main';
-  switchITab(itab);
-  const tf = document.getElementById('rf-type');
-  if (tf && typeFilterMap[type] !== undefined) tf.value = typeFilterMap[type];
-  renderResultTable();
-  // 사이드바 active
-  document.querySelectorAll('.sb-item').forEach(el => el.classList.remove('active'));
-  const activeEl = document.querySelector(`.sb-item[data-tab="result-${type}"]`);
-  if (activeEl) activeEl.classList.add('active');
-}
-
-function switchTabSettings(subTab) {
-  switchTab('settings');
-  switchITab(subTab);
-}
-
-
-function switchITab(itab) {
-  // figure out parent
-  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings' };
-  const parent = parents[itab];
-  currentITab[parent] = itab;
-
-  // toggle itab classes within the active panel
-  document.getElementById('panel-' + parent).querySelectorAll('.itab').forEach(el => {
-    el.classList.toggle('active', el.dataset.itab === itab);
-  });
-
-  // show/hide sub-panels
-  if (parent === 'result') {
-    ['res-main','res-cctv','res-unre'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = itab === id ? 'block' : 'none';
-    });
-  }
-  if (parent === 'settings') {
-    ['set-emp','set-leave','set-holiday'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = itab === id ? 'block' : 'none';
-    });
-    if (itab === 'set-holiday') renderHolidaySettings();
-  }
-}
-
-// ══════════════════════════════════════
-// SIDEBAR
-// ══════════════════════════════════════
-function getCampusList() {
-  return [...new Set(EMPLOYEES.map(e => e.campus))].sort((a,b) => a.localeCompare(b,'ko'));
-}
-
-function renderSidebar() {
-  // 사이드바 sb-item active 유지 (switchTab에서 처리)
-  renderCampusPanel();
-}
-
-function renderCampusPanel() {
-  const campuses = getCampusList();
-  const countFor = campus => {
-    if (currentTab === 'exceptions') return EXCEPTIONS.filter(e => e.campus === campus).length;
-    if (currentTab === 'result') return RESULTS.filter(r => r.campus === campus).length;
-    return 0;
-  };
-  const total = currentTab === 'exceptions' ? EXCEPTIONS.length : RESULTS.length;
-
-  const makeItem = (campus, isAll) => {
-    const cnt = isAll ? total : countFor(campus);
-    const active = selectedCampus === (isAll ? '전체' : campus);
-    return `<div class="cp-item ${active?'active':''}" onclick="selectCampus('${isAll?'전체':campus}')">
-      <div class="cp-dot"></div>
-      <span>${isAll ? '전체' : campus}</span>
-      <span class="cp-count">${cnt||''}</span>
-    </div>`;
-  };
-
-  const html = makeItem('전체', true) + campuses.map(c => makeItem(c, false)).join('');
-
-  // 캠퍼스 패널
-  const panel = document.getElementById('campus-list-panel');
-  if (panel) panel.innerHTML = html;
-
-
-
-
-}
-
-
-function selectCampus(campus) {
-  selectedCampus = campus;
-  renderSidebar();
-  if (currentTab === 'exceptions') renderExList();
-  if (currentTab === 'result') { resPage=1; cctvPage=1; unrePage=1; renderResultTable(); renderCCTVTable(); renderUnregisteredTable(); updateSummary(); }
-}
-
-
-// ══════════════════════════════════════
-// HOLIDAY SETTINGS PANEL
-// ══════════════════════════════════════
-function renderHolidaySettings() {
-  // 내장 공휴일 렌더
-  const builtinEl = document.getElementById('builtin-holiday-list');
-  const sorted = [...KR_HOLIDAYS_BUILTIN].sort();
-  builtinEl.innerHTML = sorted.map(d => {
-    const label = getHolidayLabel(d);
-    return `<div class="htag" style="min-width:130px;">
-      <span style="font-family:var(--mono);font-size:12px;">${d}</span>
-      <span style="font-size:11px;color:var(--text3);margin-left:4px;">${label}</span>
-      <span class="del" onclick="removeBuiltinHoliday('${d}')" title="삭제">×</span>
-    </div>`;
-  }).join('');
-
-  // 추가 공휴일 렌더
-  const extraEl = document.getElementById('extra-holiday-list');
-  if (!HOLIDAYS.length) {
-    extraEl.innerHTML = '<span style="font-size:13px;color:var(--text3);">추가된 공휴일 없음</span>';
-  } else {
-    extraEl.innerHTML = HOLIDAYS.map(h => `<div class="htag">
-      <span class="mono">${h.date}</span>
-      <span style="font-size:11px;color:var(--text2);margin-left:4px;">${h.name||''}</span>
-      <span class="del" onclick="removeExtraHoliday('${h.date}')">×</span>
-    </div>`).join('');
-  }
-}
-
-function getHolidayLabel(d) {
-  const labels = {
-    "01-01":"신정","03-01":"삼일절","03-02":"삼일절대체","03-03":"삼일절대체",
-    "05-05":"어린이날","05-06":"어린이날대체","06-06":"현충일",
-    "08-15":"광복절","08-17":"광복절대체","10-03":"개천절","10-09":"한글날","12-25":"크리스마스"
-  };
-  const mmdd = d.slice(5);
-  return labels[mmdd] || '';
-}
-
-function removeBuiltinHoliday(date) {
-  KR_HOLIDAYS_BUILTIN = KR_HOLIDAYS_BUILTIN.filter(d => d !== date);
-  renderHolidaySettings();
-  saveState();
-  showToast(`🗑 ${date} 내장공휴일에서 제거`, 'ok');
-}
-
-function addHolidayFromSettings() {
-  const dateVal = document.getElementById('hol-input2').value;
-  const nameVal = document.getElementById('hol-name-input').value.trim();
-  if (!dateVal) return;
-  if (HOLIDAYS.some(h => h.date === dateVal)) { showToast('이미 추가된 날짜입니다', 'err'); return; }
-  HOLIDAYS.push({ date: dateVal, name: nameVal });
-  document.getElementById('hol-input2').value = '';
-  document.getElementById('hol-name-input').value = '';
-  renderHolidaySettings();
-  saveState();
-  showToast(`✅ ${dateVal} 추가됨`, 'ok');
-}
-
-function removeExtraHoliday(date) {
-  HOLIDAYS = HOLIDAYS.filter(h => h.date !== date);
-  renderHolidaySettings();
-  saveState();
-}
-
-// ══════════════════════════════════════
-// HOLIDAY UTILS
-// ══════════════════════════════════════
-function isNonWorkday(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const dow = d.getDay();
-  if (dow === 0 || dow === 6) return true;                        // 주말
-  if (KR_HOLIDAYS_BUILTIN.includes(dateStr)) return true;        // 내장 공휴일
-  if (HOLIDAYS.some(h => h.date === dateStr)) return true;        // 추가 공휴일
-  return false;
-}
-
-function addHoliday() {
-  const v = document.getElementById('hol-input').value;
-  if (!v || HOLIDAYS.some(h => h.date === v)) return;
-  HOLIDAYS.push({ date: v, name: '' });
-  renderHolidayTags();
-  saveState();
-}
-function removeHoliday(d) {
-  HOLIDAYS = HOLIDAYS.filter(h => h.date !== d);
-  renderHolidayTags();
-  saveState();
-}
-function renderHolidayTags() {
-  const el = document.getElementById('holiday-tags');
-  if (!el) return;
-  el.innerHTML = HOLIDAYS.map(h =>
-    `<div class="htag"><span class="mono">${h.date}</span>${h.name ? ' <span style="font-size:11px;color:var(--text3);">'+h.name+'</span>' : ''}<span class="del" onclick="removeHoliday('${h.date}')">×</span></div>`
-  ).join('');
-}
-
-// ══════════════════════════════════════
-// LEAVE UTILS
-// ══════════════════════════════════════
-function isOnLeave(name, campus, date) {
-  return LEAVES.some(l => {
-    if (l.name !== name) return false;
-    if (l.campus && l.campus !== campus) return false;
-    if (date < l.startDate) return false;
-    if (l.endDate && date > l.endDate) return false;
-    return true;
-  });
-}
-
-function addLeave() {
-  LEAVES.push({id: Date.now(), campus:'', name:'', startDate:'', endDate:'', reason:''});
-  renderLeaveTable();
-  saveState();
-}
-function removeLeave(id) {
-  LEAVES = LEAVES.filter(l => l.id !== id);
-  renderLeaveTable();
-  saveState();
-}
-function updateLeave(id, field, val) {
-  const l = LEAVES.find(x => x.id === id);
-  if (l) { l[field] = val; saveState(); }
-}
-function renderLeaveTable() {
-  const campuses = getCampusList();
-  const tbody = document.getElementById('leave-tbody');
-  if (!LEAVES.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="icon">🏖</div><h3>등록된 휴직자 없음</h3></div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = LEAVES.map(l => `<tr>
-    <td><select onchange="updateLeave(${l.id},'campus',this.value)" style="width:110px;">
-      <option value="">전체</option>
-      ${campuses.map(c=>`<option ${l.campus===c?'selected':''}>${c}</option>`).join('')}
-    </select></td>
-    <td><input type="text" value="${l.name}" placeholder="이름" style="width:140px;" onchange="updateLeave(${l.id},'name',this.value)"></td>
-    <td><input type="date" value="${l.startDate}" onchange="updateLeave(${l.id},'startDate',this.value)"></td>
-    <td><input type="date" value="${l.endDate}" onchange="updateLeave(${l.id},'endDate',this.value)"><span style="font-size:11px;color:var(--text3);display:block;">비우면 현재 휴직 중</span></td>
-    <td><input type="text" value="${l.reason}" placeholder="사유" onchange="updateLeave(${l.id},'reason',this.value)"></td>
-    <td><button class="btn btn-danger btn-sm" onclick="removeLeave(${l.id})">삭제</button></td>
-  </tr>`).join('');
-}
-
-// ══════════════════════════════════════
-// EXCEPTIONS
-// ══════════════════════════════════════
-function addException() {
-  const campus = selectedCampus === '전체' ? '' : selectedCampus;
-  EXCEPTIONS.push({id:Date.now(), campus, type:'shuttle', names:'', startDate:'', endDate:'', newTime:'', note:''});
-  renderExList();
-  saveState();
-}
-function removeException(id) {
-  EXCEPTIONS = EXCEPTIONS.filter(e => e.id !== id);
-  renderExList();
-  saveState();
-}
-function updEx(id, field, val) {
-  const ex = EXCEPTIONS.find(e => e.id === id);
-  if (ex) { ex[field] = val; saveState(); }
-}
-function renderExList() {
-  const el = document.getElementById('ex-list');
-  const campuses = getCampusList();
-  const today = new Date().toISOString().slice(0,10);
-
-  const visible = selectedCampus === '전체'
-    ? EXCEPTIONS
-    : EXCEPTIONS.filter(e => e.campus === selectedCampus || e.campus === '');
-
-  document.getElementById('ex-title').textContent =
-    `📌 특이사항 설정 ${selectedCampus !== '전체' ? '— ' + selectedCampus : ''}`;
-
-  if (!visible.length) {
-    el.innerHTML = `<div class="empty"><div class="icon">📌</div><h3>등록된 특이사항 없음</h3>
-      <p style="font-size:13px;margin-top:6px;">왼쪽 캠퍼스 선택 후 "+ 특이사항 추가"를 눌러주세요</p></div>`;
-    return;
-  }
-
-  // 만료(종료일이 오늘 이전) 항목 분리
-  const active  = visible.filter(ex => !ex.endDate || ex.endDate >= today);
-  const expired = visible.filter(ex => ex.endDate && ex.endDate < today);
-
-  if (typeof renderExList._showExpired === 'undefined') renderExList._showExpired = false;
-
-  const expiredToggleHtml = expired.length > 0
-    ? `<div style="margin-bottom:10px;">
-        <button class="btn btn-ghost btn-sm" onclick="renderExList._showExpired=!renderExList._showExpired;renderExList()">
-          ${renderExList._showExpired ? '🔼 만료 항목 숨기기' : '🔽 만료된 항목 ' + expired.length + '건 보기'}
-        </button>
-      </div>`
-    : '';
-
-  const toRender = renderExList._showExpired ? visible : active;
-
-  if (!toRender.length) {
-    el.innerHTML = expiredToggleHtml +
-      `<div class="empty"><div class="icon">✅</div><h3>활성 특이사항 없음</h3>
-        <p style="font-size:13px;margin-top:6px;">만료된 항목은 위 버튼으로 확인하세요</p></div>`;
-    return;
-  }
-
-  const cardsHtml = toRender.map(ex => {
-    const isExp = ex.endDate && ex.endDate < today;
-    const wrapStyle = isExp
-      ? 'opacity:0.5;border-left:3px solid var(--text3);padding-left:10px;margin-bottom:10px;'
-      : 'margin-bottom:10px;';
-    const campusOpts = campuses.map(cmp =>
-      `<option ${ex.campus===cmp ? 'selected' : ''}>${cmp}</option>`
-    ).join('');
-    const timechangeExtra = ex.type === 'timechange'
-      ? `<div style="width:120px;"><label>변경 출근시간</label>
-          <input type="text" value="${ex.newTime||''}" placeholder="10:00"
-            onchange="updEx(${ex.id},'newTime',this.value)"></div>`
-      : '';
-    return `<div style="${wrapStyle}">
-      <div class="ex-card">
-        <div class="ex-grid" style="grid-template-columns:150px 170px 1fr auto;">
-          <div>
-            <label>캠퍼스</label>
-            <select onchange="updEx(${ex.id},'campus',this.value);renderSidebar()">
-              <option value="">전체</option>
-              ${campusOpts}
-            </select>
-          </div>
-          <div>
-            <label>유형</label>
-            <select onchange="updEx(${ex.id},'type',this.value);renderExList()">
-              <option value="shuttle" ${ex.type==='shuttle'?'selected':''}>🚌 셔틀탑승 지각제외</option>
-              <option value="field" ${ex.type==='field'?'selected':''}>🏃 외근 지각제외</option>
-              <option value="timechange" ${ex.type==='timechange'?'selected':''}>🕐 출근시간 일시변경</option>
-              <option value="workexclude" ${ex.type==='workexclude'?'selected':''}>⛔ 근무시간 미달 제외</option>
-            </select>
-          </div>
-          <div>
-            <label>대상 이름 (쉼표 구분, 비우면 전원)</label>
-            <input type="text" value="${ex.names||''}" placeholder="홍길동, 김철수"
-              onchange="updEx(${ex.id},'names',this.value)">
-          </div>
-          <button class="btn btn-danger btn-sm" onclick="removeException(${ex.id})">✕</button>
-        </div>
-        <div class="ex-sub" style="margin-top:8px;">
-          <div style="width:140px;">
-            <label>시작일 (비우면 전체)</label>
-            <input type="date" value="${ex.startDate||''}"
-              onchange="updEx(${ex.id},'startDate',this.value)">
-          </div>
-          <div style="width:140px;">
-            <label>종료일 (비우면 계속)</label>
-            <input type="date" value="${ex.endDate||''}"
-              onchange="updEx(${ex.id},'endDate',this.value)">
-          </div>
-          ${timechangeExtra}
-          <div style="flex:1;"><label>사유/메모</label>
-            <input type="text" value="${ex.note||''}" placeholder="사유 입력"
-              onchange="updEx(${ex.id},'note',this.value)"></div>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  el.innerHTML = expiredToggleHtml + cardsHtml;
-}
-
-
-function handleDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag'); }
-function handleDragLeave() { document.getElementById('upload-zone').classList.remove('drag'); }
-function handleDrop(e) {
-  e.preventDefault();
-  document.getElementById('upload-zone').classList.remove('drag');
-  const f = e.dataTransfer.files[0]; if (f) processFile(f);
-}
-function handleFileSelect(e) { const f = e.target.files[0]; if (f) processFile(f); }
-
-function processFile(file) {
-  document.getElementById('file-info').innerHTML =
-    `<span style="color:var(--accent);font-size:13px;">📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)</span>`;
-  const reader = new FileReader();
-  reader.onload = async e => {
-    try {
-      await parseExcelAsync(e.target.result);
-      document.getElementById('upload-cfg').style.display = 'block';
-      showToast(`✅ ${file.name} — ${RAW_DATA.length}건 로드`, 'ok');
-    } catch(err) {
-      showToast('❌ 파일 오류: ' + err.message, 'err');
-      console.error(err);
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithEmailAndPassword,signOut,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+import{getFirestore,doc,getDoc}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
+
+const firebaseConfig={
+  apiKey:"AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",
+  authDomain:"polyesc-attendance.firebaseapp.com",
+  projectId:"polyesc-attendance",
+  storageBucket:"polyesc-attendance.firebasestorage.app",
+  messagingSenderId:"430669631304",
+  appId:"1:430669631304:web:eb06ac4ba8d1d5108fed7d"
+};
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getFirestore(app);
+const provider=new GoogleAuthProvider();
+
+await setPersistence(auth, browserSessionPersistence);
+
+// 세션 유지된 로그인 확인 (페이지 로드 시)
+await auth.authStateReady();
+const currentUser=auth.currentUser;
+if(currentUser){
+  try{
+    const snap=await getDoc(doc(db,'Users',currentUser.email));
+    if(snap.exists()){
+      window.location.href='landing.html';
+    } else {
+      await signOut(auth);
+      document.body.style.opacity='1';
     }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-async function parseExcelAsync(buffer) {
-  const bytes = new Uint8Array(buffer);
-  const zip = await unzipAsync(bytes);
-
-  let ss = [];
-  if (zip['xl/sharedStrings.xml']) {
-    const doc = new DOMParser().parseFromString(new TextDecoder().decode(zip['xl/sharedStrings.xml']), 'text/xml');
-    doc.querySelectorAll('si').forEach(si => {
-      let v = ''; si.querySelectorAll('t').forEach(t => v += t.textContent||''); ss.push(v);
-    });
+  }catch(e){
+    document.body.style.opacity='1';
   }
-
-  const sheet = new DOMParser().parseFromString(new TextDecoder().decode(zip['xl/worksheets/sheet1.xml']), 'text/xml');
-  RAW_DATA = [];
-  sheet.querySelectorAll('row').forEach(row => {
-    const c = {};
-    row.querySelectorAll('c').forEach(cell => {
-      const ref = cell.getAttribute('r');
-      const col = ref.replace(/\d/g,'');
-      const t = cell.getAttribute('t');
-      const v = cell.querySelector('v');
-      const ist = cell.querySelector('is t');
-      let val = '';
-      if (ist) val = ist.textContent||'';
-      else if (t==='s'&&v) val = ss[+v.textContent]||'';
-      else if (v) val = v.textContent||'';
-      c[col] = val;
-    });
-    if (c.A && c.A !== 'No' && !isNaN(c.A)) {
-      const ds = c.B||'';
-      const date = ds.length===8 ? `${ds.slice(0,4)}-${ds.slice(4,6)}-${ds.slice(6,8)}` : ds;
-      RAW_DATA.push({
-        date, dept:c.C||'', position:c.D||'', name:(c.E||'').trim(), empId:c.F||'',
-        checkIn:c.G||'', checkInMethod:c.H||'',
-        checkOut:c.I||'', checkOutMethod:c.J||'',
-        attendItem:c.K||'', attendType:c.L||'', status:c.M||'',
-        request:c.N||'', reason:(c.O||'').trim()
-      });
-    }
-  });
+} else {
+  document.body.style.opacity='1';
 }
 
-async function unzipAsync(bytes) {
-  const files = {};
-  const view = new DataView(bytes.buffer);
-  let i = 0;
-  while (i < bytes.length - 4) {
-    if (view.getUint32(i,true) !== 0x04034b50) { i++; continue; }
-    const method = view.getUint16(i+8,true);
-    const compSize = view.getUint32(i+18,true);
-    const fnLen = view.getUint16(i+26,true);
-    const extraLen = view.getUint16(i+28,true);
-    const fn = new TextDecoder().decode(bytes.slice(i+30, i+30+fnLen));
-    const ds = i+30+fnLen+extraLen;
-    const comp = bytes.slice(ds, ds+compSize);
-    if (method===0) { files[fn]=comp; }
-    else if (method===8) {
-      try {
-        const s = new DecompressionStream('deflate-raw');
-        const w = s.writable.getWriter(), r = s.readable.getReader();
-        w.write(comp); w.close();
-        const chunks=[]; while(true){ const{done,value}=await r.read(); if(done)break; chunks.push(value); }
-        const total=chunks.reduce((a,c)=>a+c.length,0), out=new Uint8Array(total); let off=0;
-        chunks.forEach(c=>{out.set(c,off);off+=c.length;});
-        files[fn]=out;
-      } catch{ files[fn]=comp; }
+function showError(msg){
+  const el=document.getElementById('error-msg');
+  el.textContent=msg;el.style.display='block';
+}
+function hideError(){
+  const el=document.getElementById('error-msg');
+  el.style.display='none';
+}
+
+// Users 등록 여부 확인
+async function checkUserAccess(user){
+  try{
+    const snap=await getDoc(doc(db,'Users',user.email));
+    if(!snap.exists()){
+      await signOut(auth);
+      showError('승인되지 않은 아이디입니다. 계정을 요청하세요.');
+      return false;
     }
-    i = ds+compSize;
+  }catch(e){ /* Firestore 오류 시 통과 */ }
+  return true;
+}
+
+// 이메일/비밀번호 로그인
+window.handleEmailLogin=async()=>{
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  const btn=document.getElementById('signInBtn');
+  hideError();
+  if(!email||!password){showError('이메일과 비밀번호를 입력해주세요.');return;}
+  try{
+    btn.classList.add('loading');btn.textContent='로그인 중...';
+    const cred=await signInWithEmailAndPassword(auth,email,password);
+    const ok=await checkUserAccess(cred.user);
+    if(ok){
+      window.location.href='landing.html';
+    } else {
+      btn.classList.remove('loading');btn.textContent='Sign In';
+    }
+  }catch(e){
+    btn.classList.remove('loading');btn.textContent='Sign In';
+    const msgs={
+      'auth/invalid-credential':'이메일 또는 비밀번호가 올바르지 않습니다.',
+      'auth/user-not-found':'등록되지 않은 이메일입니다.',
+      'auth/wrong-password':'비밀번호가 올바르지 않습니다.',
+      'auth/invalid-email':'올바른 이메일 형식이 아닙니다.',
+      'auth/too-many-requests':'로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.',
+    };
+    showError(msgs[e.code]||'로그인 실패: '+e.message);
   }
-  return files;
-}
-
-// ══════════════════════════════════════
-// ANALYSIS ENGINE
-// ══════════════════════════════════════
-function t2m(t) {
-  if (!t||t==='미등록') return null;
-  const [h,m]=(t||'').split(':').map(Number);
-  return isNaN(h)||isNaN(m) ? null : h*60+m;
-}
-
-function getEmpRef(name, campus, date) {
-  const byBoth = EMPLOYEES.find(e=>e.name===name&&e.campus===campus);
-  const byName = EMPLOYEES.find(e=>e.name===name);
-  const emp = byBoth || byName || null;
-  // startDate 있으면: 해당 날짜 다음날부터 적용
-  if (emp && emp.startDate && date && date <= emp.startDate) return null;
-  return emp;
-}
-
-function getEffectiveCheckIn(name, campus, date) {
-  // 1순위: 특이사항(출근시간 변경)
-  for (const ex of EXCEPTIONS) {
-    if (ex.type!=='timechange') continue;
-    if (ex.campus && ex.campus!==campus) continue;
-    const _sd = ex.startDate || ex.date || '';
-    const _ed = ex.endDate || ex.date || '';
-    if (_sd && date < _sd) continue;
-    if (_ed && date > _ed) continue;
-    const names = ex.names ? ex.names.split(',').map(s=>s.trim()).filter(Boolean) : [];
-    if (names.length && !names.some(n=>name.includes(n)||n.includes(name.split(' ')[0]))) continue;
-    if (ex.newTime) return ex.newTime;
-  }
-  const emp = getEmpRef(name, campus, date);
-  if (!emp) return null;
-  // 2순위: 요일별 설정
-  if (emp.dowSchedule) {
-    const dow = new Date(date + 'T00:00:00').getDay();
-    const dowS = emp.dowSchedule[dow];
-    if (dowS && dowS.checkInTime) return dowS.checkInTime;
-  }
-  // 3순위: 기본값
-  return emp.checkInTime;
-}
-
-function getEffectiveWorkHours(name, campus, date, globalThr) {
-  const emp = getEmpRef(name, campus, date);
-  if (emp && emp.dowSchedule) {
-    const dow = new Date(date + 'T00:00:00').getDay();
-    const dowS = emp.dowSchedule[dow];
-    if (dowS && dowS.workHours) return dowS.workHours;
-  }
-  return globalThr;
-}
-
-function exApplied(name, campus, date, type) {
-  return EXCEPTIONS.some(ex => {
-    if (ex.type!==type) return false;
-    if (ex.campus && ex.campus!==campus) return false;
-    // 기간 체크: startDate/endDate (구버전 date 필드도 호환)
-    const sd = ex.startDate || ex.date || '';
-    const ed = ex.endDate || ex.date || '';
-    if (sd && date < sd) return false;
-    if (ed && date > ed) return false;
-    const names = ex.names ? ex.names.split(',').map(s=>s.trim()).filter(Boolean) : [];
-    if (names.length) return names.some(n=>name.includes(n)||n.includes(name.split(' ')[0]));
-    return true;
-  });
-}
-
-function runAnalysis() {
-  if (!RAW_DATA.length) { showToast('⚠ 파일을 먼저 업로드하세요','err'); return; }
-
-  const start = document.getElementById('dt-start').value;
-  const end   = document.getElementById('dt-end').value;
-  const optWL = document.getElementById('opt-wronglate').checked;
-  const optYu = document.getElementById('opt-yuchi').checked;
-  const thr   = parseFloat(document.getElementById('work-thr').value)||10;
-
-  RESULTS = [];
-  UNREGISTERED = [];
-
-  const filtered = RAW_DATA.filter(r => {
-    if (!r.date) return false;
-    if (start && r.date < start) return false;
-    if (end   && r.date > end)   return false;
-    if (isNonWorkday(r.date))    return false;
-    return true;
-  });
-
-  // ── 미등록자 감지: 관리캠퍼스에 있는데 EMPLOYEES에 없는 인원 ──
-  const unreMap = {};
-  for (const row of filtered) {
-    const { name, dept:campus, position } = row;
-    if (!MANAGED_CAMPUSES.has(campus)) continue;
-    if (EXCLUDED_POSITIONS.has(position)) continue;
-    if (isOnLeave(name, campus, row.date)) continue;
-    if (!getEmpRef(name, campus, row.date)) {
-      const key = name + '|' + campus;
-      if (!unreMap[key]) unreMap[key] = { name, campus, position, dates: [] };
-      if (!unreMap[key].dates.includes(row.date)) unreMap[key].dates.push(row.date);
-    }
-  }
-  UNREGISTERED = Object.values(unreMap);
-
-  for (const row of filtered) {
-    const { name, dept:campus, date, position } = row;
-
-    // Skip if on leave
-    if (isOnLeave(name, campus, date)) continue;
-
-    const emp = getEmpRef(name, campus, date);
-    const baseCIStr = getEffectiveCheckIn(name, campus, date);
-    if (!emp && !baseCIStr) continue; // not in roster
-
-    const baseCIMins = t2m(baseCIStr);
-    const actualCIMins = t2m(row.checkIn);
-    const actualCOMins = t2m(row.checkOut);
-
-    const missingCI = !row.checkIn || row.checkInMethod === '미등록';
-    const missingCO = !row.checkOut || row.checkOutMethod === '미등록';
-
-    // CCTV
-    if (missingCI || missingCO) {
-      RESULTS.push({ campus, name, position, date,
-        checkIn:row.checkIn, checkOut:row.checkOut,
-        type:'cctv', typeLabel:'CCTV확인',
-        note:(missingCI?'출근미등록':'')+(missingCI&&missingCO?' / ':'')+(missingCO?'퇴근미등록':''),
-        baseCI: baseCIStr||'-', workMins:null, cctvChecked:false, cctvMemo:''
-      });
-      continue;
-    }
-
-    // ── LATE ──
-    let isLate = false, isWrongLate = false;
-    if (row.attendType==='지각'||row.attendType==='지각/조퇴') {
-      if (baseCIMins!==null && actualCIMins!==null) {
-        if (actualCIMins <= baseCIMins) isWrongLate = true; // 기준시각 이하(같거나 일찍) → 오지각
-        else isLate = true;
-      } else isLate = true;
-    }
-    if (isLate && (exApplied(name,campus,date,'shuttle')||exApplied(name,campus,date,'field'))) isLate=false;
-
-    // ── WORK HOURS ──
-    let workMins = null, isShort = false;
-    if (actualCIMins!==null && actualCOMins!==null) {
-      workMins = actualCOMins - actualCIMins;
-      if (workMins<0) workMins += 1440;
-      const empWorkHours = getEffectiveWorkHours(name, campus, date, thr);
-      if (workMins < empWorkHours*60) isShort = true;
-    }
-    // ⑥ Exclude certain campuses from work-hour check
-    if (isShort && SHORT_WORK_EXCLUDED_CAMPUSES.has(campus)) isShort = false;
-    if (isShort && optYu && position==='유치부주임') isShort = false;
-    if (isShort && exApplied(name,campus,date,'workexclude')) isShort = false;
-
-    const hrs = workMins!==null ? (workMins/60).toFixed(1)+'h' : '-';
-
-    if (isWrongLate && optWL) {
-      RESULTS.push({ campus, name, position, date,
-        checkIn:row.checkIn, checkOut:row.checkOut,
-        type:'wronglate', typeLabel:'오지각→정상',
-        note:`기준 ${baseCIStr} / 실제 ${row.checkIn}`,
-        baseCI:baseCIStr||'-', workMins
-      });
-    }
-    if (isLate) {
-      RESULTS.push({ campus, name, position, date,
-        checkIn:row.checkIn, checkOut:row.checkOut,
-        type:'late', typeLabel:'지각',
-        note:`기준 ${baseCIStr} / 실제 ${row.checkIn}`,
-        baseCI:baseCIStr||'-', workMins
-      });
-    }
-    if (isShort) {
-      RESULTS.push({ campus, name, position, date,
-        checkIn:row.checkIn, checkOut:row.checkOut,
-        type:'short', typeLabel:'근무시간미달',
-        note:`근무 ${hrs} (기준 ${getEffectiveWorkHours(name,campus,date,thr)}h)`,
-        baseCI:baseCIStr||'-', workMins
-      });
-    }
-  }
-
-  resPage=1; cctvPage=1; unrePage=1;
-  // 불러온 기록의 월로 헤더 갱신
-  const [ry, rm] = monthKey.split('-').map(Number);
-  const hdrel = document.getElementById('hdr-month');
-  if (hdrel) hdrel.textContent = `${ry}년 ${rm}월`;
-  // dt-start도 맞춰줌
-  const dtStart = document.getElementById('dt-start');
-  if (dtStart) dtStart.value = monthKey + '-01';
-  updateSummary();
-  renderResultTable();
-  renderCCTVTable();
-  renderUnregisteredTable();
-  renderCampusPanel();
-  populateCampusSelects();
-  switchTab('result');
-  const unreMsg = UNREGISTERED.length > 0 ? ` / ⚠ 추가필요 ${UNREGISTERED.length}명` : '';
-  updateHeaderMonth();
-  document.getElementById('save-history-btn').style.display = 'inline-flex';
-  showToast(`✅ 분석 완료 — ${RESULTS.length}건${unreMsg}`, 'ok');
-}
-
-
-// ══════════════════════════════════════
-// 자동 재분석 (설정 변경 시 조용히 재실행)
-// ══════════════════════════════════════
-function rerunAnalysis() {
-  if (!RAW_DATA.length) return;
-  const prevTab = currentTab;
-
-  const start = document.getElementById('dt-start').value;
-  const end   = document.getElementById('dt-end').value;
-  const optWL = document.getElementById('opt-wronglate').checked;
-  const optYu = document.getElementById('opt-yuchi').checked;
-  const thr   = parseFloat(document.getElementById('work-thr').value)||10;
-
-  RESULTS = [];
-  UNREGISTERED = [];
-
-  const filtered = RAW_DATA.filter(r => {
-    if (!r.date) return false;
-    if (start && r.date < start) return false;
-    if (end   && r.date > end)   return false;
-    if (isNonWorkday(r.date))    return false;
-    return true;
-  });
-
-  // 미등록자 감지
-  const unreMap = {};
-  for (const row of filtered) {
-    const { name, dept:campus, position } = row;
-    if (!MANAGED_CAMPUSES.has(campus)) continue;
-    if (EXCLUDED_POSITIONS.has(position)) continue;
-    if (isOnLeave(name, campus, row.date)) continue;
-    if (!getEmpRef(name, campus, row.date)) {
-      const key = name + '|' + campus;
-      if (!unreMap[key]) unreMap[key] = { name, campus, position, dates: [] };
-      if (!unreMap[key].dates.includes(row.date)) unreMap[key].dates.push(row.date);
-    }
-  }
-  UNREGISTERED = Object.values(unreMap);
-
-  for (const row of filtered) {
-    const { name, dept:campus, date, position } = row;
-    if (isOnLeave(name, campus, date)) continue;
-    const emp = getEmpRef(name, campus, date);
-    const baseCIStr = getEffectiveCheckIn(name, campus, date);
-    if (!emp && !baseCIStr) continue;
-
-    const baseCIMins = t2m(baseCIStr);
-    const actualCIMins = t2m(row.checkIn);
-    const actualCOMins = t2m(row.checkOut);
-    const attendType = row.attendType || '';
-    const reason     = (row.reason || '').trim();
-
-    const rawMissingCI = !row.checkIn || row.checkInMethod === '미등록';
-    const rawMissingCO = !row.checkOut || row.checkOutMethod === '미등록';
-
-    // ── 변경사유 있으면 전부 정상 처리 (skip) ──
-    if (reason) continue;
-
-    // ── 근태구분별 출퇴근 누락 허용 규칙 ──
-    let effectiveMissingCI = rawMissingCI;
-    let effectiveMissingCO = rawMissingCO;
-    let skipShortWork = false;
-
-    if (attendType === '연차') {
-      // 출퇴근 모두 없어도 정상
-      effectiveMissingCI = false;
-      effectiveMissingCO = false;
-      skipShortWork = true;
-    } else if (attendType === '반반차') {
-      // 출퇴근 모두 없어도 정상
-      effectiveMissingCI = false;
-      effectiveMissingCO = false;
-      skipShortWork = true;
-    } else if (attendType === '오전반차') {
-      // 출근 없어도 정상, 퇴근 없으면 CCTV
-      effectiveMissingCI = false;
-      skipShortWork = true;
-    } else if (attendType === '오후반차') {
-      // 퇴근 없어도 정상, 출근 없으면 CCTV
-      effectiveMissingCO = false;
-      skipShortWork = true;
-    } else if (attendType === '경조휴가' || attendType === '휴일' || attendType === '기타') {
-      // 출퇴근 모두 없어도 정상
-      effectiveMissingCI = false;
-      effectiveMissingCO = false;
-      skipShortWork = true;
-    } else if (attendType !== '') {
-      // 근태구분이 비어있지 않으면 근무시간 미달 체크 제외
-      skipShortWork = true;
-    }
-
-    // ── CCTV 확인 ──
-    if (effectiveMissingCI || effectiveMissingCO) {
-      RESULTS.push({ campus, name, position, date,
-        checkIn:row.checkIn, checkOut:row.checkOut,
-        type:'cctv', typeLabel:'CCTV확인',
-        note:(effectiveMissingCI?'출근미등록':'')+(effectiveMissingCI&&effectiveMissingCO?' / ':'')+(effectiveMissingCO?'퇴근미등록':''),
-        baseCI: baseCIStr||'-', workMins:null, cctvChecked:false, cctvMemo:''
-      });
-      continue;
-    }
-
-    // ── 지각 체크 ──
-    let isLate = false, isWrongLate = false;
-    if (attendType==='지각'||attendType==='지각/조퇴') {
-      if (baseCIMins!==null && actualCIMins!==null) {
-        if (actualCIMins <= baseCIMins) isWrongLate = true;
-        else isLate = true;
-      } else isLate = true;
-    }
-    if (isLate && (exApplied(name,campus,date,'shuttle')||exApplied(name,campus,date,'field'))) isLate=false;
-
-    // ── 근무시간 미달 체크 ──
-    let workMins = null, isShort = false;
-    if (!skipShortWork && actualCIMins!==null && actualCOMins!==null) {
-      workMins = actualCOMins - actualCIMins;
-      if (workMins<0) workMins += 1440;
-      const empWorkHours = getEffectiveWorkHours(name, campus, date, thr);
-      if (workMins < empWorkHours*60) isShort = true;
-    } else if (actualCIMins!==null && actualCOMins!==null) {
-      // skipShortWork이어도 workMins는 계산해둠 (표시용)
-      workMins = actualCOMins - actualCIMins;
-      if (workMins<0) workMins += 1440;
-    }
-    if (isShort && SHORT_WORK_EXCLUDED_CAMPUSES.has(campus)) isShort = false;
-    if (isShort && optYu && position==='유치부주임') isShort = false;
-    if (isShort && exApplied(name,campus,date,'workexclude')) isShort = false;
-
-    const hrs = workMins!==null ? (workMins/60).toFixed(1)+'h' : '-';
-
-    if (isWrongLate && optWL) RESULTS.push({ campus, name, position, date,
-      checkIn:row.checkIn, checkOut:row.checkOut, type:'wronglate', typeLabel:'오지각→정상',
-      note:`기준 ${baseCIStr} / 실제 ${row.checkIn}`, baseCI:baseCIStr||'-', workMins });
-    if (isLate) RESULTS.push({ campus, name, position, date,
-      checkIn:row.checkIn, checkOut:row.checkOut, type:'late', typeLabel:'지각',
-      note:`기준 ${baseCIStr} / 실제 ${row.checkIn}`, baseCI:baseCIStr||'-', workMins });
-    if (isShort) RESULTS.push({ campus, name, position, date,
-      checkIn:row.checkIn, checkOut:row.checkOut, type:'short', typeLabel:'근무시간미달',
-      note:`근무 ${hrs} (기준 ${getEffectiveWorkHours(name,campus,date,thr)}h)`,
-      baseCI:baseCIStr||'-', workMins });
-  }
-
-  // UI 갱신 (현재 탭이 result/exceptions/settings 어디든 반영)
-  updateSummary();
-  if (currentTab === 'result') {
-    renderResultTable();
-    renderCCTVTable();
-    renderUnregisteredTable();
-  }
-  renderSidebar();
-  if (currentTab === 'report') refreshReport();
-  renderCampusPanel();
-  showToast('🔄 설정 변경 — 자동 재분석됨', 'ok');
-}
-
-// ══════════════════════════════════════
-// SUMMARY
-// ══════════════════════════════════════
-function updateSummary() {
-  const R = selectedCampus==='전체' ? RESULTS : RESULTS.filter(r=>r.campus===selectedCampus);
-  document.getElementById('s-late').textContent  = R.filter(r=>r.type==='late').length;
-  document.getElementById('s-short').textContent = R.filter(r=>r.type==='short').length;
-  document.getElementById('s-wl').textContent    = R.filter(r=>r.type==='wronglate').length;
-  document.getElementById('s-cctv').textContent  = R.filter(r=>r.type==='cctv').length;
-
-  const camTitle = selectedCampus==='전체' ? '전체 캠퍼스' : selectedCampus;
-  document.getElementById('res-campus-title').textContent = `📊 ${camTitle} 분석 결과`;
-}
-
-// ══════════════════════════════════════
-// RESULT TABLE (with pagination)
-// ══════════════════════════════════════
-const TYPE_CHIP = {
-  late:`<span class="chip chip-red">지각</span>`,
-  short:`<span class="chip chip-orange">근무시간미달</span>`,
-  wronglate:`<span class="chip chip-green">오지각→정상</span>`,
-  cctv:`<span class="chip chip-yellow">CCTV확인</span>`
 };
 
-function getFilteredRes() {
-  const search = (document.getElementById('rf-search')?.value||'').toLowerCase();
-  const type   = document.getElementById('rf-type')?.value||'';
-  return RESULTS.filter(r => {
-    if (r.type==='cctv') return false; // shown in CCTV tab
-    if (selectedCampus!=='전체' && r.campus!==selectedCampus) return false;
-    if (type && r.type!==type) return false;
-    if (search && !r.name.toLowerCase().includes(search)) return false;
-    return true;
-  });
-}
-
-function renderResultTable() {
-  updateSummary();
-  const rows = getFilteredRes();
-  const total = rows.length;
-  const totalPages = Math.max(1, Math.ceil(total/PAGE_SIZE));
-  resPage = Math.min(resPage, totalPages);
-  const slice = rows.slice((resPage-1)*PAGE_SIZE, resPage*PAGE_SIZE);
-
-  document.getElementById('res-count').textContent = `${total}건`;
-  const tbody = document.getElementById('res-tbody');
-
-  if (!slice.length) {
-    tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><div class="icon">✅</div><h3>해당 조건 결과 없음</h3></div></td></tr>`;
-  } else {
-    tbody.innerHTML = slice.map(r => {
-      const ws = r.workMins!==null ? `<span class="mono">${(r.workMins/60).toFixed(1)}h</span>` : '-';
-      return `<tr>
-        <td>${r.campus}</td><td>${r.name}</td>
-        <td><span class="chip chip-gray">${r.position}</span></td>
-        <td class="mono">${r.date}</td>
-        <td class="mono">${r.checkIn}</td><td class="mono">${r.checkOut}</td>
-        <td>${ws}</td><td class="mono">${r.baseCI}</td>
-        <td>${TYPE_CHIP[r.type]||r.type}</td>
-        <td style="font-size:12px;color:var(--text2);">${r.note}</td>
-      </tr>`;
-    }).join('');
-  }
-  renderPagination('res-pg', resPage, totalPages, p=>{ resPage=p; renderResultTable(); }, total);
-}
-
-function getFilteredCCTV() {
-  const search = (document.getElementById('cf-search')?.value||'').toLowerCase();
-  return RESULTS.filter(r => {
-    if (r.type!=='cctv') return false;
-    if (selectedCampus!=='전체' && r.campus!==selectedCampus) return false;
-    if (search && !r.name.toLowerCase().includes(search)) return false;
-    return true;
-  });
-}
-
-function renderCCTVTable() {
-  const rows = getFilteredCCTV();
-  const total = rows.length;
-  const totalPages = Math.max(1, Math.ceil(total/PAGE_SIZE));
-  cctvPage = Math.min(cctvPage, totalPages);
-  const slice = rows.slice((cctvPage-1)*PAGE_SIZE, cctvPage*PAGE_SIZE);
-
-  document.getElementById('cctv-count').textContent = `${total}건`;
-  const cctvBadge = document.getElementById('cctv-badge');
-  if (cctvBadge) { cctvBadge.style.display = total>0?'inline':'none'; cctvBadge.textContent = total; }
-  const tbody = document.getElementById('cctv-tbody');
-
-  if (!slice.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="icon">🎥</div><h3>CCTV 확인 필요 인원 없음</h3></div></td></tr>`;
-  } else {
-    tbody.innerHTML = slice.map((r, i) => {
-      const realIdx = RESULTS.indexOf(r);
-      return `<tr>
-        <td>${r.campus}</td><td>${r.name}</td>
-        <td><span class="chip chip-gray">${r.position}</span></td>
-        <td class="mono">${r.date}</td>
-        <td><span class="chip chip-red">${r.note}</span></td>
-        <td><label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="checkbox" ${r.cctvChecked?'checked':''} onchange="RESULTS[${realIdx}].cctvChecked=this.checked">
-          <span style="font-size:12px;">${r.cctvChecked?'완료':'미확인'}</span>
-        </label></td>
-        <td><input type="text" value="${r.cctvMemo||''}" placeholder="메모" style="width:180px;"
-            onchange="RESULTS[${realIdx}].cctvMemo=this.value"></td>
-      </tr>`;
-    }).join('');
-  }
-  renderPagination('cctv-pg', cctvPage, totalPages, p=>{ cctvPage=p; renderCCTVTable(); }, total);
-}
-
-function renderPagination(containerId, current, total, onPage, totalItems) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  if (total <= 1) { el.innerHTML=''; return; }
-
-  let html = `<button class="pgbtn" ${current===1?'disabled':''} onclick="(${onPage.toString()})(${current-1})">‹</button>`;
-
-  let s = Math.max(1, current-2), e = Math.min(total, current+2);
-  if (s>1) html += `<button class="pgbtn" onclick="(${onPage.toString()})(1)">1</button>${s>2?'<span style="color:var(--text3);padding:0 4px">…</span>':''}`;
-  for (let p=s; p<=e; p++) {
-    html += `<button class="pgbtn ${p===current?'active':''}" onclick="(${onPage.toString()})(${p})">${p}</button>`;
-  }
-  if (e<total) html += `${e<total-1?'<span style="color:var(--text3);padding:0 4px">…</span>':''}<button class="pgbtn" onclick="(${onPage.toString()})(${total})">${total}</button>`;
-  html += `<button class="pgbtn" ${current===total?'disabled':''} onclick="(${onPage.toString()})(${current+1})">›</button>`;
-  if (totalItems !== undefined) {
-    html += `<span class="pginfo">${current} / ${total} 페이지 &nbsp;|&nbsp; 총 ${totalItems}건</span>`;
-  }
-
-  el.innerHTML = html;
-}
-
-
-// ══════════════════════════════════════
-// UNREGISTERED TABLE
-// ══════════════════════════════════════
-function renderUnregisteredTable() {
-  const badge = document.getElementById('unre-badge');
-  const campusFilter = selectedCampus === '전체' ? null : selectedCampus;
-  const rows = campusFilter
-    ? UNREGISTERED.filter(u => u.campus === campusFilter)
-    : UNREGISTERED;
-
-  // badge
-  if (rows.length > 0) {
-    badge.style.display = 'inline';
-    badge.textContent = rows.length;
-  } else {
-    badge.style.display = 'none';
-  }
-
-  const total = rows.length;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  unrePage = Math.min(unrePage, totalPages);
-  const slice = rows.slice((unrePage-1)*PAGE_SIZE, unrePage*PAGE_SIZE);
-
-  const tbody = document.getElementById('unre-tbody');
-  if (!slice.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="icon">✅</div><h3>추가 필요 대상 없음</h3></div></td></tr>`;
-    document.getElementById('unre-pg').innerHTML = '';
-    return;
-  }
-
-  tbody.innerHTML = slice.map(u => {
-    const ri = UNREGISTERED.indexOf(u);
-    const datePreview = u.dates.slice(0,5).join(', ') + (u.dates.length > 5 ? ` 외 ${u.dates.length-5}일` : '');
-    return `<tr>
-      <td>${u.campus}</td>
-      <td><strong>${u.name}</strong></td>
-      <td><span class="chip chip-gray">${u.position}</span></td>
-      <td class="mono">${u.dates.length}일</td>
-      <td style="font-size:12px;color:var(--text2);">${datePreview}</td>
-      <td>
-        <button class="btn btn-ghost btn-sm" onclick="addFromUnregistered(${ri})" style="color:var(--green);border-color:var(--green);">
-          + 리스트에 추가
-        </button>
-      </td>
-    </tr>`;
-  }).join('');
-
-  renderPagination('unre-pg', unrePage, totalPages, p => { unrePage=p; renderUnregisteredTable(); }, total);
-}
-
-function addFromUnregistered(idx) {
-  const u = UNREGISTERED[idx];
-  if (!u) return;
-  EMPLOYEES.push({ checkInTime:'09:00', name:u.name, position:u.position, campus:u.campus, note:'' });
-  UNREGISTERED.splice(idx, 1);
-  renderUnregisteredTable();
-  renderEmpTable();
-  saveState();
-  showToast(`✅ ${u.name} (${u.campus}) 리스트에 추가됨. 출근기준시간을 확인하세요.`, 'ok');
-}
-
-// ══════════════════════════════════════
-// EMPLOYEE TABLE
-// ══════════════════════════════════════
-function renderEmpTable() {
-  const search = (document.getElementById('ef-search')?.value||'').toLowerCase();
-  const campusF = document.getElementById('ef-campus')?.value||'';
-  const campuses = getCampusList();
-
-  const list = EMPLOYEES.filter(e => {
-    if (campusF && e.campus!==campusF) return false;
-    if (search && !e.name.toLowerCase().includes(search) && !e.campus.includes(search)) return false;
-    return true;
-  });
-
-  document.getElementById('emp-tbody').innerHTML = list.map(e => {
-    const ri = EMPLOYEES.indexOf(e);
-    return `<tr>
-      <td><select onchange="EMPLOYEES[${ri}].campus=this.value;saveState()">
-        ${campuses.map(c=>`<option ${e.campus===c?'selected':''}>${c}</option>`).join('')}
-      </select></td>
-      <td><input type="text" value="${e.name}" onchange="EMPLOYEES[${ri}].name=this.value;saveState()"></td>
-      <td><select style="width:110px;" onchange="EMPLOYEES[${ri}].position=this.value;saveState()">
-        <option value="원장" ${e.position==='원장'?'selected':''}>원장</option>
-        <option value="부원장" ${e.position==='부원장'?'selected':''}>부원장</option>
-        <option value="교수부장" ${e.position==='교수부장'?'selected':''}>교수부장</option>
-        <option value="유치부주임" ${e.position==='유치부주임'?'selected':''}>유치부주임</option>
-        <option value="상담실장" ${e.position==='상담실장'?'selected':''}>상담실장</option>
-        <option value="HT" ${e.position==='HT'?'selected':''}>HT</option>
-      </select></td>
-      <td><input type="text" value="${e.checkInTime}" style="width:75px;font-family:var(--mono);" onchange="EMPLOYEES[${ri}].checkInTime=this.value;saveState()"></td>
-      <td><input type="date" value="${e.startDate||''}" style="width:130px;" title="이 날짜 다음날부터 근태 확인"
-          onchange="EMPLOYEES[${ri}].startDate=this.value;saveState()"></td>
-      <td style="font-size:11px;color:var(--text3);">${e.note}</td>
-      <td style="display:flex;gap:4px;">
-        <button class="btn btn-ghost btn-sm" onclick="openDowModal(${ri})"
-          style="${e.dowSchedule&&Object.keys(e.dowSchedule).length?'color:var(--accent);border-color:var(--accent);':''}">
-          ${e.dowSchedule&&Object.keys(e.dowSchedule).length?'📅 요일설정됨':'📅 요일별'}
-        </button>
-        <button class="btn btn-danger btn-sm" onclick="removeEmployee(${ri})">삭제</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function addEmployee() {
-  EMPLOYEES.push({checkInTime:'09:00',name:'신규',position:'',campus:getCampusList()[0]||'',note:''});
-  renderEmpTable(); saveState();
-}
-function removeEmployee(i) { EMPLOYEES.splice(i,1); renderEmpTable(); saveState(); }
-
-function populateCampusSelects() {
-  const campuses = getCampusList();
-  ['ef-campus'].forEach(id => {
-    const el = document.getElementById(id); if (!el) return;
-    const cur = el.value;
-    el.innerHTML = `<option value="">전체 캠퍼스</option>` +
-      campuses.map(c=>`<option value="${c}" ${cur===c?'selected':''}>${c}</option>`).join('');
-  });
-}
-
-// ══════════════════════════════════════
-// EXPORT
-// ══════════════════════════════════════
-function exportCSV() {
-  if (!RESULTS.length) { showToast('분석 결과가 없습니다','err'); return; }
-  const hdr = ['캠퍼스','이름','직급','일자','출근','퇴근','근무시간(h)','기준시간','유형','비고'];
-  const rows = RESULTS.map(r=>[
-    r.campus,r.name,r.position,r.date,r.checkIn,r.checkOut,
-    r.workMins!==null?(r.workMins/60).toFixed(1):'',
-    r.baseCI,r.typeLabel,r.note
-  ]);
-  const csv=[hdr,...rows].map(row=>row.map(c=>`"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download=`근태분석_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  showToast('✅ CSV 저장 완료','ok');
-}
-
-// ══════════════════════════════════════
-// STATE (localStorage)
-// ══════════════════════════════════════
-function saveState() {
-  // Firebase 연동 시 설정도 동기화
-  if (window._fbReady && currentUser) saveSettingsToFirebase().catch(()=>{});
-  // RAW_DATA가 있으면 자동 재분석
-  if (RAW_DATA.length > 0) {
-    clearTimeout(window._autoReanalysisTimer);
-    window._autoReanalysisTimer = setTimeout(() => {
-      rerunAnalysis();
-    }, 600); // 연속 입력 시 600ms 디바운스
-  }
-  try {
-    localStorage.setItem('att_emp', JSON.stringify(EMPLOYEES));
-    localStorage.setItem('att_ex',  JSON.stringify(EXCEPTIONS));
-    localStorage.setItem('att_lv',  JSON.stringify(LEAVES));
-    localStorage.setItem('att_hol', JSON.stringify(HOLIDAYS));
-    localStorage.setItem('att_builtin_hol', JSON.stringify(KR_HOLIDAYS_BUILTIN));
-    localStorage.setItem('att_receipts', JSON.stringify(REPORT_RECEIPTS));
-  } catch(e){}
-}
-function loadState() {
-  try {
-    const e=localStorage.getItem('att_emp'); if(e) EMPLOYEES=JSON.parse(e);
-    const x=localStorage.getItem('att_ex');  if(x) EXCEPTIONS=JSON.parse(x);
-    const l=localStorage.getItem('att_lv');  if(l) LEAVES=JSON.parse(l);
-    const h=localStorage.getItem('att_hol'); if(h) {
-      // 구버전 호환: 문자열 배열이면 객체 배열로 변환
-      const parsed = JSON.parse(h);
-      HOLIDAYS = Array.isArray(parsed) && parsed.length && typeof parsed[0] === 'string'
-        ? parsed.map(d => ({ date: d, name: '' }))
-        : parsed;
-    }
-    const bh=localStorage.getItem('att_builtin_hol'); if(bh) KR_HOLIDAYS_BUILTIN=JSON.parse(bh);
-    const rc=localStorage.getItem('att_receipts'); if(rc) REPORT_RECEIPTS=JSON.parse(rc);
-  } catch(e){}
-}
-
-
-
-// ══════════════════════════════════════
-// REPORT TAB
-// ══════════════════════════════════════
-
-// 현재 보고자료 기준 월키 (분석 결과 기준)
-function getReportMonthKey() {
-  const start = document.getElementById('dt-start')?.value || '';
-  return start ? start.slice(0,7) : '';
-}
-
-function refreshReport() {
-  const monthKey = getReportMonthKey();
-  const monthLabel = monthKey ? monthKey.replace('-','년 ')+'월' : '';
-  document.getElementById('rpt-title').textContent = monthLabel
-    ? `📊 보고자료 — ${monthLabel}` : '📊 보고자료';
-
-  const hasData = RESULTS.length > 0;
-  document.getElementById('rpt-no-data').style.display = hasData ? 'none' : 'block';
-  document.getElementById('rpt-wrap').style.display    = hasData ? 'block' : 'none';
-  if (!hasData) return;
-
-  if (monthKey && !REPORT_RECEIPTS[monthKey]) REPORT_RECEIPTS[monthKey] = {};
-  const receipts = monthKey ? (REPORT_RECEIPTS[monthKey] || {}) : {};
-
-  // 분석 결과에 있는 캠퍼스 + 기준 리스트에 있는 캠퍼스 합집합 (MANAGED만)
-  const resultCampuses = new Set(RESULTS.map(r => r.campus));
-  const empCampuses = new Set(EMPLOYEES.map(e => e.campus));
-  const campuses = [...MANAGED_CAMPUSES].filter(ca => resultCampuses.has(ca) || empCampuses.has(ca)).sort((a,b) => a.localeCompare(b,'ko'));
-
-  function buildNameList(rows) {
-    const map = {};
-    rows.forEach(r => { if(!map[r.name]) map[r.name]=0; map[r.name]++; });
-    return Object.entries(map).sort((a,b) => b[1]-a[1]);
-  }
-
-  function renderNames(entries) {
-    if (!entries.length) return '<span style="color:var(--text3);font-size:12px;">해당없음</span>';
-    return `<div class="rpt-names">${entries.map(([name, cnt]) =>
-      `<div class="rpt-name-item">
-        <span>${name}</span>
-        <span class="rpt-cnt">${cnt}회</span>
-      </div>`
-    ).join('')}</div>`;
-  }
-
-  document.getElementById('rpt-tbody').innerHTML = campuses.map(campus => {
-    const cr = RESULTS.filter(r => r.campus === campus);
-    const late      = buildNameList(cr.filter(r => r.type === 'late'));
-    const shortWork = buildNameList(cr.filter(r => r.type === 'short'));
-    const rec = receipts[campus] || { date:'', unnecessary:false };
-
-    // 수신 상태는 셀 내에서 직접 렌더링
-
-    return `<tr>
-      <td style="font-weight:600;white-space:nowrap;">${campus}</td>
-      <td>
-        <div style="display:flex;flex-direction:column;gap:5px;">
-          ${rec.date
-            ? `<span style="color:var(--green);font-size:12px;font-family:var(--mono);">✅ ${rec.date}</span>
-               <span style="font-size:11px;color:var(--text3);cursor:pointer;" onclick="setReceipt('${campus}','${monthKey}','date','');refreshReport()">✕ 초기화</span>`
-            : `<input class="receipt-input" type="date" value=""
-                ${rec.unnecessary ? 'disabled style="opacity:.35;"' : ''}
-                onchange="setReceipt('${campus}','${monthKey}','date',this.value)">
-               <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text2);">
-                 <input type="checkbox" style="width:auto;accent-color:var(--accent);"
-                   ${rec.unnecessary?'checked':''}
-                   onchange="setReceipt('${campus}','${monthKey}','unnecessary',this.checked)">
-                 불필요
-               </label>
-               ${!rec.unnecessary ? '<span style="color:var(--red);font-size:12px;">미수신</span>' : '<span style="color:var(--text3);font-size:12px;">불필요</span>'}`
-          }
-        </div>
-      </td>
-      <td>${renderNames(late)}</td>
-      <td>${renderNames(shortWork)}</td>
-    </tr>`;
-  }).join('');
-}
-
-
-function setReceipt(campus, monthKey, field, value) {
-  if (!monthKey) return;
-  if (!REPORT_RECEIPTS[monthKey]) REPORT_RECEIPTS[monthKey] = {};
-  if (!REPORT_RECEIPTS[monthKey][campus]) REPORT_RECEIPTS[monthKey][campus] = { date:'', unnecessary:false };
-  REPORT_RECEIPTS[monthKey][campus][field] = value;
-  // 불필요 체크 시 날짜 초기화
-  if (field === 'unnecessary' && value) REPORT_RECEIPTS[monthKey][campus].date = '';
-  saveState();
-  refreshReport();
-}
-
-
-// ══════════════════════════════════════
-// REPORT DOWNLOAD: Excel & PDF
-// ══════════════════════════════════════
-function downloadReportExcel() {
-  if (!RESULTS.length) { showToast('분석 결과가 없습니다','err'); return; }
-
-  const monthKey = getReportMonthKey();
-  const receipts = monthKey ? (REPORT_RECEIPTS[monthKey]||{}) : {};
-  const campuses = [...new Set(RESULTS.map(r=>r.campus))].filter(ca=>MANAGED_CAMPUSES.has(ca)).sort((a,b)=>a.localeCompare(b,'ko'));
-
-  function buildNameList(rows) {
-    const map = {};
-    rows.forEach(r => { if(!map[r.name]) map[r.name]=0; map[r.name]++; });
-    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
-  }
-  function nameStr(entries) {
-    return entries.map(([n,cnt])=>`${n}(${cnt}회)`).join(' / ');
-  }
-
-  const hdr = ['캠퍼스','보고서수신일','불필요여부','지각인원(횟수)','근무시간미달(횟수)'];
-  const rows = campuses.map(campus => {
-    const cr = RESULTS.filter(r=>r.campus===campus);
-    const rec = receipts[campus]||{};
-    return [
-      campus,
-      rec.unnecessary ? '불필요' : (rec.date||'미수신'),
-      rec.unnecessary ? 'Y' : '',
-      nameStr(buildNameList(cr.filter(r=>r.type==='late'))),
-      nameStr(buildNameList(cr.filter(r=>r.type==='short'))),
-    ];
-  });
-
-  const csv = [hdr,...rows].map(row=>row.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-  const mm = monthKey ? monthKey.slice(5).replace('-','')+'월' : '미정';
-  a.download = `${mm}_캠퍼스 근태 보고자료.csv`;
-  a.click();
-  showToast('✅ Excel(CSV) 다운로드','ok');
-}
-
-function downloadReportPDF() {
-  if (!RESULTS.length) { showToast('분석 결과가 없습니다','err'); return; }
-
-  const monthKey = getReportMonthKey();
-  const monthLabel = monthKey ? monthKey.replace('-','년 ')+'월' : '';
-
-  // 인쇄용 헤더 표시 후 print()
-  const ph = document.getElementById('rpt-print-header');
-  const pt = document.getElementById('rpt-print-title');
-  const pd = document.getElementById('rpt-print-date');
-  pt.textContent = `${monthLabel}_캠퍼스 근태 보고자료`;
-  pd.textContent = `출력일: ${new Date().toLocaleDateString('ko-KR')}`;
-  ph.style.display = 'block';
-
-  // 인쇄 전용 CSS 적용
-  const style = document.createElement('style');
-  style.id = 'print-style';
-  style.textContent = `
-    @media print {
-      body > *:not(#main-content-wrap) { display:none !important; }
-      header,nav,.top-tabs,.sidebar,#panel-upload,#panel-exceptions,#panel-result,
-      #panel-history,#panel-settings,.btn { display:none !important; }
-      #panel-report { display:block !important; padding:0; }
-      #rpt-wrap { display:block !important; }
-      .rpt-table { font-size:11px; }
-      .rpt-table th,.rpt-table td { padding:6px 8px; border:1px solid #ccc; color:#000 !important; background:#fff !important; }
-      .receipt-sel,.receipt-input { display:none; }
-      .rpt-names { color:#000; }
-      .rpt-name-item { color:#000; }
-      .rpt-cnt { background:#eee !important; color:#000 !important; }
-      .rpt-dates { color:#555 !important; }
-      #rpt-print-header { display:block !important; color:#000; }
-    }
-  `;
-  document.head.appendChild(style);
-
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => {
-      ph.style.display = 'none';
-      document.getElementById('print-style')?.remove();
-    }, 1000);
-  }, 200);
-}
-
-// ══════════════════════════════════════
-// FIREBASE AUTH & HISTORY
-// ══════════════════════════════════════
-function initFirebase() {
-  if (!window._fbReady) {
-    document.getElementById('fb-status').textContent = '⚠ 오프라인 모드 (Firebase 미설정)';
-    renderHistoryFromLocal();
-    return;
-  }
-  const { auth, onAuthStateChanged } = window._fb;
-  onAuthStateChanged(auth, async user => {
-    currentUser = user;
-    if (user) {
-      // 닉네임 (@앞 부분), 아이디, 권한 표시
-      const nickname = user.email?.split('@')[0] || '';
-      const nicknameEl = document.getElementById('sb-nickname');
-      const userIdEl = document.getElementById('sb-user-id');
-      const roleBadge = document.getElementById('sb-role-badge');
-      if (nicknameEl) nicknameEl.textContent = nickname;
-      if (userIdEl) userIdEl.textContent = user.email;
-
-      // Firestore Users에서 role 읽기
-      const ROLE_LABELS = {owner:'👑 Owner', admin:'🔧 관리자', report:'📊 리포트'};
-      let role = 'report';
-      try {
-        const { db, doc, getDoc } = window._fb;
-        const snap = await getDoc(doc(db, 'Users', user.email));
-        role = snap.exists() ? snap.data().role || 'report' : 'report';
-        if (roleBadge) roleBadge.textContent = ROLE_LABELS[role] || '📊 리포트';
-      } catch(e) {
-        if (roleBadge) roleBadge.textContent = '📊 리포트';
-      }
-
-      // 권한별 탭 제어
-      const CAMPUS_ROLE_TABS = {
-        owner:  ['report','upload','exceptions','result','history','settings'],
-        admin:  ['report','result','history'],
-        report: ['report','history'],
-      };
-      const allowed = CAMPUS_ROLE_TABS[role] || CAMPUS_ROLE_TABS['report'];
-
-      // 사이드바 탭 표시/숨김
-      document.querySelectorAll('.sb-item[data-tab]').forEach(el => {
-        el.style.display = allowed.includes(el.dataset.tab) ? '' : 'none';
-      });
-
-      window._campusRole = role;
-      switchTab('history');
-      loadHistory();
-      loadSettingsFromFirebase();
+// Google 로그인
+window.handleGoogleLogin=async()=>{
+  const btn=document.getElementById('googleBtn');
+  hideError();
+  try{
+    btn.style.opacity='0.6';btn.style.pointerEvents='none';
+    const cred=await signInWithPopup(auth,provider);
+    const ok=await checkUserAccess(cred.user);
+    if(ok){
+      window.location.href='landing.html';
     } else {
-      window.location.href = 'index.html';
+      btn.style.opacity='1';btn.style.pointerEvents='auto';
     }
-    document.body.style.opacity = '1';
-  });
-}
-
-async function fbLogin() {
-  if (!window._fbReady) return;
-  const email = document.getElementById('fb-email').value;
-  const pw    = document.getElementById('fb-pw').value;
-  try {
-    await window._fb.signInWithEmailAndPassword(window._fb.auth, email, pw);
-    showToast('✅ 로그인 성공', 'ok');
-  } catch(e) {
-    showToast('❌ 로그인 실패: ' + e.message, 'err');
+  }catch(e){
+    btn.style.opacity='1';btn.style.pointerEvents='auto';
+    if(e.code!=='auth/popup-closed-by-user')
+      showError('Google 로그인 실패: '+e.message);
   }
-}
+};
 
-async function fbLogout() {
-  if (!window._fbReady) return;
-  await window._fb.signOut(window._fb.auth);
-  HISTORY = [];
-  renderHistoryTable();
-  showToast('로그아웃됨', 'ok');
-}
-
-function doLogout() {
-  if (window._fbReady && window._fb) {
-    window._fb.signOut(window._fb.auth).then(() => {
-      window.location.href = 'landing.html';
-    }).catch(() => {
-      window.location.href = 'landing.html';
-    });
-  } else {
-    window.location.href = 'landing.html';
-  }
-}
-
-// ── 설정값 Firebase 동기화 ──
-async function saveSettingsToFirebase() {
-  if (!window._fbReady || !currentUser) return;
-  const { db, doc, setDoc } = window._fb;
-  try {
-    await setDoc(doc(db, 'settings', 'main'), {
-      employees: EMPLOYEES,
-      exceptions: EXCEPTIONS,
-      leaves: LEAVES,
-      holidays: HOLIDAYS,
-      builtinHolidays: KR_HOLIDAYS_BUILTIN,
-      reportReceipts: REPORT_RECEIPTS,
-      updatedAt: new Date().toISOString()
-    });
-  } catch(e) { console.warn('설정 저장 실패:', e); }
-}
-
-async function loadSettingsFromFirebase() {
-  if (!window._fbReady || !currentUser) return;
-  const { db, doc, getDoc } = window._fb;
-  try {
-    const snap = await getDoc(doc(db, 'settings', 'main'));
-    if (snap.exists()) {
-      const d = snap.data();
-      if (d.employees)      EMPLOYEES = d.employees;
-      if (d.exceptions)     EXCEPTIONS = d.exceptions;
-      if (d.leaves)         LEAVES = d.leaves;
-      if (d.holidays)       HOLIDAYS = d.holidays;
-      if (d.builtinHolidays) KR_HOLIDAYS_BUILTIN = d.builtinHolidays;
-      if (d.reportReceipts)  REPORT_RECEIPTS = d.reportReceipts;
-      renderAll();
-      showToast('✅ Firebase에서 설정 불러옴', 'ok');
-    }
-  } catch(e) { console.warn('설정 불러오기 실패:', e); }
-}
-
-// ── 분석 기록 저장 ──
-async function saveHistory() {
-  if (!RESULTS.length) { showToast('분석 결과가 없습니다', 'err'); return; }
-
-  const start = document.getElementById('dt-start').value;
-  const monthKey = start.slice(0, 7); // "2026-03"
-  const record = {
-    monthKey,
-    analysedAt: new Date().toISOString(),
-    summary: {
-      late:      RESULTS.filter(r=>r.type==='late').length,
-      short:     RESULTS.filter(r=>r.type==='short').length,
-      wronglate: RESULTS.filter(r=>r.type==='wronglate').length,
-      cctv:      RESULTS.filter(r=>r.type==='cctv').length,
-    },
-    results: RESULTS,
-    unregistered: UNREGISTERED
-  };
-
-  // 로컬 저장 (오프라인 폴백)
-  const existing = JSON.parse(localStorage.getItem('att_history')||'[]');
-  const idx = existing.findIndex(h=>h.monthKey===monthKey);
-  if (idx>=0) existing[idx] = record; else existing.push(record);
-  existing.sort((a,b)=>b.monthKey.localeCompare(a.monthKey));
-  localStorage.setItem('att_history', JSON.stringify(existing));
-  HISTORY = existing;
-
-  // Firebase 저장
-  if (window._fbReady && currentUser) {
-    const { db, doc, setDoc } = window._fb;
-    try {
-      await setDoc(doc(db, 'history', monthKey), record);
-      await saveSettingsToFirebase(); // 설정도 함께 동기화
-      showToast(`✅ ${monthKey} 기록 Firebase에 저장됨`, 'ok');
-    } catch(e) {
-      showToast(`⚠ 로컬 저장됨 (Firebase 오류: ${e.message})`, 'err');
-    }
-  } else {
-    showToast(`✅ ${monthKey} 기록 로컬 저장됨`, 'ok');
-  }
-
-  renderHistoryTable();
-  switchTab('history');
-}
-
-// ── 기록 불러오기 ──
-async function loadHistory() {
-  // 로컬 먼저
-  const local = JSON.parse(localStorage.getItem('att_history')||'[]');
-  HISTORY = local;
-  renderHistoryTable();
-
-  if (!window._fbReady || !currentUser) return;
-  const { db, collection, getDocs, query, orderBy } = window._fb;
-  try {
-    const snap = await getDocs(collection(db, 'history'));
-    const fbRecords = [];
-    snap.forEach(d => fbRecords.push(d.data()));
-    fbRecords.sort((a,b)=>b.monthKey.localeCompare(a.monthKey));
-    HISTORY = fbRecords;
-    // Firebase 기록을 로컬에도 캐시
-    localStorage.setItem('att_history', JSON.stringify(HISTORY));
-    renderHistoryTable();
-  } catch(e) { console.warn('기록 불러오기 실패:', e); }
-}
-
-function renderHistoryFromLocal() {
-  HISTORY = JSON.parse(localStorage.getItem('att_history')||'[]');
-  renderHistoryTable();
-}
-
-function renderHistoryTable() {
-  const tbody = document.getElementById('history-tbody');
-  if (!tbody) return;
-  if (!HISTORY.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="icon">📁</div>
-      <h3>저장된 기록 없음</h3><p style="margin-top:6px;font-size:13px;">분석 후 "기록 저장" 버튼을 눌러주세요</p>
-    </div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = HISTORY.map(h => {
-    const s = h.summary || {};
-    const dt = h.analysedAt ? new Date(h.analysedAt).toLocaleString('ko-KR') : '-';
-    const isOwner = window._campusRole === 'owner';
-    return `<tr>
-      <td class="mono" style="font-weight:600;">${h.monthKey}</td>
-      <td style="font-size:12px;color:var(--text2);">${dt}</td>
-      <td><span class="chip chip-red">${s.late||0}</span></td>
-      <td><span class="chip chip-orange">${s.short||0}</span></td>
-      <td><span class="chip chip-green">${s.wronglate||0}</span></td>
-      <td><span class="chip chip-yellow">${s.cctv||0}</span></td>
-      <td style="display:flex;gap:6px;">
-        <button class="btn btn-ghost btn-sm" onclick="loadHistoryRecord('${h.monthKey}')">📂 불러오기</button>
-        ${isOwner ? `<button class="btn btn-danger btn-sm" onclick="deleteHistoryRecord('${h.monthKey}')">삭제</button>` : ''}
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function loadHistoryRecord(monthKey) {
-  const record = HISTORY.find(h=>h.monthKey===monthKey);
-  if (!record) return;
-  RESULTS = record.results || [];
-  UNREGISTERED = record.unregistered || [];
-  resPage=1; cctvPage=1; unrePage=1;
-  // 불러온 기록의 월로 헤더 갱신
-  const [ry, rm] = monthKey.split('-').map(Number);
-  const hdrel = document.getElementById('hdr-month');
-  if (hdrel) hdrel.textContent = `${ry}년 ${rm}월`;
-  // dt-start도 맞춰줌
-  const dtStart = document.getElementById('dt-start');
-  if (dtStart) dtStart.value = monthKey + '-01';
-  updateSummary();
-  renderResultTable();
-  renderCCTVTable();
-  renderUnregisteredTable();
-  renderSidebar();
-  switchTab('result');
-  showToast(`📂 ${monthKey} 기록 불러옴`, 'ok');
-  refreshReport();
-}
-
-async function deleteHistoryRecord(monthKey) {
-  if (!confirm(`${monthKey} 기록을 삭제할까요?`)) return;
-  HISTORY = HISTORY.filter(h=>h.monthKey!==monthKey);
-  localStorage.setItem('att_history', JSON.stringify(HISTORY));
-  if (window._fbReady && currentUser) {
-    try {
-      const { db, doc } = window._fb;
-      const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-      await deleteDoc(doc(db, 'history', monthKey));
-    } catch(e) { console.warn('Firebase 삭제 실패:', e); }
-  }
-  renderHistoryTable();
-  showToast(`🗑 ${monthKey} 기록 삭제됨`, 'ok');
-}
-
-
-// ══════════════════════════════════════
-// DOW (요일별 근무 기준) MODAL
-// ══════════════════════════════════════
-const DOW_LABELS = ['일','월','화','수','목','금','토'];
-let _dowEmpIdx = -1;
-let _dowTemp = {}; // {0:{checkInTime,workHours,note}, 1:..., ...}
-
-function openDowModal(empIdx) {
-  _dowEmpIdx = empIdx;
-  const emp = EMPLOYEES[empIdx];
-  _dowTemp = JSON.parse(JSON.stringify(emp.dowSchedule || {}));
-
-  document.getElementById('dow-modal-name').textContent = `— ${emp.name} (${emp.campus})`;
-
-  // 월~금 (1~5) + 토(6) 표시. 일(0)은 보통 휴무라 선택적으로
-  const rows = document.getElementById('dow-rows');
-  rows.innerHTML = [1,2,3,4,5,6].map(d => {
-    const s = _dowTemp[d] || {};
-    return `<div style="display:grid;grid-template-columns:50px 120px 130px 1fr;gap:8px;align-items:center;margin-bottom:8px;">
-      <div style="font-size:13px;font-weight:600;color:${s.checkInTime||s.workHours?'var(--accent)':'var(--text2)'};">${DOW_LABELS[d]}</div>
-      <input type="text" placeholder="기본값" value="${s.checkInTime||''}"
-        style="font-family:var(--mono);"
-        oninput="setDowField(${d},'checkInTime',this.value)">
-      <input type="number" placeholder="기본값" value="${s.workHours||''}" min="1" max="24" step="0.5"
-        oninput="setDowField(${d},'workHours',this.value?parseFloat(this.value):null)">
-      <input type="text" placeholder="메모" value="${s.note||''}"
-        oninput="setDowField(${d},'note',this.value)">
-    </div>`;
-  }).join('');
-
-  document.getElementById('dow-modal').style.display = 'flex';
-}
-
-function setDowField(dow, field, value) {
-  if (!_dowTemp[dow]) _dowTemp[dow] = {};
-  _dowTemp[dow][field] = value;
-  // 모두 비어있으면 해당 요일 키 삭제
-  const s = _dowTemp[dow];
-  if (!s.checkInTime && !s.workHours && !s.note) delete _dowTemp[dow];
-}
-
-function saveDowSettings() {
-  if (_dowEmpIdx < 0) return;
-  EMPLOYEES[_dowEmpIdx].dowSchedule = _dowTemp;
-  closeDowModal();
-  renderEmpTable();
-  saveState();
-  showToast('✅ 요일별 설정 저장됨', 'ok');
-}
-
-function closeDowModal() {
-  document.getElementById('dow-modal').style.display = 'none';
-  _dowEmpIdx = -1;
-}
-// ══════════════════════════════════════
-// TOAST
-// ══════════════════════════════════════
-function showToast(msg, type='') {
-  const el=document.getElementById('toast');
-  el.textContent=msg; el.className=`toast ${type} show`;
-  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),3000);
-}
+document.addEventListener('keydown',e=>{if(e.key==='Enter')window.handleEmailLogin();});
 </script>
-
-<!-- 요일별 설정 모달 -->
-<div class="modal-overlay" id="dow-modal" style="display:none;" onclick="if(event.target===this)closeDowModal()">
-  <div class="modal">
-    <div class="modal-title">
-      <span>📅 요일별 근무 기준 설정</span>
-      <span id="dow-modal-name" style="color:var(--text2);font-size:13px;"></span>
-      <span class="close" onclick="closeDowModal()">✕</span>
-    </div>
-    <div class="info-box" style="margin-bottom:14px;">
-      비워두면 해당 요일은 <strong>기본값</strong>(출근기준시각 / 전역 근무시간 기준) 적용.<br>
-      입력된 요일만 개별 적용됩니다.
-    </div>
-    <div style="display:grid;grid-template-columns:50px 120px 130px 1fr;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);">
-      <div style="font-size:11px;color:var(--text3);font-weight:700;">요일</div>
-      <div style="font-size:11px;color:var(--text3);font-weight:700;">출근기준시각</div>
-      <div style="font-size:11px;color:var(--text3);font-weight:700;">근무시간기준(h)</div>
-      <div style="font-size:11px;color:var(--text3);font-weight:700;">메모</div>
-    </div>
-    <div id="dow-rows"></div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
-      <button class="btn btn-ghost" onclick="closeDowModal()">취소</button>
-      <button class="btn btn-primary" onclick="saveDowSettings()">저장</button>
-    </div>
-  </div>
-</div>
-
+<style>
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+</style>
 </body>
 </html>
