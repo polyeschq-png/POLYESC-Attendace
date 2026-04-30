@@ -1366,6 +1366,7 @@ function renderExList() {
               <option value="field" ${ex.type==='field'?'selected':''}>🏃 외근 지각제외</option>
               <option value="timechange" ${ex.type==='timechange'?'selected':''}>🕐 출근시간 일시변경</option>
               <option value="workexclude" ${ex.type==='workexclude'?'selected':''}>⛔ 근무시간 미달 제외</option>
+              <option value="normalall" ${ex.type==='normalall'?'selected':''}>✅ 출퇴근 모두 정상처리</option>
             </select>
           </div>
           <div>
@@ -1592,6 +1593,9 @@ function runAnalysis() {
     if (!MANAGED_CAMPUSES.has(campus)) continue;
     if (EXCLUDED_POSITIONS.has(position)) continue;
     if (isOnLeave(name, campus, row.date)) continue;
+    // startDate 이전 날짜는 미등록자로 잡지 않음
+    const emp = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
+    if (emp && emp.startDate && row.date <= emp.startDate) continue;
     if (!getEmpRef(name, campus, row.date)) {
       const key = name + '|' + campus;
       if (!unreMap[key]) unreMap[key] = { name, campus, position, dates: [] };
@@ -1605,6 +1609,9 @@ function runAnalysis() {
 
     // Skip if on leave
     if (isOnLeave(name, campus, date)) continue;
+
+    // 출퇴근 모두 정상처리 특이사항 적용
+    if (exApplied(name, campus, date, 'normalall')) continue;
 
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
@@ -1722,6 +1729,8 @@ function rerunAnalysis() {
     if (!MANAGED_CAMPUSES.has(campus)) continue;
     if (EXCLUDED_POSITIONS.has(position)) continue;
     if (isOnLeave(name, campus, row.date)) continue;
+    const emp = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
+    if (emp && emp.startDate && row.date <= emp.startDate) continue;
     if (!getEmpRef(name, campus, row.date)) {
       const key = name + '|' + campus;
       if (!unreMap[key]) unreMap[key] = { name, campus, position, dates: [] };
@@ -1733,6 +1742,7 @@ function rerunAnalysis() {
   for (const row of filtered) {
     const { name, dept:campus, date, position } = row;
     if (isOnLeave(name, campus, date)) continue;
+    if (exApplied(name, campus, date, 'normalall')) continue;
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
     if (!emp && !baseCIStr) continue;
@@ -2629,6 +2639,8 @@ function loadHistoryRecord(monthKey) {
   renderUnregisteredTable();
   renderSidebar();
   switchTab('report');
+  const saveBtn=document.getElementById('save-history-btn');
+  if(saveBtn) saveBtn.style.display='inline-flex';
   showToast(`📂 ${monthKey} 기록 불러옴`, 'ok');
   refreshReport();
 }
