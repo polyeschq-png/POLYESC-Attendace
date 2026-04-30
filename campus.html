@@ -1018,6 +1018,9 @@ function switchTab(tab) {
   // 저장 버튼 - 분석 데이터 있으면 항상 표시
   const saveBtn = document.getElementById('save-history-btn');
   if (saveBtn) saveBtn.style.display = (typeof RAW_DATA !== 'undefined' && RAW_DATA.length) ? 'inline-flex' : 'none';
+
+  // 캠퍼스 패널 (예외/결과 탭만 표시)
+  const showCampus = tab === 'exceptions' || tab === 'result';
   document.getElementById('campus-panel').classList.toggle('hidden', !showCampus);
 
 
