@@ -2219,9 +2219,23 @@ function refreshReport() {
           ${rec.date
             ? `<span style="color:var(--green);font-size:12px;font-family:var(--mono);">✅ ${rec.date}</span>
                <span style="font-size:11px;color:var(--text3);cursor:pointer;" onclick="setReceipt('${campus}','${monthKey}','date','');refreshReport()">✕ 초기화</span>`
-            : `<input class="receipt-input" type="date" value=""
-                ${rec.unnecessary ? 'disabled style="opacity:.35;"' : ''}
-                onchange="setReceipt('${campus}','${monthKey}','date',this.value)">
+            : `<div style="display:flex;align-items:center;gap:3px;" ${rec.unnecessary?'style="opacity:.35;pointer-events:none;"':''}>
+                 <input type="number" placeholder="YYYY" min="2020" max="2099" step="1"
+                   style="width:56px;padding:4px 5px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);"
+                   id="rdate-y-${campus.replace(/\s/g,'_')}"
+                   oninput="combineReceiptDate('${campus}','${monthKey}')">
+                 <span style="color:var(--text2);font-size:12px;">년</span>
+                 <input type="number" placeholder="MM" min="1" max="12" step="1"
+                   style="width:40px;padding:4px 5px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);"
+                   id="rdate-m-${campus.replace(/\s/g,'_')}"
+                   oninput="combineReceiptDate('${campus}','${monthKey}')">
+                 <span style="color:var(--text2);font-size:12px;">월</span>
+                 <input type="number" placeholder="DD" min="1" max="31" step="1"
+                   style="width:40px;padding:4px 5px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);"
+                   id="rdate-d-${campus.replace(/\s/g,'_')}"
+                   oninput="combineReceiptDate('${campus}','${monthKey}')">
+                 <span style="color:var(--text2);font-size:12px;">일</span>
+               </div>
                <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text2);">
                  <input type="checkbox" style="width:auto;accent-color:var(--accent);"
                    ${rec.unnecessary?'checked':''}
@@ -2238,6 +2252,18 @@ function refreshReport() {
   }).join('');
 }
 
+
+function combineReceiptDate(campus, monthKey){
+  const key=campus.replace(/\s/g,'_');
+  const y=document.getElementById('rdate-y-'+key)?.value||'';
+  const m=document.getElementById('rdate-m-'+key)?.value||'';
+  const d=document.getElementById('rdate-d-'+key)?.value||'';
+  if(y.length===4&&m&&d){
+    const mm=String(m).padStart(2,'0');
+    const dd=String(d).padStart(2,'0');
+    setReceipt(campus,monthKey,'date',`${y}-${mm}-${dd}`);
+  }
+}
 
 function setReceipt(campus, monthKey, field, value) {
   if (!monthKey) return;
