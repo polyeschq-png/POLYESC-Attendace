@@ -2219,23 +2219,11 @@ function refreshReport() {
           ${rec.date
             ? `<span style="color:var(--green);font-size:12px;font-family:var(--mono);">✅ ${rec.date}</span>
                <span style="font-size:11px;color:var(--text3);cursor:pointer;" onclick="setReceipt('${campus}','${monthKey}','date','');refreshReport()">✕ 초기화</span>`
-            : `<div style="display:flex;align-items:center;gap:3px;" ${rec.unnecessary?'style="opacity:.35;pointer-events:none;"':''}>
-                 <input type="number" placeholder="YYYY" min="2020" max="2099" step="1"
-                   style="width:56px;padding:4px 5px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);"
-                   id="rdate-y-${campus.replace(/\s/g,'_')}"
-                   oninput="combineReceiptDate('${campus}','${monthKey}')">
-                 <span style="color:var(--text2);font-size:12px;">년</span>
-                 <input type="number" placeholder="MM" min="1" max="12" step="1"
-                   style="width:40px;padding:4px 5px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);"
-                   id="rdate-m-${campus.replace(/\s/g,'_')}"
-                   oninput="combineReceiptDate('${campus}','${monthKey}')">
-                 <span style="color:var(--text2);font-size:12px;">월</span>
-                 <input type="number" placeholder="DD" min="1" max="31" step="1"
-                   style="width:40px;padding:4px 5px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);"
-                   id="rdate-d-${campus.replace(/\s/g,'_')}"
-                   oninput="combineReceiptDate('${campus}','${monthKey}')">
-                 <span style="color:var(--text2);font-size:12px;">일</span>
-               </div>
+            : `<input type="text" placeholder="YYYY-MM-DD" maxlength="10"
+                 ${rec.unnecessary?'disabled style="opacity:.35;"':''}
+                 style="width:110px;padding:4px 7px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
+                 oninput="maskDateInput(this,'${campus}','${monthKey}')"
+                 onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">
                <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text2);">
                  <input type="checkbox" style="width:auto;accent-color:var(--accent);"
                    ${rec.unnecessary?'checked':''}
@@ -2252,6 +2240,23 @@ function refreshReport() {
   }).join('');
 }
 
+
+function maskDateInput(el, campus, monthKey){
+  // 숫자만 추출
+  let v = el.value.replace(/\D/g,'');
+  // 최대 8자리
+  if(v.length>8) v=v.slice(0,8);
+  // YYYY-MM-DD 포맷 적용
+  let result='';
+  if(v.length<=4) result=v;
+  else if(v.length<=6) result=v.slice(0,4)+'-'+v.slice(4);
+  else result=v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6);
+  el.value=result;
+  // 완성된 날짜(10자)면 저장
+  if(result.length===10){
+    setReceipt(campus,monthKey,'date',result);
+  }
+}
 
 function combineReceiptDate(campus, monthKey){
   const key=campus.replace(/\s/g,'_');
