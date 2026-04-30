@@ -2379,7 +2379,24 @@ function initFirebase() {
         if (roleBadge) roleBadge.textContent = '📊 리포트';
       }
 
-      document.getElementById('fb-status').textContent = `✅ ${user.email}`;
+      // 권한별 탭 제어
+      const CAMPUS_ROLE_TABS = {
+        owner:  ['report','upload','exceptions','result','history','settings'],
+        admin:  ['report','result','history'],
+        report: ['report','history'],
+      };
+      const allowed = CAMPUS_ROLE_TABS[role] || CAMPUS_ROLE_TABS['report'];
+
+      // 사이드바 탭 표시/숨김
+      document.querySelectorAll('.sb-item[data-tab]').forEach(el => {
+        el.style.display = allowed.includes(el.dataset.tab) ? '' : 'none';
+      });
+
+      // 월별기록 삭제버튼 - owner만 표시
+      window._campusRole = role;
+
+      // 첫 화면 - 항상 월별기록
+      switchTab('history');
       loadHistory();
       loadSettingsFromFirebase();
     } else {
@@ -2540,6 +2557,7 @@ function renderHistoryTable() {
   tbody.innerHTML = HISTORY.map(h => {
     const s = h.summary || {};
     const dt = h.analysedAt ? new Date(h.analysedAt).toLocaleString('ko-KR') : '-';
+    const isOwner = window._campusRole === 'owner';
     return `<tr>
       <td class="mono" style="font-weight:600;">${h.monthKey}</td>
       <td style="font-size:12px;color:var(--text2);">${dt}</td>
@@ -2549,7 +2567,7 @@ function renderHistoryTable() {
       <td><span class="chip chip-yellow">${s.cctv||0}</span></td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-ghost btn-sm" onclick="loadHistoryRecord('${h.monthKey}')">📂 불러오기</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteHistoryRecord('${h.monthKey}')">삭제</button>
+        ${isOwner ? `<button class="btn btn-danger btn-sm" onclick="deleteHistoryRecord('${h.monthKey}')">삭제</button>` : ''}
       </td>
     </tr>`;
   }).join('');
