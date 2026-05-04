@@ -82,6 +82,11 @@ function applyRoleTabs(role){
   // 전체 기록 삭제 버튼 Owner만 표시
   const delBtn=document.getElementById('records-del-btn');
   if(delBtn) delBtn.style.display=role==='owner'?'':'none';
+  // 저장 버튼 및 저장 인디케이터 Owner만 표시
+  const saveBtn=document.querySelector('[onclick="saveRecord()"]');
+  if(saveBtn) saveBtn.style.display=role==='owner'?'':'none';
+  const saveInd=document.getElementById('save-indicator');
+  if(saveInd) saveInd.style.display=role==='owner'?'':'none';
   // 첫 화면은 항상 월별 기록
   sw('records');
 }
