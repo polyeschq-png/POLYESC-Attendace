@@ -11,17 +11,18 @@ body{font-family:'Noto Sans KR',sans-serif;min-height:100vh;background:linear-gr
 header{display:flex;align-items:center;justify-content:space-between;padding:14px 36px;background:rgba(255,255,255,.55);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.6)}
 .header-logo{display:flex;align-items:center;gap:10px;color:#0D47A1;font-size:.9rem;font-weight:500}
 .header-right{display:flex;gap:16px;align-items:center;font-size:.88rem;color:#555}
-main{flex:1;display:flex;flex-direction:column;align-items:center;padding:48px 24px}
+main{flex:1;display:flex;flex-direction:column;align-items:center;padding:48px 24px;gap:20px}
 .card{background:rgba(255,255,255,.85);backdrop-filter:blur(16px);border-radius:16px;box-shadow:0 4px 24px rgba(33,150,243,.1);padding:32px;width:100%;max-width:620px}
 .card-title{font-size:18px;font-weight:700;color:#0D47A1;margin-bottom:24px;display:flex;align-items:center;gap:8px}
-.form-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px}
+.form-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px}
 .form-group{display:flex;flex-direction:column;gap:5px}
 .form-label{font-size:11px;color:#888;font-weight:500}
-input[type=email]{width:240px;border:1.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;transition:border-color .2s}
-input[type=email]:focus{border-color:#2196F3}
+input[type=email],input[type=password],input[type=text]{border:1.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;transition:border-color .2s}
+input[type=email]:focus,input[type=password]:focus,input[type=text]:focus{border-color:#2196F3}
 select{border:1.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;background:#fff}
 .btn{padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;font-weight:600;cursor:pointer;transition:all .15s}
 .btn-blue{background:#2196F3;color:#fff}.btn-blue:hover{background:#1976D2}
+.btn-green{background:#16a34a;color:#fff}.btn-green:hover{background:#15803d}
 .btn-red{background:#fff;color:#dc2626;border:1.5px solid #fca5a5;font-size:12px;padding:5px 10px;border-radius:6px}.btn-red:hover{background:#fef2f2}
 .btn-back{background:rgba(255,255,255,.7);color:#0D47A1;border:1.5px solid #90CAF9}.btn-back:hover{background:#e3f2fd}
 table{width:100%;border-collapse:collapse;margin-top:4px}
@@ -33,6 +34,8 @@ tr:hover td{background:#f8faff}
 .badge-admin{background:#e8f5e9;color:#2e7d32}
 .badge-report{background:#e3f2fd;color:#1565c0}
 .info-box{background:#fffbeb;border:1px solid #fbbf24;border-radius:10px;padding:14px 16px;font-size:12px;color:#92400e;margin-top:20px;line-height:1.7}
+.msg-ok{color:#16a34a;font-size:12px;margin-top:8px}
+.msg-err{color:#dc2626;font-size:12px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -48,6 +51,32 @@ tr:hover td{background:#f8faff}
   </div>
 </header>
 <main>
+  <!-- 계정 생성 카드 -->
+  <div class="card">
+    <div class="card-title">➕ 새 계정 생성</div>
+    <div class="form-row">
+      <div class="form-group">
+        <div class="form-label">이메일</div>
+        <input type="email" id="new-email" placeholder="user@polyesc.com" style="width:200px">
+      </div>
+      <div class="form-group">
+        <div class="form-label">비밀번호</div>
+        <input type="password" id="new-pw" placeholder="6자 이상" style="width:140px">
+      </div>
+      <div class="form-group">
+        <div class="form-label">권한</div>
+        <select id="new-role">
+          <option value="admin">🔧 관리자</option>
+          <option value="report">📊 리포트</option>
+          <option value="owner">👑 Owner</option>
+        </select>
+      </div>
+      <button class="btn btn-green" onclick="createAccount()">계정 생성</button>
+    </div>
+    <div id="create-msg"></div>
+  </div>
+
+  <!-- 권한 관리 카드 -->
   <div class="card">
     <div class="card-title">🔑 사용자 권한 관리</div>
     <div class="form-row">
@@ -80,7 +109,7 @@ tr:hover td{background:#f8faff}
 
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
-import{getAuth,onAuthStateChanged,signOut,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+import{getAuth,onAuthStateChanged,signOut,browserSessionPersistence,setPersistence,createUserWithEmailAndPassword}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
 import{getFirestore,doc,getDoc,setDoc,deleteDoc,collection,getDocs}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
 
 const firebaseConfig={apiKey:"AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",authDomain:"polyesc-attendance.firebaseapp.com",projectId:"polyesc-attendance",storageBucket:"polyesc-attendance.firebasestorage.app",messagingSenderId:"430669631304",appId:"1:430669631304:web:eb06ac4ba8d1d5108fed7d"};
@@ -121,6 +150,38 @@ async function renderList(){
   });
   tbody.innerHTML=html||'<tr><td colspan="3" style="text-align:center;color:#9ca3af;padding:20px">등록된 사용자 없음</td></tr>';
 }
+
+window.createAccount=async()=>{
+  const email=document.getElementById('new-email').value.trim();
+  const pw=document.getElementById('new-pw').value;
+  const role=document.getElementById('new-role').value;
+  const msg=document.getElementById('create-msg');
+  msg.className='';msg.textContent='';
+  if(!email||!email.includes('@')){msg.className='msg-err';msg.textContent='올바른 이메일을 입력해주세요.';return;}
+  if(pw.length<6){msg.className='msg-err';msg.textContent='비밀번호는 6자 이상이어야 합니다.';return;}
+  try{
+    // 현재 로그인 상태 저장 (계정 생성 후 원래 계정으로 유지)
+    const currentUser=auth.currentUser;
+    // 새 계정 생성 (이 과정에서 새 계정으로 로그인됨)
+    const cred=await createUserWithEmailAndPassword(auth,email,pw);
+    // Firestore Users에 권한 등록
+    await setDoc(doc(db,'Users',email),{email,role,createdAt:new Date().toISOString()});
+    // 원래 Owner 계정으로 복귀하기 위해 페이지 새로고침
+    msg.className='msg-ok';
+    msg.textContent='✅ '+email+' 계정이 생성되었습니다. 페이지를 새로고침합니다.';
+    document.getElementById('new-email').value='';
+    document.getElementById('new-pw').value='';
+    setTimeout(()=>window.location.reload(), 1500);
+  }catch(e){
+    const msgs={
+      'auth/email-already-in-use':'이미 존재하는 이메일입니다.',
+      'auth/invalid-email':'올바른 이메일 형식이 아닙니다.',
+      'auth/weak-password':'비밀번호가 너무 약합니다. 6자 이상으로 설정해주세요.',
+    };
+    msg.className='msg-err';
+    msg.textContent=msgs[e.code]||'오류: '+e.message;
+  }
+};
 
 window.saveUserRole=async()=>{
   const email=document.getElementById('perm-email').value.trim();
