@@ -29,6 +29,8 @@
     window._fb = { db, auth, doc, getDoc, setDoc, collection, getDocs, query, orderBy,
                    signInWithEmailAndPassword, signOut, onAuthStateChanged };
     window._fbReady = true;
+    // 플레이스홀더가 아닌 실제 설정값인지 확인
+    window._fbConfigured = FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
   } catch(e) {
     console.warn('Firebase 초기화 실패 — 오프라인 모드로 동작:', e.message);
     window._fbReady = false;
@@ -2398,8 +2400,11 @@ function initFirebase() {
       loadHistory();
       loadSettingsFromFirebase();
     } else {
-      // 미로그인 시 로그인 페이지로 리다이렉트
-      window.location.href = 'index.html';
+      // Firebase 설정 완료된 경우만 리다이렉트
+      if (window._fbConfigured) {
+        window.location.href = 'index.html';
+      }
+      // 미설정(오프라인) 시 그냥 사용 가능
     }
   });
 }
