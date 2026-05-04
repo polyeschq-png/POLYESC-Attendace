@@ -1156,7 +1156,21 @@ function doAnalyse(){
     // 이름 컬럼에 값이 있으면 현재 직원 갱신
     const nm=nameCol>=0?String(row[nameCol]||'').trim():'';
     if(nm){
-      const st=HQ.find(s=>nm===s.name||nm.includes(s.name));
+      // 정확히 일치 우선, 없으면 포함 매칭 — 동명이인은 먼저 나온 행(낮은 행번호) 기준
+      const st=(()=>{
+        // 1순위: 완전 일치
+        const exact=HQ.find(s=>nm===s.name);
+        if(exact) return exact;
+        // 2순위: 포함 매칭 — 단 이미 해당 키로 empData에 데이터가 쌓인 경우 skip
+        const partial=HQ.find(s=>{
+          if(!nm.includes(s.name)) return false;
+          const ed=empData[s.name];
+          // 이미 다른 사람(nm과 다른 이름)의 데이터가 쌓이는 중이면 skip
+          if(ed && Object.keys(ed.days||{}).length>0) return false;
+          return true;
+        });
+        return partial||null;
+      })();
       if(st&&!st.noData){
         _curSt=st; _curEmp=empData[st.name]||null;
         if(_curEmp){
