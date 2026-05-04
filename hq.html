@@ -1150,7 +1150,7 @@ function doAnalyse(){
   const typeCol=fc(['구분','출퇴근구분','근태구분']);
 
   let _curEmp=null, _curSt=null;
-  rawRows.slice(hr+1,Math.min(rawRows.length,hr+251)).forEach(row=>{
+  rawRows.slice(hr+1,rawRows.length).forEach(row=>{
     if(!row||row.every(c=>c===''||c===null)) return;
 
     // 이름 컬럼에 값이 있으면 현재 직원 갱신
