@@ -5,11 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>근태 관리</title>
 <script type="module">
-  // Firebase 설정 — 나중에 본인 프로젝트 값으로 교체
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs, orderBy, query }
     from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
-  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  import { getAuth, signOut, onAuthStateChanged, browserSessionPersistence, setPersistence }
     from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
 
   const FIREBASE_CONFIG = {
@@ -26,19 +25,13 @@
     app  = initializeApp(FIREBASE_CONFIG);
     db   = getFirestore(app);
     auth = getAuth(app);
+    await setPersistence(auth, browserSessionPersistence);
     window._fb = { db, auth, doc, getDoc, setDoc, collection, getDocs, query, orderBy,
-                   signInWithEmailAndPassword, signOut, onAuthStateChanged };
+                   signOut, onAuthStateChanged };
     window._fbReady = true;
-    // 플레이스홀더가 아닌 실제 설정값인지 확인
-    window._fbConfigured = FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
   } catch(e) {
-    console.warn('Firebase 초기화 실패 — 오프라인 모드로 동작:', e.message);
+    console.warn('Firebase 초기화 실패:', e.message);
     window._fbReady = false;
-    // 오프라인 모드: 사이드바에 오프라인 표시, Owner로 설정
-    const userId = document.getElementById('sb-user-id');
-    if (userId) userId.textContent = '오프라인 모드';
-    currentRole = 'Owner'; // 오프라인 시 전체 기능 허용
-    _fbLoaded = true;      // 오프라인 시 바로 저장 허용
   }
 </script>
 <style>
@@ -79,7 +72,7 @@
   --surface2: #f4f6f8;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; display: flex; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; display: flex; opacity: 0; transition: opacity 0.3s; }
 
 /* ── 왼쪽 사이드바 (네이비) ── */
 .sidebar {
@@ -394,11 +387,8 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
       style="height:28px;object-fit:contain;"
       onerror="this.style.display='none'">
     <div style="flex:1;min-width:0;">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <div class="sb-title">근태 관리</div>
-        <span id="sb-role-badge" style="display:none;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--green);color:#fff;white-space:nowrap;"></span>
-      </div>
-      <div class="sb-sub" id="sb-user-id">@폴리이에스씨</div>
+      <div class="sb-title">근태 관리</div>
+      <div class="sb-sub">㈜폴리이에스씨</div>
     </div>
   </div>
 
@@ -423,12 +413,11 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
     </div>
   </div>
 
-
-
-  <!-- campus-list는 오른쪽 campus-panel에서만 표시 -->
-
-  <!-- 사이드바 하단 버튼 -->
+  <!-- 사이드바 하단 -->
   <div style="margin-top:auto;padding:12px 10px;border-top:1px solid rgba(0,0,0,.08);">
+    <div id="sb-nickname" style="font-size:12px;font-weight:700;color:var(--green-dk);margin-bottom:2px"></div>
+    <div id="sb-user-id" style="font-size:10px;color:var(--text3);margin-bottom:2px;word-break:break-all"></div>
+    <div id="sb-role-badge" style="font-size:10px;color:var(--text3);margin-bottom:10px"></div>
     <button class="sb-bottom-btn" onclick="window.location.href='landing.html'">
       🏠 메인으로
     </button>
@@ -444,10 +433,10 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
   <header>
     <span class="hdr-title" id="hdr-tab-title">💾 월별 기록</span>
     <span class="hdr-badge" id="hdr-month"></span>
+    <button class="btn btn-primary btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;margin-left:8px;">💾 저장</button>
     <div class="header-right">
       <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()" id="hdr-btn-excel" style="display:none;">⬇ Excel</button>
       <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()" id="hdr-btn-pdf" style="display:none;">⬇ PDF</button>
-      <button class="btn btn-primary btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;">💾 기록 저장</button>
     </div>
   </header>
 
@@ -580,7 +569,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
         </div>
         <table>
           <thead><tr>
-            <th>분석월</th><th>저장일시</th><th>지각</th><th>근무시간미달</th><th></th>
+            <th>분석월</th><th>저장일시</th><th>지각</th><th>근무시간미달</th><th>정상전환</th><th>CCTV</th><th></th>
           </tr></thead>
           <tbody id="history-tbody">
             <tr><td colspan="7"><div class="empty"><div class="icon">📁</div>
@@ -596,9 +585,6 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
     <div class="panel" id="panel-result">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
         <div id="res-campus-title" style="font-size:15px;font-weight:600;flex:1;"></div>
-        <button class="btn btn-success btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;">
-          💾 기록 저장
-        </button>
       </div>
       <div class="sum-row">
         <div class="scard red"><div class="num" id="s-late">0</div><div class="lbl">지각자</div></div>
@@ -675,7 +661,6 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
         <div class="itab active" data-itab="set-emp" onclick="switchITab('set-emp')">👤 출근 기준 관리</div>
         <div class="itab" data-itab="set-leave" onclick="switchITab('set-leave')">🏖 휴직자 관리</div>
         <div class="itab" data-itab="set-holiday" onclick="switchITab('set-holiday')">📅 공휴일 관리</div>
-        <div class="itab" data-itab="set-backup" onclick="switchITab('set-backup')">💿 백업/복원</div>
       </div>
 
       <!-- Employee list -->
@@ -708,35 +693,6 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
             <thead><tr><th>캠퍼스</th><th>이름</th><th>휴직 시작일</th><th>휴직 종료일</th><th>사유</th><th></th></tr></thead>
             <tbody id="leave-tbody"></tbody>
           </table>
-        </div>
-      </div>
-
-      <!-- 백업/복원 패널 -->
-      <div id="set-backup" style="display:none;">
-        <div class="info-box">
-          설정(직원·특이사항·공휴일·휴직자)과 월별 기록을 <strong>JSON 파일로 내보내거나 가져올 수 있습니다.</strong><br>
-          파일명이 바뀌거나 다른 기기에서 사용할 때 활용하세요.
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-          <div class="cfg-card">
-            <h4>⬇ 내보내기 (백업)</h4>
-            <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">현재 모든 설정과 월별 기록을 JSON 파일로 저장합니다.</p>
-            <button class="btn btn-primary" onclick="exportBackup()">💿 JSON 백업 파일 저장</button>
-          </div>
-          <div class="cfg-card">
-            <h4>⬆ 가져오기 (복원)</h4>
-            <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">이전에 저장한 JSON 백업 파일을 불러옵니다.</p>
-            <div style="position:relative;">
-              <input type="file" accept=".json" id="backup-file-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;">
-              <button class="btn btn-ghost" style="width:100%;">📂 JSON 파일 선택하여 복원</button>
-            </div>
-          </div>
-        </div>
-        <div class="divider"></div>
-        <div class="cfg-card">
-          <h4>🔍 현재 저장 현황</h4>
-          <div id="backup-status" style="font-size:13px;color:var(--text2);line-height:1.8;"></div>
-          <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="renderBackupStatus()">🔄 새로고침</button>
         </div>
       </div>
 
@@ -972,7 +928,6 @@ let RESULTS = [];
 let UNREGISTERED = []; // 리스트 미등록이지만 근태기록 있는 인원
 let HISTORY = [];     // 누적 분석 기록 [{monthKey, analysedAt, results, summary}]
 let REPORT_RECEIPTS = {}; // 보고서 수신 {monthKey: {campusName: {status, date}}}
-let _fbLoaded = false;    // Firebase에서 설정 로드 완료 여부 — 로드 전 덮어쓰기 방지
 let currentUser = null; // Firebase 로그인 유저
 let selectedCampus = '전체';
 let currentTab = 'history';
@@ -1060,6 +1015,10 @@ function switchTab(tab) {
     if (el) el.style.display = tab === 'report' ? '' : 'none';
   });
 
+  // 저장 버튼 - 분석 데이터 있으면 항상 표시
+  const saveBtn = document.getElementById('save-history-btn');
+  if (saveBtn) saveBtn.style.display = (typeof RAW_DATA !== 'undefined' && RAW_DATA.length) ? 'inline-flex' : 'none';
+
   // 캠퍼스 패널 (예외/결과 탭만 표시)
   const showCampus = tab === 'exceptions' || tab === 'result';
   document.getElementById('campus-panel').classList.toggle('hidden', !showCampus);
@@ -1098,7 +1057,7 @@ function switchTabSettings(subTab) {
 
 function switchITab(itab) {
   // figure out parent
-  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings', 'set-backup':'settings' };
+  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings' };
   const parent = parents[itab];
   currentITab[parent] = itab;
 
@@ -1115,11 +1074,10 @@ function switchITab(itab) {
     });
   }
   if (parent === 'settings') {
-    ['set-emp','set-leave','set-holiday','set-backup'].forEach(id => {
+    ['set-emp','set-leave','set-holiday'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = itab === id ? 'block' : 'none';
     });
-    if (itab === 'set-backup') renderBackupStatus();
     if (itab === 'set-holiday') renderHolidaySettings();
   }
 }
@@ -1408,6 +1366,7 @@ function renderExList() {
               <option value="field" ${ex.type==='field'?'selected':''}>🏃 외근 지각제외</option>
               <option value="timechange" ${ex.type==='timechange'?'selected':''}>🕐 출근시간 일시변경</option>
               <option value="workexclude" ${ex.type==='workexclude'?'selected':''}>⛔ 근무시간 미달 제외</option>
+              <option value="normalall" ${ex.type==='normalall'?'selected':''}>✅ 출퇴근 모두 정상처리</option>
             </select>
           </div>
           <div>
@@ -1634,6 +1593,9 @@ function runAnalysis() {
     if (!MANAGED_CAMPUSES.has(campus)) continue;
     if (EXCLUDED_POSITIONS.has(position)) continue;
     if (isOnLeave(name, campus, row.date)) continue;
+    // startDate 이전 날짜는 미등록자로 잡지 않음
+    const emp = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
+    if (emp && emp.startDate && row.date <= emp.startDate) continue;
     if (!getEmpRef(name, campus, row.date)) {
       const key = name + '|' + campus;
       if (!unreMap[key]) unreMap[key] = { name, campus, position, dates: [] };
@@ -1647,6 +1609,9 @@ function runAnalysis() {
 
     // Skip if on leave
     if (isOnLeave(name, campus, date)) continue;
+
+    // 출퇴근 모두 정상처리 특이사항 적용
+    if (exApplied(name, campus, date, 'normalall')) continue;
 
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
@@ -1722,13 +1687,6 @@ function runAnalysis() {
   }
 
   resPage=1; cctvPage=1; unrePage=1;
-  // 불러온 기록의 월로 헤더 갱신
-  const [ry, rm] = monthKey.split('-').map(Number);
-  const hdrel = document.getElementById('hdr-month');
-  if (hdrel) hdrel.textContent = `${ry}년 ${rm}월`;
-  // dt-start도 맞춰줌
-  const dtStart = document.getElementById('dt-start');
-  if (dtStart) dtStart.value = monthKey + '-01';
   updateSummary();
   renderResultTable();
   renderCCTVTable();
@@ -1738,16 +1696,10 @@ function runAnalysis() {
   switchTab('result');
   const unreMsg = UNREGISTERED.length > 0 ? ` / ⚠ 추가필요 ${UNREGISTERED.length}명` : '';
   updateHeaderMonth();
-  // Owner만 저장 버튼 표시
-  if (currentRole === 'Owner') {
-    document.querySelectorAll('#save-history-btn').forEach(el => el.style.display = 'inline-flex');
-  }
+  document.getElementById('save-history-btn').style.display = 'inline-flex';
   showToast(`✅ 분석 완료 — ${RESULTS.length}건${unreMsg}`, 'ok');
 }
 
-
-// ══════════════════════════════════════
-// 자동 재분석 (설정 변경 시 조용히 재실행)
 // ══════════════════════════════════════
 function rerunAnalysis() {
   if (!RAW_DATA.length) return;
@@ -1777,6 +1729,8 @@ function rerunAnalysis() {
     if (!MANAGED_CAMPUSES.has(campus)) continue;
     if (EXCLUDED_POSITIONS.has(position)) continue;
     if (isOnLeave(name, campus, row.date)) continue;
+    const emp = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
+    if (emp && emp.startDate && row.date <= emp.startDate) continue;
     if (!getEmpRef(name, campus, row.date)) {
       const key = name + '|' + campus;
       if (!unreMap[key]) unreMap[key] = { name, campus, position, dates: [] };
@@ -1788,6 +1742,7 @@ function rerunAnalysis() {
   for (const row of filtered) {
     const { name, dept:campus, date, position } = row;
     if (isOnLeave(name, campus, date)) continue;
+    if (exApplied(name, campus, date, 'normalall')) continue;
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
     if (!emp && !baseCIStr) continue;
@@ -1801,8 +1756,8 @@ function rerunAnalysis() {
     const rawMissingCI = !row.checkIn || row.checkInMethod === '미등록';
     const rawMissingCO = !row.checkOut || row.checkOutMethod === '미등록';
 
-    // ── 신청내역 또는 변경사유 있으면 전부 정상 처리 (skip) ──
-    if (reason || (row.request||'').trim()) continue;
+    // ── 변경사유 있으면 전부 정상 처리 (skip) ──
+    if (reason) continue;
 
     // ── 근태구분별 출퇴근 누락 허용 규칙 ──
     let effectiveMissingCI = rawMissingCI;
@@ -1832,8 +1787,10 @@ function rerunAnalysis() {
       effectiveMissingCI = false;
       effectiveMissingCO = false;
       skipShortWork = true;
+    } else if (attendType !== '') {
+      // 근태구분이 비어있지 않으면 근무시간 미달 체크 제외
+      skipShortWork = true;
     }
-    // ※ attendType이 비어있지 않아도 정상·지각·조퇴·근태이상은 근무시간 체크 대상
 
     // ── CCTV 확인 ──
     if (effectiveMissingCI || effectiveMissingCO) {
@@ -2175,8 +2132,8 @@ function exportCSV() {
 // STATE (localStorage)
 // ══════════════════════════════════════
 function saveState() {
-  // Firebase 연동 시 설정도 동기화 — 단, Firebase에서 먼저 로드된 후에만 저장
-  if (window._fbReady && currentUser && _fbLoaded) saveSettingsToFirebase().catch(()=>{});
+  // Firebase 연동 시 설정도 동기화
+  if (window._fbReady && currentUser) saveSettingsToFirebase().catch(()=>{});
   // RAW_DATA가 있으면 자동 재분석
   if (RAW_DATA.length > 0) {
     clearTimeout(window._autoReanalysisTimer);
@@ -2270,18 +2227,27 @@ function refreshReport() {
       <td>
         <div style="display:flex;flex-direction:column;gap:5px;">
           ${rec.date
-            ? `<span style="color:var(--green);font-size:12px;font-family:var(--mono);">✅ ${rec.date}</span>
-               <span style="font-size:11px;color:var(--text3);cursor:pointer;" onclick="setReceipt('${campus}','${monthKey}','date','');refreshReport()">✕ 초기화</span>`
-            : `<input class="receipt-input" type="date" value=""
-                ${rec.unnecessary ? 'disabled style="opacity:.35;"' : ''}
-                onchange="setReceipt('${campus}','${monthKey}','date',this.value)">
-               <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--text2);">
-                 <input type="checkbox" style="width:auto;accent-color:var(--accent);"
-                   ${rec.unnecessary?'checked':''}
-                   onchange="setReceipt('${campus}','${monthKey}','unnecessary',this.checked)">
-                 불필요
-               </label>
-               ${!rec.unnecessary ? '<span style="color:var(--red);font-size:12px;">미수신</span>' : '<span style="color:var(--text3);font-size:12px;">불필요</span>'}`
+            ? `<input type="text" placeholder="YYYY-MM-DD" maxlength="10" value="${rec.date}"
+                 style="width:110px;padding:4px 7px;font-size:12px;border:1px solid var(--green);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
+                 oninput="maskDateInput(this,'${campus}','${monthKey}')"
+                 onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">`
+            : rec.unnecessary
+              ? `<select style="width:110px;padding:4px 6px;font-size:12px;border:1px solid var(--border2);border-radius:5px;background:var(--white);color:var(--text);"
+                   onchange="handleReceiptSelect(this,'${campus}','${monthKey}')">
+                   <option value="">-- 선택 --</option>
+                   <option value="unnecessary" selected>불필요</option>
+                   <option value="unreceived">미수신</option>
+                 </select>`
+              : `<input type="text" placeholder="YYYY-MM-DD" maxlength="10"
+                   style="width:110px;padding:4px 7px;font-size:12px;border:1px solid var(--border2);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
+                   oninput="maskDateInput(this,'${campus}','${monthKey}')"
+                   onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">
+                 <select style="width:110px;padding:4px 6px;font-size:12px;border:1px solid var(--border2);border-radius:5px;background:var(--white);color:var(--text);"
+                   onchange="handleReceiptSelect(this,'${campus}','${monthKey}')">
+                   <option value="">-- 선택 --</option>
+                   <option value="unnecessary">불필요</option>
+                   <option value="unreceived">미수신</option>
+                 </select>`
           }
         </div>
       </td>
@@ -2291,6 +2257,46 @@ function refreshReport() {
   }).join('');
 }
 
+
+function handleReceiptSelect(el, campus, monthKey){
+  const val = el.value;
+  if(val === 'unnecessary'){
+    setReceipt(campus, monthKey, 'unnecessary', true);
+    setReceipt(campus, monthKey, 'date', '');
+  } else if(val === 'unreceived'){
+    setReceipt(campus, monthKey, 'unnecessary', false);
+    setReceipt(campus, monthKey, 'date', '');
+  }
+  refreshReport();
+}
+
+function maskDateInput(el, campus, monthKey){
+  let v = el.value.replace(/\D/g,'');
+  if(v.length>8) v=v.slice(0,8);
+  let result='';
+  if(v.length<=4) result=v;
+  else if(v.length<=6) result=v.slice(0,4)+'-'+v.slice(4);
+  else result=v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6);
+  el.value=result;
+  if(result.length===10){
+    // 날짜 입력 완료 시 unnecessary 초기화 후 저장 → 드롭박스 사라짐
+    setReceipt(campus, monthKey, 'unnecessary', false);
+    setReceipt(campus, monthKey, 'date', result);
+    refreshReport();
+  }
+}
+
+function combineReceiptDate(campus, monthKey){
+  const key=campus.replace(/\s/g,'_');
+  const y=document.getElementById('rdate-y-'+key)?.value||'';
+  const m=document.getElementById('rdate-m-'+key)?.value||'';
+  const d=document.getElementById('rdate-d-'+key)?.value||'';
+  if(y.length===4&&m&&d){
+    const mm=String(m).padStart(2,'0');
+    const dd=String(d).padStart(2,'0');
+    setReceipt(campus,monthKey,'date',`${y}-${mm}-${dd}`);
+  }
+}
 
 function setReceipt(campus, monthKey, field, value) {
   if (!monthKey) return;
@@ -2403,42 +2409,47 @@ function initFirebase() {
   onAuthStateChanged(auth, async user => {
     currentUser = user;
     if (user) {
-      // Firestore에서 권한 가져오기
+      // 닉네임 (@앞 부분), 아이디, 권한 표시
+      const nickname = user.email?.split('@')[0] || '';
+      const nicknameEl = document.getElementById('sb-nickname');
+      const userIdEl = document.getElementById('sb-user-id');
+      const roleBadge = document.getElementById('sb-role-badge');
+      if (nicknameEl) nicknameEl.textContent = nickname;
+      if (userIdEl) userIdEl.textContent = user.email;
+
+      // Firestore Users에서 role 읽기
+      const ROLE_LABELS = {owner:'👑 Owner', admin:'🔧 관리자', report:'📊 리포트'};
+      let role = 'report';
       try {
         const { db, doc, getDoc } = window._fb;
         const snap = await getDoc(doc(db, 'Users', user.email));
-        currentRole = snap.exists() ? (snap.data().role || 'Staff') : 'Staff';
+        role = snap.exists() ? snap.data().role || 'report' : 'report';
+        if (roleBadge) roleBadge.textContent = ROLE_LABELS[role] || '📊 리포트';
       } catch(e) {
-        currentRole = 'Staff';
+        if (roleBadge) roleBadge.textContent = '📊 리포트';
       }
 
-      // 사이드바 사용자 정보 표시
-      const userId = document.getElementById('sb-user-id');
-      if (userId) userId.textContent = user.email;
+      // 권한별 탭 제어
+      const CAMPUS_ROLE_TABS = {
+        owner:  ['report','upload','exceptions','result','history','settings'],
+        admin:  ['report','result','history'],
+        report: ['report','history'],
+      };
+      const allowed = CAMPUS_ROLE_TABS[role] || CAMPUS_ROLE_TABS['report'];
 
-      // 권한 배지
-      const roleBadge = document.getElementById('sb-role-badge');
-      if (roleBadge) {
-        roleBadge.textContent = currentRole;
-        roleBadge.style.display = 'inline';
-        roleBadge.style.background = currentRole === 'Owner' ? 'var(--green)' : 'var(--blue)';
-      }
+      // 사이드바 탭 표시/숨김
+      document.querySelectorAll('.sb-item[data-tab]').forEach(el => {
+        el.style.display = allowed.includes(el.dataset.tab) ? '' : 'none';
+      });
 
-      // 저장 버튼은 Owner만 표시 (초기 숨김 상태 유지)
-      if (currentRole !== 'Owner') {
-        document.querySelectorAll('#save-history-btn').forEach(el => el.style.display = 'none');
-      }
-
-      document.getElementById('fb-status').textContent = `✅ ${user.email}`;
+      window._campusRole = role;
+      switchTab('history');
       loadHistory();
       loadSettingsFromFirebase();
     } else {
-      // Firebase 설정 완료된 경우만 리다이렉트
-      if (window._fbConfigured) {
-        window.location.href = 'index.html';
-      }
-      // 미설정(오프라인) 시 그냥 사용 가능
+      window.location.href = 'index.html';
     }
+    document.body.style.opacity = '1';
   });
 }
 
@@ -2465,12 +2476,12 @@ async function fbLogout() {
 function doLogout() {
   if (window._fbReady && window._fb) {
     window._fb.signOut(window._fb.auth).then(() => {
-      window.location.href = 'index.html';
+      window.location.href = 'landing.html';
     }).catch(() => {
-      window.location.href = 'index.html';
+      window.location.href = 'landing.html';
     });
   } else {
-    window.location.href = 'index.html';
+    window.location.href = 'landing.html';
   }
 }
 
@@ -2504,17 +2515,10 @@ async function loadSettingsFromFirebase() {
       if (d.holidays)       HOLIDAYS = d.holidays;
       if (d.builtinHolidays) KR_HOLIDAYS_BUILTIN = d.builtinHolidays;
       if (d.reportReceipts)  REPORT_RECEIPTS = d.reportReceipts;
-      _fbLoaded = true;
       renderAll();
       showToast('✅ Firebase에서 설정 불러옴', 'ok');
-    } else {
-      // Firebase에 설정 없음 — 로컬 데이터 유지하되 덮어쓰기 허용
-      _fbLoaded = true;
     }
-  } catch(e) {
-    console.warn('설정 불러오기 실패:', e);
-    _fbLoaded = true; // 오류여도 로컬 저장은 허용
-  }
+  } catch(e) { console.warn('설정 불러오기 실패:', e); }
 }
 
 // ── 분석 기록 저장 ──
@@ -2600,6 +2604,7 @@ function renderHistoryTable() {
   tbody.innerHTML = HISTORY.map(h => {
     const s = h.summary || {};
     const dt = h.analysedAt ? new Date(h.analysedAt).toLocaleString('ko-KR') : '-';
+    const isOwner = window._campusRole === 'owner';
     return `<tr>
       <td class="mono" style="font-weight:600;">${h.monthKey}</td>
       <td style="font-size:12px;color:var(--text2);">${dt}</td>
@@ -2609,7 +2614,7 @@ function renderHistoryTable() {
       <td><span class="chip chip-yellow">${s.cctv||0}</span></td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-ghost btn-sm" onclick="loadHistoryRecord('${h.monthKey}')">📂 불러오기</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteHistoryRecord('${h.monthKey}')">삭제</button>
+        ${isOwner ? `<button class="btn btn-danger btn-sm" onclick="deleteHistoryRecord('${h.monthKey}')">삭제</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -2633,7 +2638,9 @@ function loadHistoryRecord(monthKey) {
   renderCCTVTable();
   renderUnregisteredTable();
   renderSidebar();
-  switchTab('result');
+  switchTab('report');
+  const saveBtn=document.getElementById('save-history-btn');
+  if(saveBtn) saveBtn.style.display='inline-flex';
   showToast(`📂 ${monthKey} 기록 불러옴`, 'ok');
   refreshReport();
 }
@@ -2645,7 +2652,7 @@ async function deleteHistoryRecord(monthKey) {
   if (window._fbReady && currentUser) {
     try {
       const { db, doc } = window._fb;
-      const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js");
+      const { deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
       await deleteDoc(doc(db, 'history', monthKey));
     } catch(e) { console.warn('Firebase 삭제 실패:', e); }
   }
@@ -2708,87 +2715,6 @@ function closeDowModal() {
   document.getElementById('dow-modal').style.display = 'none';
   _dowEmpIdx = -1;
 }
-
-// ══════════════════════════════════════
-// 백업 / 복원
-// ══════════════════════════════════════
-function exportBackup() {
-  const history = JSON.parse(localStorage.getItem('att_history') || '[]');
-  const backup = {
-    version: 3,
-    exportedAt: new Date().toISOString(),
-    employees:      EMPLOYEES,
-    exceptions:     EXCEPTIONS,
-    leaves:         LEAVES,
-    holidays:       HOLIDAYS,
-    builtinHolidays: KR_HOLIDAYS_BUILTIN,
-    reportReceipts: REPORT_RECEIPTS,
-    history:        history,
-  };
-  const json = JSON.stringify(backup, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `근태설정_백업_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  showToast('✅ 백업 파일 저장 완료', 'ok');
-}
-
-function renderBackupStatus() {
-  const el = document.getElementById('backup-status');
-  if (!el) return;
-  const history = JSON.parse(localStorage.getItem('att_history') || '[]');
-  el.innerHTML = `
-    <div>👤 직원 기준: <strong>${EMPLOYEES.length}명</strong></div>
-    <div>📌 특이사항: <strong>${EXCEPTIONS.length}건</strong></div>
-    <div>🏖 휴직자: <strong>${LEAVES.length}명</strong></div>
-    <div>📅 추가 공휴일: <strong>${HOLIDAYS.length}일</strong></div>
-    <div>💾 월별 기록: <strong>${history.length}개월</strong>
-      ${history.length ? '(' + history.map(h=>h.monthKey).join(', ') + ')' : ''}
-    </div>
-    <div style="margin-top:6px;font-size:12px;color:var(--text3);">
-      저장 공간: ${(JSON.stringify({EMPLOYEES,EXCEPTIONS,LEAVES,HOLIDAYS}).length/1024).toFixed(1)} KB
-    </div>
-  `;
-}
-
-// 파일 선택 이벤트
-document.addEventListener('DOMContentLoaded', () => {
-  const input = document.getElementById('backup-file-input');
-  if (input) {
-    input.addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
-        try {
-          const data = JSON.parse(ev.target.result);
-          if (!data.version) throw new Error('올바른 백업 파일이 아닙니다.');
-
-          if (!confirm(`백업 파일(${data.exportedAt?.slice(0,10)})을 복원할까요?\n\n현재 설정이 덮어씌워집니다.`)) return;
-
-          if (data.employees)      EMPLOYEES      = data.employees;
-          if (data.exceptions)     EXCEPTIONS     = data.exceptions;
-          if (data.leaves)         LEAVES         = data.leaves;
-          if (data.holidays)       HOLIDAYS       = data.holidays;
-          if (data.builtinHolidays) KR_HOLIDAYS_BUILTIN = data.builtinHolidays;
-          if (data.reportReceipts) REPORT_RECEIPTS = data.reportReceipts;
-          if (data.history)        localStorage.setItem('att_history', JSON.stringify(data.history));
-
-          saveState();
-          renderAll();
-          renderBackupStatus();
-          showToast(`✅ 복원 완료 — 직원 ${EMPLOYEES.length}명, 특이사항 ${EXCEPTIONS.length}건, 기록 ${data.history?.length||0}개월`, 'ok');
-        } catch(err) {
-          showToast('❌ 복원 실패: ' + err.message, 'err');
-        }
-        input.value = '';
-      };
-      reader.readAsText(file);
-    });
-  }
-});
-
 // ══════════════════════════════════════
 // TOAST
 // ══════════════════════════════════════
