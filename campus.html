@@ -33,7 +33,10 @@
   } catch(e) {
     console.warn('Firebase 초기화 실패:', e.message);
     window._fbReady = false;
+    window._fbConfigured = false;
   }
+  // module 스크립트 로드 완료 후 메인 스크립트 초기화 트리거
+  window.dispatchEvent(new Event('firebase-ready'));
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
@@ -73,7 +76,7 @@
   --surface2: #f4f6f8;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; display: flex; opacity: 0; transition: opacity 0.3s; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; display: flex; opacity: 1; }
 
 /* ── 왼쪽 사이드바 (네이비) ── */
 .sidebar {
@@ -944,14 +947,27 @@ let unrePage = 1;
 // ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
+function _appInit() {
   loadState();
   updateHeaderMonth();
   setDefaultDates();
   renderAll();
   switchTab('history');
-  setTimeout(() => { if (typeof initFirebase === 'function') initFirebase(); }, 500);
+  if (typeof initFirebase === 'function') initFirebase();
+}
+
+// Firebase module 준비 후 초기화, 또는 DOMContentLoaded 중 늦은 쪽에 실행
+let _domReady = false, _fbEventReady = false;
+document.addEventListener('DOMContentLoaded', () => {
+  _domReady = true;
+  if (_fbEventReady || !window._fbReady) _appInit();
 });
+window.addEventListener('firebase-ready', () => {
+  _fbEventReady = true;
+  if (_domReady) _appInit();
+});
+// 오프라인 폴백: 1초 후에도 초기화 안 됐으면 강제 실행
+setTimeout(() => { if (!_domReady) { _domReady = true; _fbEventReady = true; _appInit(); } }, 1000);
 
 function updateHeaderMonth() {
   // 분석 기간 시작일 기준으로 표시, 없으면 이전달
