@@ -28,7 +28,8 @@
     await setPersistence(auth, browserSessionPersistence);
     window._fb = { db, auth, doc, getDoc, setDoc, collection, getDocs, query, orderBy,
                    signOut, onAuthStateChanged };
-    window._fbReady = true; = FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
+    window._fbReady = true;
+    window._fbConfigured = FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
   } catch(e) {
     console.warn('Firebase 초기화 실패:', e.message);
     window._fbReady = false;
@@ -661,7 +662,6 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
         <div class="itab active" data-itab="set-emp" onclick="switchITab('set-emp')">👤 출근 기준 관리</div>
         <div class="itab" data-itab="set-leave" onclick="switchITab('set-leave')">🏖 휴직자 관리</div>
         <div class="itab" data-itab="set-holiday" onclick="switchITab('set-holiday')">📅 공휴일 관리</div>
-        <div class="itab" data-itab="set-backup" onclick="switchITab('set-backup')">💿 백업/복원</div>
       </div>
 
       <!-- Employee list -->
@@ -929,7 +929,7 @@ let RESULTS = [];
 let UNREGISTERED = []; // 리스트 미등록이지만 근태기록 있는 인원
 let HISTORY = [];     // 누적 분석 기록 [{monthKey, analysedAt, results, summary}]
 let REPORT_RECEIPTS = {}; // 보고서 수신
-let _fbLoaded = false;    // Firebase 로드 완료 전 덮어쓰기 방지 {monthKey: {campusName: {status, date}}}
+let _fbLoaded = false; {monthKey: {campusName: {status, date}}}
 let currentUser = null; // Firebase 로그인 유저
 let selectedCampus = '전체';
 let currentTab = 'history';
@@ -1059,7 +1059,7 @@ function switchTabSettings(subTab) {
 
 function switchITab(itab) {
   // figure out parent
-  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings', 'set-backup':'settings' };
+  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings' };
   const parent = parents[itab];
   currentITab[parent] = itab;
 
@@ -1076,12 +1076,11 @@ function switchITab(itab) {
     });
   }
   if (parent === 'settings') {
-    ['set-emp','set-leave','set-holiday','set-backup'].forEach(id => {
+    ['set-emp','set-leave','set-holiday'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = itab === id ? 'block' : 'none';
     });
     if (itab === 'set-holiday') renderHolidaySettings();
-    if (itab === 'set-backup') renderBackupStatus();
   }
 }
 
@@ -1791,7 +1790,7 @@ function rerunAnalysis() {
       effectiveMissingCO = false;
       skipShortWork = true;
     }
-    // ※ 정상·지각·조퇴·근태이상은 근무시간 체크 대상 (연차/반차만 제외)
+    // ※ 정상·지각·조퇴·근태이상은 근무시간 체크 대상
 
     // ── CCTV 확인 ──
     if (effectiveMissingCI || effectiveMissingCO) {
@@ -2133,7 +2132,7 @@ function exportCSV() {
 // STATE (localStorage)
 // ══════════════════════════════════════
 function saveState() {
-  // Firebase 연동 시 설정도 동기화 — 로드 완료 후에만
+  // Firebase 연동 시 설정도 동기화
   if (window._fbReady && currentUser && _fbLoaded) saveSettingsToFirebase().catch(()=>{});
   // RAW_DATA가 있으면 자동 재분석
   if (RAW_DATA.length > 0) {
@@ -2519,9 +2518,7 @@ async function loadSettingsFromFirebase() {
       _fbLoaded = true;
       renderAll();
       showToast('✅ Firebase에서 설정 불러옴', 'ok');
-    } else {
-      _fbLoaded = true;
-    }
+    } else { _fbLoaded = true; }
   } catch(e) { console.warn('설정 불러오기 실패:', e); _fbLoaded = true; }
 }
 
@@ -2719,64 +2716,6 @@ function closeDowModal() {
   document.getElementById('dow-modal').style.display = 'none';
   _dowEmpIdx = -1;
 }
-
-// ══════════════════════════════════════
-// 백업 / 복원
-// ══════════════════════════════════════
-function exportBackup() {
-  const history = JSON.parse(localStorage.getItem('att_history') || '[]');
-  const backup = {
-    version: 3, exportedAt: new Date().toISOString(),
-    employees: EMPLOYEES, exceptions: EXCEPTIONS, leaves: LEAVES,
-    holidays: HOLIDAYS, builtinHolidays: KR_HOLIDAYS_BUILTIN,
-    reportReceipts: REPORT_RECEIPTS, history,
-  };
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'}));
-  a.download = `근태설정_백업_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  showToast('✅ 백업 파일 저장 완료', 'ok');
-}
-
-function renderBackupStatus() {
-  const el = document.getElementById('backup-status');
-  if (!el) return;
-  const history = JSON.parse(localStorage.getItem('att_history') || '[]');
-  el.innerHTML = `
-    <div>👤 직원 기준: <strong>${EMPLOYEES.length}명</strong></div>
-    <div>📌 특이사항: <strong>${EXCEPTIONS.length}건</strong></div>
-    <div>🏖 휴직자: <strong>${LEAVES.length}명</strong></div>
-    <div>📅 추가 공휴일: <strong>${HOLIDAYS.length}일</strong></div>
-    <div>💾 월별 기록: <strong>${history.length}개월</strong> ${history.length ? '(' + history.map(h=>h.monthKey).join(', ') + ')' : ''}</div>
-  `;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const input = document.getElementById('backup-file-input');
-  if (input) {
-    input.addEventListener('change', e => {
-      const file = e.target.files[0]; if (!file) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
-        try {
-          const data = JSON.parse(ev.target.result);
-          if (!confirm(`백업 파일(${data.exportedAt?.slice(0,10)})을 복원할까요?\n현재 설정이 덮어씌워집니다.`)) return;
-          if (data.employees) EMPLOYEES = data.employees;
-          if (data.exceptions) EXCEPTIONS = data.exceptions;
-          if (data.leaves) LEAVES = data.leaves;
-          if (data.holidays) HOLIDAYS = data.holidays;
-          if (data.builtinHolidays) KR_HOLIDAYS_BUILTIN = data.builtinHolidays;
-          if (data.reportReceipts) REPORT_RECEIPTS = data.reportReceipts;
-          if (data.history) localStorage.setItem('att_history', JSON.stringify(data.history));
-          saveState(); renderAll(); renderBackupStatus();
-          showToast(`✅ 복원 완료`, 'ok');
-        } catch(err) { showToast('❌ 복원 실패: ' + err.message, 'err'); }
-        input.value = '';
-      };
-      reader.readAsText(file);
-    });
-  }
-});
 // ══════════════════════════════════════
 // TOAST
 // ══════════════════════════════════════
