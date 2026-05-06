@@ -38,6 +38,7 @@
     const userId = document.getElementById('sb-user-id');
     if (userId) userId.textContent = '오프라인 모드';
     currentRole = 'Owner'; // 오프라인 시 전체 기능 허용
+    _fbLoaded = true;      // 오프라인 시 바로 저장 허용
   }
 </script>
 <style>
@@ -674,6 +675,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
         <div class="itab active" data-itab="set-emp" onclick="switchITab('set-emp')">👤 출근 기준 관리</div>
         <div class="itab" data-itab="set-leave" onclick="switchITab('set-leave')">🏖 휴직자 관리</div>
         <div class="itab" data-itab="set-holiday" onclick="switchITab('set-holiday')">📅 공휴일 관리</div>
+        <div class="itab" data-itab="set-backup" onclick="switchITab('set-backup')">💿 백업/복원</div>
       </div>
 
       <!-- Employee list -->
@@ -706,6 +708,35 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
             <thead><tr><th>캠퍼스</th><th>이름</th><th>휴직 시작일</th><th>휴직 종료일</th><th>사유</th><th></th></tr></thead>
             <tbody id="leave-tbody"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- 백업/복원 패널 -->
+      <div id="set-backup" style="display:none;">
+        <div class="info-box">
+          설정(직원·특이사항·공휴일·휴직자)과 월별 기록을 <strong>JSON 파일로 내보내거나 가져올 수 있습니다.</strong><br>
+          파일명이 바뀌거나 다른 기기에서 사용할 때 활용하세요.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="cfg-card">
+            <h4>⬇ 내보내기 (백업)</h4>
+            <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">현재 모든 설정과 월별 기록을 JSON 파일로 저장합니다.</p>
+            <button class="btn btn-primary" onclick="exportBackup()">💿 JSON 백업 파일 저장</button>
+          </div>
+          <div class="cfg-card">
+            <h4>⬆ 가져오기 (복원)</h4>
+            <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">이전에 저장한 JSON 백업 파일을 불러옵니다.</p>
+            <div style="position:relative;">
+              <input type="file" accept=".json" id="backup-file-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;">
+              <button class="btn btn-ghost" style="width:100%;">📂 JSON 파일 선택하여 복원</button>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="cfg-card">
+          <h4>🔍 현재 저장 현황</h4>
+          <div id="backup-status" style="font-size:13px;color:var(--text2);line-height:1.8;"></div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="renderBackupStatus()">🔄 새로고침</button>
         </div>
       </div>
 
@@ -941,6 +972,7 @@ let RESULTS = [];
 let UNREGISTERED = []; // 리스트 미등록이지만 근태기록 있는 인원
 let HISTORY = [];     // 누적 분석 기록 [{monthKey, analysedAt, results, summary}]
 let REPORT_RECEIPTS = {}; // 보고서 수신 {monthKey: {campusName: {status, date}}}
+let _fbLoaded = false;    // Firebase에서 설정 로드 완료 여부 — 로드 전 덮어쓰기 방지
 let currentUser = null; // Firebase 로그인 유저
 let selectedCampus = '전체';
 let currentTab = 'history';
@@ -1066,7 +1098,7 @@ function switchTabSettings(subTab) {
 
 function switchITab(itab) {
   // figure out parent
-  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings' };
+  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings', 'set-backup':'settings' };
   const parent = parents[itab];
   currentITab[parent] = itab;
 
@@ -1083,10 +1115,11 @@ function switchITab(itab) {
     });
   }
   if (parent === 'settings') {
-    ['set-emp','set-leave','set-holiday'].forEach(id => {
+    ['set-emp','set-leave','set-holiday','set-backup'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = itab === id ? 'block' : 'none';
     });
+    if (itab === 'set-backup') renderBackupStatus();
     if (itab === 'set-holiday') renderHolidaySettings();
   }
 }
@@ -2142,8 +2175,8 @@ function exportCSV() {
 // STATE (localStorage)
 // ══════════════════════════════════════
 function saveState() {
-  // Firebase 연동 시 설정도 동기화
-  if (window._fbReady && currentUser) saveSettingsToFirebase().catch(()=>{});
+  // Firebase 연동 시 설정도 동기화 — 단, Firebase에서 먼저 로드된 후에만 저장
+  if (window._fbReady && currentUser && _fbLoaded) saveSettingsToFirebase().catch(()=>{});
   // RAW_DATA가 있으면 자동 재분석
   if (RAW_DATA.length > 0) {
     clearTimeout(window._autoReanalysisTimer);
@@ -2471,10 +2504,17 @@ async function loadSettingsFromFirebase() {
       if (d.holidays)       HOLIDAYS = d.holidays;
       if (d.builtinHolidays) KR_HOLIDAYS_BUILTIN = d.builtinHolidays;
       if (d.reportReceipts)  REPORT_RECEIPTS = d.reportReceipts;
+      _fbLoaded = true;
       renderAll();
       showToast('✅ Firebase에서 설정 불러옴', 'ok');
+    } else {
+      // Firebase에 설정 없음 — 로컬 데이터 유지하되 덮어쓰기 허용
+      _fbLoaded = true;
     }
-  } catch(e) { console.warn('설정 불러오기 실패:', e); }
+  } catch(e) {
+    console.warn('설정 불러오기 실패:', e);
+    _fbLoaded = true; // 오류여도 로컬 저장은 허용
+  }
 }
 
 // ── 분석 기록 저장 ──
@@ -2668,6 +2708,87 @@ function closeDowModal() {
   document.getElementById('dow-modal').style.display = 'none';
   _dowEmpIdx = -1;
 }
+
+// ══════════════════════════════════════
+// 백업 / 복원
+// ══════════════════════════════════════
+function exportBackup() {
+  const history = JSON.parse(localStorage.getItem('att_history') || '[]');
+  const backup = {
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    employees:      EMPLOYEES,
+    exceptions:     EXCEPTIONS,
+    leaves:         LEAVES,
+    holidays:       HOLIDAYS,
+    builtinHolidays: KR_HOLIDAYS_BUILTIN,
+    reportReceipts: REPORT_RECEIPTS,
+    history:        history,
+  };
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `근태설정_백업_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  showToast('✅ 백업 파일 저장 완료', 'ok');
+}
+
+function renderBackupStatus() {
+  const el = document.getElementById('backup-status');
+  if (!el) return;
+  const history = JSON.parse(localStorage.getItem('att_history') || '[]');
+  el.innerHTML = `
+    <div>👤 직원 기준: <strong>${EMPLOYEES.length}명</strong></div>
+    <div>📌 특이사항: <strong>${EXCEPTIONS.length}건</strong></div>
+    <div>🏖 휴직자: <strong>${LEAVES.length}명</strong></div>
+    <div>📅 추가 공휴일: <strong>${HOLIDAYS.length}일</strong></div>
+    <div>💾 월별 기록: <strong>${history.length}개월</strong>
+      ${history.length ? '(' + history.map(h=>h.monthKey).join(', ') + ')' : ''}
+    </div>
+    <div style="margin-top:6px;font-size:12px;color:var(--text3);">
+      저장 공간: ${(JSON.stringify({EMPLOYEES,EXCEPTIONS,LEAVES,HOLIDAYS}).length/1024).toFixed(1)} KB
+    </div>
+  `;
+}
+
+// 파일 선택 이벤트
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('backup-file-input');
+  if (input) {
+    input.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (!data.version) throw new Error('올바른 백업 파일이 아닙니다.');
+
+          if (!confirm(`백업 파일(${data.exportedAt?.slice(0,10)})을 복원할까요?\n\n현재 설정이 덮어씌워집니다.`)) return;
+
+          if (data.employees)      EMPLOYEES      = data.employees;
+          if (data.exceptions)     EXCEPTIONS     = data.exceptions;
+          if (data.leaves)         LEAVES         = data.leaves;
+          if (data.holidays)       HOLIDAYS       = data.holidays;
+          if (data.builtinHolidays) KR_HOLIDAYS_BUILTIN = data.builtinHolidays;
+          if (data.reportReceipts) REPORT_RECEIPTS = data.reportReceipts;
+          if (data.history)        localStorage.setItem('att_history', JSON.stringify(data.history));
+
+          saveState();
+          renderAll();
+          renderBackupStatus();
+          showToast(`✅ 복원 완료 — 직원 ${EMPLOYEES.length}명, 특이사항 ${EXCEPTIONS.length}건, 기록 ${data.history?.length||0}개월`, 'ok');
+        } catch(err) {
+          showToast('❌ 복원 실패: ' + err.message, 'err');
+        }
+        input.value = '';
+      };
+      reader.readAsText(file);
+    });
+  }
+});
+
 // ══════════════════════════════════════
 // TOAST
 // ══════════════════════════════════════
