@@ -455,7 +455,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
         <span style="font-size:15px;font-weight:600;" id="rpt-title">📊 보고자료</span>
         <span style="flex:1;"></span>
-        <button class="btn btn-ghost btn-sm" onclick="refreshReport()">🔄 새로고침</button>
+        <button class="btn btn-ghost btn-sm" onclick="RAW_DATA.length ? rerunAnalysis() : refreshReport()">🔄 새로고침</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()">⬇ Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">⬇ PDF</button>
       </div>
@@ -2182,12 +2182,17 @@ function exportCSV() {
 function saveState() {
   // Firebase 연동 시 설정도 동기화
   if (window._fbReady && currentUser) saveSettingsToFirebase().catch(()=>{});
-  // RAW_DATA가 있으면 자동 재분석
+  // RAW_DATA가 있으면 자동 재분석, 없고 RESULTS만 있으면(기록 불러오기 상태) 보고자료만 갱신
   if (RAW_DATA.length > 0) {
     clearTimeout(window._autoReanalysisTimer);
     window._autoReanalysisTimer = setTimeout(() => {
       rerunAnalysis();
     }, 600); // 연속 입력 시 600ms 디바운스
+  } else if (RESULTS.length > 0) {
+    clearTimeout(window._autoReanalysisTimer);
+    window._autoReanalysisTimer = setTimeout(() => {
+      refreshReport();
+    }, 600);
   }
   try {
     localStorage.setItem('att_emp', JSON.stringify(EMPLOYEES));
