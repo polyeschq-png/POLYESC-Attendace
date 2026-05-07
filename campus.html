@@ -1590,6 +1590,14 @@ function runAnalysis() {
     return true;
   });
 
+  // ── 중복 날짜 감지: 동일인+동일날짜 행이 2개 이상 = 기안서(외근/연차 등) 존재 → 정상 처리 ──
+  const dupKeyCount = {};
+  for (const row of filtered) {
+    const k = `${row.name}|${row.dept}|${row.date}`;
+    dupKeyCount[k] = (dupKeyCount[k] || 0) + 1;
+  }
+  const dupKeys = new Set(Object.keys(dupKeyCount).filter(k => dupKeyCount[k] >= 2));
+
   // ── 미등록자 감지: 관리캠퍼스에 있는데 EMPLOYEES에 없는 인원 ──
   const unreMap = {};
   for (const row of filtered) {
@@ -1614,6 +1622,12 @@ function runAnalysis() {
     // Skip if on leave
     if (isOnLeave(name, campus, date)) continue;
 
+    // 분석 제외 직급
+    if (EXCLUDED_POSITIONS.has(position)) continue;
+
+    // 동일인+동일날짜 행 중복(기안서 존재) → 정상 처리
+    if (dupKeys.has(`${name}|${campus}|${date}`)) continue;
+
     // 출퇴근 모두 정상처리 특이사항 적용
     if (exApplied(name, campus, date, 'normalall')) continue;
 
@@ -1626,6 +1640,11 @@ function runAnalysis() {
     const baseCIMins = t2m(baseCIStr);
     const actualCIMins = t2m(row.checkIn);
     const actualCOMins = t2m(row.checkOut);
+
+    // ── 신청내역(request) 또는 변경사유(reason)가 있으면 정상 처리 (skip) ──
+    const reason  = (row.reason  || '').trim();
+    const request = (row.request || '').trim();
+    if (reason || request) continue;
 
     const missingCI = !row.checkIn || row.checkInMethod === '미등록';
     const missingCO = !row.checkOut || row.checkOutMethod === '미등록';
@@ -1733,6 +1752,14 @@ function rerunAnalysis() {
     return true;
   });
 
+  // ── 중복 날짜 감지: 동일인+동일날짜 행이 2개 이상 = 기안서(외근/연차 등) 존재 → 정상 처리 ──
+  const dupKeyCount = {};
+  for (const row of filtered) {
+    const k = `${row.name}|${row.dept}|${row.date}`;
+    dupKeyCount[k] = (dupKeyCount[k] || 0) + 1;
+  }
+  const dupKeys = new Set(Object.keys(dupKeyCount).filter(k => dupKeyCount[k] >= 2));
+
   // 미등록자 감지
   const unreMap = {};
   for (const row of filtered) {
@@ -1753,6 +1780,13 @@ function rerunAnalysis() {
   for (const row of filtered) {
     const { name, dept:campus, date, position } = row;
     if (isOnLeave(name, campus, date)) continue;
+
+    // 분석 제외 직급
+    if (EXCLUDED_POSITIONS.has(position)) continue;
+
+    // 동일인+동일날짜 행 중복(기안서 존재) → 정상 처리
+    if (dupKeys.has(`${name}|${campus}|${date}`)) continue;
+
     if (exApplied(name, campus, date, 'normalall')) continue;
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
@@ -1764,13 +1798,14 @@ function rerunAnalysis() {
     const actualCIMins = t2m(row.checkIn);
     const actualCOMins = t2m(row.checkOut);
     const attendType = row.attendType || '';
-    const reason     = (row.reason || '').trim();
+    const reason     = (row.reason  || '').trim();
+    const request    = (row.request || '').trim();
 
     const rawMissingCI = !row.checkIn || row.checkInMethod === '미등록';
     const rawMissingCO = !row.checkOut || row.checkOutMethod === '미등록';
 
-    // ── 변경사유 있으면 전부 정상 처리 (skip) ──
-    if (reason) continue;
+    // ── 신청내역(request) 또는 변경사유(reason)가 있으면 정상 처리 (skip) ──
+    if (reason || request) continue;
 
     // ── 근태구분별 출퇴근 누락 허용 규칙 ──
     let effectiveMissingCI = rawMissingCI;
