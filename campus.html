@@ -29,14 +29,10 @@
     window._fb = { db, auth, doc, getDoc, setDoc, collection, getDocs, query, orderBy,
                    signOut, onAuthStateChanged };
     window._fbReady = true;
-    window._fbConfigured = FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
   } catch(e) {
     console.warn('Firebase 초기화 실패:', e.message);
     window._fbReady = false;
-    window._fbConfigured = false;
   }
-  // module 스크립트 로드 완료 후 메인 스크립트 초기화 트리거
-  window.dispatchEvent(new Event('firebase-ready'));
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
@@ -76,7 +72,7 @@
   --surface2: #f4f6f8;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; display: flex; opacity: 1; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; display: flex; opacity: 0; transition: opacity 0.3s; }
 
 /* ── 왼쪽 사이드바 (네이비) ── */
 .sidebar {
@@ -931,8 +927,7 @@ let RAW_DATA = [];
 let RESULTS = [];
 let UNREGISTERED = []; // 리스트 미등록이지만 근태기록 있는 인원
 let HISTORY = [];     // 누적 분석 기록 [{monthKey, analysedAt, results, summary}]
-let REPORT_RECEIPTS = {}; // 보고서 수신
-let _fbLoaded = false; {monthKey: {campusName: {status, date}}}
+let REPORT_RECEIPTS = {}; // 보고서 수신 {monthKey: {campusName: {status, date}}}
 let currentUser = null; // Firebase 로그인 유저
 let selectedCampus = '전체';
 let currentTab = 'history';
@@ -947,27 +942,14 @@ let unrePage = 1;
 // ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
-function _appInit() {
+document.addEventListener('DOMContentLoaded', () => {
   loadState();
   updateHeaderMonth();
   setDefaultDates();
   renderAll();
   switchTab('history');
-  if (typeof initFirebase === 'function') initFirebase();
-}
-
-// Firebase module 준비 후 초기화, 또는 DOMContentLoaded 중 늦은 쪽에 실행
-let _domReady = false, _fbEventReady = false;
-document.addEventListener('DOMContentLoaded', () => {
-  _domReady = true;
-  if (_fbEventReady || !window._fbReady) _appInit();
+  setTimeout(() => { if (typeof initFirebase === 'function') initFirebase(); }, 500);
 });
-window.addEventListener('firebase-ready', () => {
-  _fbEventReady = true;
-  if (_domReady) _appInit();
-});
-// 오프라인 폴백: 1초 후에도 초기화 안 됐으면 강제 실행
-setTimeout(() => { if (!_domReady) { _domReady = true; _fbEventReady = true; _appInit(); } }, 1000);
 
 function updateHeaderMonth() {
   // 분석 기간 시작일 기준으로 표시, 없으면 이전달
@@ -1774,8 +1756,8 @@ function rerunAnalysis() {
     const rawMissingCI = !row.checkIn || row.checkInMethod === '미등록';
     const rawMissingCO = !row.checkOut || row.checkOutMethod === '미등록';
 
-    // ── 신청내역 또는 변경사유 있으면 전부 정상 처리 (skip) ──
-    if (reason || (row.request||'').trim()) continue;
+    // ── 변경사유 있으면 전부 정상 처리 (skip) ──
+    if (reason) continue;
 
     // ── 근태구분별 출퇴근 누락 허용 규칙 ──
     let effectiveMissingCI = rawMissingCI;
@@ -1805,8 +1787,10 @@ function rerunAnalysis() {
       effectiveMissingCI = false;
       effectiveMissingCO = false;
       skipShortWork = true;
+    } else if (attendType !== '') {
+      // 근태구분이 비어있지 않으면 근무시간 미달 체크 제외
+      skipShortWork = true;
     }
-    // ※ 정상·지각·조퇴·근태이상은 근무시간 체크 대상
 
     // ── CCTV 확인 ──
     if (effectiveMissingCI || effectiveMissingCO) {
@@ -2149,7 +2133,7 @@ function exportCSV() {
 // ══════════════════════════════════════
 function saveState() {
   // Firebase 연동 시 설정도 동기화
-  if (window._fbReady && currentUser && _fbLoaded) saveSettingsToFirebase().catch(()=>{});
+  if (window._fbReady && currentUser) saveSettingsToFirebase().catch(()=>{});
   // RAW_DATA가 있으면 자동 재분석
   if (RAW_DATA.length > 0) {
     clearTimeout(window._autoReanalysisTimer);
@@ -2463,7 +2447,7 @@ function initFirebase() {
       loadHistory();
       loadSettingsFromFirebase();
     } else {
-      if (window._fbConfigured) { window.location.href = 'index.html'; }
+      window.location.href = 'index.html';
     }
     document.body.style.opacity = '1';
   });
@@ -2531,11 +2515,10 @@ async function loadSettingsFromFirebase() {
       if (d.holidays)       HOLIDAYS = d.holidays;
       if (d.builtinHolidays) KR_HOLIDAYS_BUILTIN = d.builtinHolidays;
       if (d.reportReceipts)  REPORT_RECEIPTS = d.reportReceipts;
-      _fbLoaded = true;
       renderAll();
       showToast('✅ Firebase에서 설정 불러옴', 'ok');
-    } else { _fbLoaded = true; }
-  } catch(e) { console.warn('설정 불러오기 실패:', e); _fbLoaded = true; }
+    }
+  } catch(e) { console.warn('설정 불러오기 실패:', e); }
 }
 
 // ── 분석 기록 저장 ──
