@@ -1015,9 +1015,13 @@ function switchTab(tab) {
     if (el) el.style.display = tab === 'report' ? '' : 'none';
   });
 
-  // 저장 버튼 - 분석 데이터 있으면 항상 표시
+  // 저장 버튼 - owner면 항상 표시 (RAW_DATA/기록 불러오기 유무 무관)
   const saveBtn = document.getElementById('save-history-btn');
-  if (saveBtn) saveBtn.style.display = (typeof RAW_DATA !== 'undefined' && RAW_DATA.length) ? 'inline-flex' : 'none';
+  if (saveBtn) {
+    const isOwner = window._campusRole === 'owner';
+    const hasData = (typeof RAW_DATA !== 'undefined' && RAW_DATA.length) || (typeof RESULTS !== 'undefined' && RESULTS.length);
+    saveBtn.style.display = (isOwner && hasData) ? 'inline-flex' : 'none';
+  }
 
   // 캠퍼스 패널 (예외/결과 탭만 표시)
   const showCampus = tab === 'exceptions' || tab === 'result';
@@ -1615,7 +1619,9 @@ function runAnalysis() {
 
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
-    if (!emp && !baseCIStr) continue; // not in roster
+    // ★ 직원 미등록 AND 기준출근시각 없음 → 지각체크 불가이나,
+    //   관리대상 캠퍼스 소속이면 근무시간미달은 globalThr로 체크
+    if (!emp && !baseCIStr && !MANAGED_CAMPUSES.has(campus)) continue;
 
     const baseCIMins = t2m(baseCIStr);
     const actualCIMins = t2m(row.checkIn);
@@ -1647,11 +1653,16 @@ function runAnalysis() {
 
     // ── WORK HOURS ──
     let workMins = null, isShort = false;
+    // 연차/반차/경조/휴일 등은 근무시간미달 체크 제외
+    const skipShortWork = ['연차','반반차','오전반차','오후반차','경조휴가','휴일','기타'].includes(row.attendType) ||
+                          (row.attendType !== '' && row.attendType !== '지각' && row.attendType !== '지각/조퇴' && row.attendType !== '정상');
     if (actualCIMins!==null && actualCOMins!==null) {
       workMins = actualCOMins - actualCIMins;
       if (workMins<0) workMins += 1440;
-      const empWorkHours = getEffectiveWorkHours(name, campus, date, thr);
-      if (workMins < empWorkHours*60) isShort = true;
+      if (!skipShortWork) {
+        const empWorkHours = getEffectiveWorkHours(name, campus, date, thr);
+        if (workMins < empWorkHours*60) isShort = true;
+      }
     }
     // ⑥ Exclude certain campuses from work-hour check
     if (isShort && SHORT_WORK_EXCLUDED_CAMPUSES.has(campus)) isShort = false;
@@ -1696,7 +1707,7 @@ function runAnalysis() {
   switchTab('result');
   const unreMsg = UNREGISTERED.length > 0 ? ` / ⚠ 추가필요 ${UNREGISTERED.length}명` : '';
   updateHeaderMonth();
-  document.getElementById('save-history-btn').style.display = 'inline-flex';
+  document.getElementById('save-history-btn').style.display = (window._campusRole==='owner') ? 'inline-flex' : 'none';
   showToast(`✅ 분석 완료 — ${RESULTS.length}건${unreMsg}`, 'ok');
 }
 
@@ -1745,7 +1756,9 @@ function rerunAnalysis() {
     if (exApplied(name, campus, date, 'normalall')) continue;
     const emp = getEmpRef(name, campus, date);
     const baseCIStr = getEffectiveCheckIn(name, campus, date);
-    if (!emp && !baseCIStr) continue;
+    // ★ 직원 미등록 AND 기준출근시각 없음 → 지각체크 불가이나,
+    //   관리대상 캠퍼스 소속이면 근무시간미달은 globalThr로 체크
+    if (!emp && !baseCIStr && !MANAGED_CAMPUSES.has(campus)) continue;
 
     const baseCIMins = t2m(baseCIStr);
     const actualCIMins = t2m(row.checkIn);
@@ -2443,6 +2456,12 @@ function initFirebase() {
       });
 
       window._campusRole = role;
+      // 저장 버튼: owner면 RESULTS나 RAW_DATA 있을 때 표시 (switchTab에서도 제어되지만 초기화)
+      const saveBtnInit = document.getElementById('save-history-btn');
+      if (saveBtnInit && role === 'owner') {
+        // 현재 데이터 없으면 숨김 유지, 이후 분석/불러오기 시 switchTab에서 표시
+        saveBtnInit.style.display = 'none';
+      }
       switchTab('history');
       loadHistory();
       loadSettingsFromFirebase();
@@ -2640,7 +2659,7 @@ function loadHistoryRecord(monthKey) {
   renderSidebar();
   switchTab('report');
   const saveBtn=document.getElementById('save-history-btn');
-  if(saveBtn) saveBtn.style.display='inline-flex';
+  if(saveBtn) saveBtn.style.display=(window._campusRole==='owner')?'inline-flex':'none';
   showToast(`📂 ${monthKey} 기록 불러옴`, 'ok');
   refreshReport();
 }
