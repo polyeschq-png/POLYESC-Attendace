@@ -2503,6 +2503,8 @@ function getReceiptBorderColor(rec, cctvCount) {
   if (rec.unreceived || cctvCount >= 5) return '#ef4444';
   return 'var(--border2)';
 }
+
+function setReceipt(campus, monthKey, field, value) {
   if (!monthKey) return;
   if (!REPORT_RECEIPTS[monthKey]) REPORT_RECEIPTS[monthKey] = {};
   if (!REPORT_RECEIPTS[monthKey][campus]) REPORT_RECEIPTS[monthKey][campus] = { date:'', unnecessary:false, unreceived:false };
