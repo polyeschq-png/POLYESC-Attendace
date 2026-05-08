@@ -2402,65 +2402,44 @@ function refreshReport() {
     ).join('')}</div>`;
   }
 
-  document.getElementById('rpt-tbody').innerHTML = campuses.map(campus => {
-    const cr = RESULTS.filter(r => r.campus === campus);
-    const late      = buildNameList(cr.filter(r => r.type === 'late'));
-    const shortWork = buildNameList(cr.filter(r => r.type === 'short'));
-    const rec = receipts[campus] || { date:'', unnecessary:false, unreceived:false };
-    const cctvCount = cr.filter(r => r.type === 'cctv').length;
-    const borderColor = getReceiptBorderColor(rec, cctvCount);
+  document.getElementById('rpt-tbody').innerHTML = campuses.map(function(campus) {
+    var cr = RESULTS.filter(function(r){ return r.campus === campus; });
+    var late      = buildNameList(cr.filter(function(r){ return r.type === 'late'; }));
+    var shortWork = buildNameList(cr.filter(function(r){ return r.type === 'short'; }));
+    var rec = receipts[campus] || { date:'', unnecessary:false, unreceived:false };
+    var cctvCount = cr.filter(function(r){ return r.type === 'cctv'; }).length;
+    var bc = getReceiptBorderColor(rec, cctvCount);
+    var inStyle  = 'width:110px;padding:4px 7px;font-size:12px;border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;';
+    var selStyle = 'width:110px;padding:4px 6px;font-size:12px;border-radius:5px;background:var(--white);color:var(--text);';
+    var inBase  = '<input type="text" placeholder="YYYY-MM-DD" maxlength="10"'
+      + ' oninput="maskDateInput(this,\''+campus+'\',\''+monthKey+'\');"'
+      + ' onkeydown="if(event.key===\'Backspace\'&&this.value.endsWith(\'-\'))this.value=this.value.slice(0,-1)"';
+    var selBase = '<select onchange="handleReceiptSelect(this,\''+campus+'\',\''+monthKey+'\');"';
+    var opts_base   = '<option value="">-- 선택 --</option><option value="unnecessary">불필요</option><option value="unreceived">미수신</option>';
+    var opts_unnec  = '<option value="">-- 선택 --</option><option value="unnecessary" selected>불필요</option><option value="unreceived">미수신</option>';
+    var opts_unrec  = '<option value="">-- 선택 --</option><option value="unnecessary">불필요</option><option value="unreceived" selected>미수신</option>';
 
-    let receiptHtml;
+    var receiptHtml;
     if (rec.date && rec.date.length === 10) {
-      receiptHtml = `
-        <input type="text" placeholder="YYYY-MM-DD" maxlength="10" value="${rec.date}"
-          style="width:110px;padding:4px 7px;font-size:12px;border:1.5px solid var(--green);border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
-          oninput="maskDateInput(this,'${campus}','${monthKey}')"
-          onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">`;
+      receiptHtml = inBase + ' value="'+rec.date+'" style="'+inStyle+'border:1.5px solid var(--green);">';
     } else if (rec.unnecessary) {
-      receiptHtml = `
-        <select style="width:110px;padding:4px 6px;font-size:12px;border:1.5px solid var(--green);border-radius:5px;background:var(--white);color:var(--text);"
-          onchange="handleReceiptSelect(this,'${campus}','${monthKey}')">
-          <option value="">-- 선택 --</option>
-          <option value="unnecessary" selected>불필요</option>
-          <option value="unreceived">미수신</option>
-        </select>`;
+      receiptHtml = selBase + ' style="'+selStyle+'border:1.5px solid var(--green);">'+opts_unnec+'</select>';
     } else if (rec.unreceived) {
-      receiptHtml = `
-        <input type="text" placeholder="YYYY-MM-DD" maxlength="10"
-          style="width:110px;padding:4px 7px;font-size:12px;border:1.5px solid #ef4444;border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
-          oninput="maskDateInput(this,'${campus}','${monthKey}')"
-          onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">
-        <select style="width:110px;padding:4px 6px;font-size:12px;border:1.5px solid #ef4444;border-radius:5px;background:var(--white);color:var(--text);"
-          onchange="handleReceiptSelect(this,'${campus}','${monthKey}')">
-          <option value="">-- 선택 --</option>
-          <option value="unnecessary">불필요</option>
-          <option value="unreceived" selected>미수신</option>
-        </select>`;
+      receiptHtml = inBase + ' style="'+inStyle+'border:1.5px solid #ef4444;">'
+        + selBase + ' style="'+selStyle+'border:1.5px solid #ef4444;">'+opts_unrec+'</select>';
     } else {
-      receiptHtml = `
-        <input type="text" placeholder="YYYY-MM-DD" maxlength="10"
-          style="width:110px;padding:4px 7px;font-size:12px;border:1.5px solid ${borderColor};border-radius:5px;font-family:var(--mono);background:var(--white);color:var(--text);letter-spacing:1px;"
-          oninput="maskDateInput(this,'${campus}','${monthKey}')"
-          onkeydown="if(event.key==='Backspace'&&this.value.endsWith('-'))this.value=this.value.slice(0,-1)">
-        <select style="width:110px;padding:4px 6px;font-size:12px;border:1.5px solid ${borderColor};border-radius:5px;background:var(--white);color:var(--text);"
-          onchange="handleReceiptSelect(this,'${campus}','${monthKey}')">
-          <option value="">-- 선택 --</option>
-          <option value="unnecessary">불필요</option>
-          <option value="unreceived">미수신</option>
-        </select>`;
+      receiptHtml = inBase + ' style="'+inStyle+'border:1.5px solid '+bc+';">'
+        + selBase + ' style="'+selStyle+'border:1.5px solid '+bc+';">'+opts_base+'</select>';
     }
 
-    return `<tr>
-      <td style="font-weight:600;white-space:nowrap;">${campus}</td>
-      <td data-receipt-campus="${campus}">
-        <div style="display:flex;flex-direction:column;gap:5px;">
-          ${receiptHtml}
-        </div>
-      </td>
-      <td>${renderNames(late)}</td>
-      <td>${renderNames(shortWork)}</td>
-    </tr>`;
+    return '<tr>'
+      + '<td style="font-weight:600;white-space:nowrap;">'+campus+'</td>'
+      + '<td data-receipt-campus="'+campus+'">'
+      + '<div style="display:flex;flex-direction:column;gap:5px;">'+receiptHtml+'</div>'
+      + '</td>'
+      + '<td>'+renderNames(late)+'</td>'
+      + '<td>'+renderNames(shortWork)+'</td>'
+      + '</tr>';
   }).join('');
 }
 
