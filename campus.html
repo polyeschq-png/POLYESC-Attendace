@@ -455,7 +455,6 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
         <span style="font-size:15px;font-weight:600;" id="rpt-title">📊 보고자료</span>
         <span style="flex:1;"></span>
-        <button class="btn btn-ghost btn-sm" onclick="RAW_DATA.length ? rerunAnalysis() : refreshReport()">🔄 새로고침</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()">⬇ Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">⬇ PDF</button>
       </div>
@@ -541,7 +540,10 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
     <div class="panel" id="panel-exceptions">
       <div class="sec-title">
         <span id="ex-title">📌 특이사항 설정</span>
-        <button class="btn btn-ghost btn-sm" onclick="addException()">+ 특이사항 추가</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-blue btn-sm" onclick="RAW_DATA.length ? (rerunAnalysis(), switchTab('report')) : (refreshReport(), switchTab('report'))">✅ 보고자료에 반영</button>
+          <button class="btn btn-ghost btn-sm" onclick="addException()">+ 특이사항 추가</button>
+        </div>
       </div>
       <div class="info-box">
         <strong>셔틀탑승·외근</strong> → 지각 제외 &nbsp;|&nbsp;
@@ -565,7 +567,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
         <div class="thead-bar">
           <h3>월별 저장 기록</h3>
           <span style="flex:1;"></span>
-          <button class="btn btn-ghost btn-sm" onclick="loadHistory()">🔄 새로고침</button>
+          
         </div>
         <table>
           <thead><tr>
@@ -1559,13 +1561,13 @@ function exApplied(name, campus, date, type) {
   return EXCEPTIONS.some(ex => {
     if (ex.type!==type) return false;
     if (ex.campus && ex.campus!==campus) return false;
-    // 기간 체크: startDate/endDate (구버전 date 필드도 호환)
     const sd = ex.startDate || ex.date || '';
     const ed = ex.endDate || ex.date || '';
     if (sd && date < sd) return false;
     if (ed && date > ed) return false;
     const names = ex.names ? ex.names.split(',').map(s=>s.trim()).filter(Boolean) : [];
-    if (names.length) return names.some(n=>name.includes(n)||n.includes(name.split(' ')[0]));
+    // 완전 일치만 허용 (입력 중 불완전한 이름이 매칭되는 오류 방지)
+    if (names.length) return names.some(n => n === name);
     return true;
   });
 }
