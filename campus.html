@@ -1700,11 +1700,15 @@ function runAnalysis() {
 
     // ── LATE ──
     let isLate = false, isWrongLate = false;
-    if (row.attendType==='지각'||row.attendType==='지각/조퇴') {
+    if (attendType==='지각'||attendType==='지각/조퇴') {
+      // 그룹웨어가 지각으로 표시한 경우
       if (baseCIMins!==null && actualCIMins!==null) {
-        if (actualCIMins <= baseCIMins) isWrongLate = true; // 기준시각 이하(같거나 일찍) → 오지각
+        if (actualCIMins <= baseCIMins) isWrongLate = true; // 기준 이하 → 오지각
         else isLate = true;
       } else isLate = true;
+    } else if (baseCIMins!==null && actualCIMins!==null && (attendType===''||attendType==='정상')) {
+      // 그룹웨어가 정상으로 표시했으나 요일별 기준시간 기준으로 실제 지각인 경우
+      if (actualCIMins > baseCIMins) isLate = true;
     }
     if (isLate && (exApplied(name,campus,date,'shuttle')||exApplied(name,campus,date,'field'))) isLate=false;
 
@@ -1907,10 +1911,14 @@ function rerunAnalysis() {
     // ── 지각 체크 ──
     let isLate = false, isWrongLate = false;
     if (attendType==='지각'||attendType==='지각/조퇴') {
+      // 그룹웨어가 지각으로 표시한 경우
       if (baseCIMins!==null && actualCIMins!==null) {
         if (actualCIMins <= baseCIMins) isWrongLate = true;
         else isLate = true;
       } else isLate = true;
+    } else if (baseCIMins!==null && actualCIMins!==null && (attendType===''||attendType==='정상')) {
+      // 그룹웨어가 정상으로 표시했으나 요일별 기준시간 기준으로 실제 지각인 경우
+      if (actualCIMins > baseCIMins) isLate = true;
     }
     if (isLate && (exApplied(name,campus,date,'shuttle')||exApplied(name,campus,date,'field'))) isLate=false;
 
