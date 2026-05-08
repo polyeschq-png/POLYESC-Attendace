@@ -1683,11 +1683,9 @@ function runAnalysis() {
     } else if (attendType === '경조휴가' || attendType === '휴일' || attendType === '기타') {
       effectiveMissingCI = false; effectiveMissingCO = false; skipShortWork = true;
     } else if (attendType === '조퇴') {
-      // 조퇴는 퇴근 누락 허용, 근무시간 미달 체크 제외
       effectiveMissingCO = false; skipShortWork = true;
-    } else if (attendType !== '' && attendType !== '지각' && attendType !== '지각/조퇴' && attendType !== '정상') {
-      skipShortWork = true;
     }
+    // 정상, 지각, 지각/조퇴, 빈값 등은 skipShortWork = false 유지 → 근무시간 체크 대상
 
     // ── CCTV 확인 ──
     if (effectiveMissingCI || effectiveMissingCO) {
@@ -1892,10 +1890,8 @@ function rerunAnalysis() {
       // 조퇴는 퇴근 누락 허용, 근무시간 미달 체크 제외
       effectiveMissingCO = false;
       skipShortWork = true;
-    } else if (attendType !== '') {
-      // 근태구분이 비어있지 않으면 근무시간 미달 체크 제외
-      skipShortWork = true;
     }
+    // 주의: attendType이 '정상', '지각', '지각/조퇴', '' 등은 skipShortWork = false 유지 → 근무시간 체크 대상
 
     // ── CCTV 확인 ──
     if (effectiveMissingCI || effectiveMissingCO) {
