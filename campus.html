@@ -588,17 +588,19 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
         <div id="res-campus-title" style="font-size:15px;font-weight:600;flex:1;"></div>
       </div>
-      <div class="sum-row">
+      <div class="sum-row" style="grid-template-columns:repeat(5,1fr);">
         <div class="scard red"><div class="num" id="s-late">0</div><div class="lbl">지각자</div></div>
         <div class="scard orange"><div class="num" id="s-short">0</div><div class="lbl">근무시간 미달</div></div>
         <div class="scard yellow"><div class="num" id="s-wl">0</div><div class="lbl">오지각→정상 전환</div></div>
         <div class="scard blue"><div class="num" id="s-cctv">0</div><div class="lbl">CCTV 확인 필요</div></div>
+        <div class="scard" style="background:var(--white);border:1.5px solid #a78bfa;"><div class="num" id="s-earlyout" style="color:#7c3aed;">0</div><div class="lbl">조퇴</div></div>
       </div>
       <!-- inner tabs -->
       <div class="itabs">
         <div class="itab active" data-itab="res-main" onclick="switchITab('res-main')">📊 분석 결과</div>
         <div class="itab" data-itab="res-cctv" onclick="switchITab('res-cctv')">🎥 CCTV 확인 필요 <span id="cctv-badge" style="display:none;background:var(--yellow);color:#000;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;font-weight:700;"></span></div>
         <div class="itab" data-itab="res-unre" onclick="switchITab('res-unre')">⚠ 추가 필요 대상 <span id="unre-badge" style="display:none;background:var(--orange);color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;"></span></div>
+        <div class="itab" data-itab="res-earlyout" onclick="switchITab('res-earlyout')">🏃 조퇴 <span id="earlyout-badge" style="display:none;background:#7c3aed;color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;"></span></div>
       </div>
       <!-- result sub-panel -->
       <div id="res-main">
@@ -635,6 +637,23 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
             <tbody id="unre-tbody"></tbody>
           </table>
           <div class="pagination" id="unre-pg"></div>
+        </div>
+      </div>
+
+      <!-- earlyout sub-panel -->
+      <div id="res-earlyout" style="display:none;">
+        <div class="fbar">
+          <input type="text" id="eof-search" placeholder="이름 검색..." oninput="renderEarlyoutTable()">
+          <span style="margin-left:auto;font-size:12px;color:var(--text3);" id="earlyout-count"></span>
+        </div>
+        <div class="twrap">
+          <table>
+            <thead><tr>
+              <th>캠퍼스</th><th>이름</th><th>직급</th><th>일자</th><th>출근</th><th>퇴근</th><th>근무시간</th><th>비고</th>
+            </tr></thead>
+            <tbody id="earlyout-tbody"></tbody>
+          </table>
+          <div class="pagination" id="earlyout-pg"></div>
         </div>
       </div>
 
@@ -1040,16 +1059,14 @@ function switchTab(tab) {
 }
 
 function switchTabResult(type) {
-  // 분석결과 탭으로 이동 후 해당 서브탭 선택
   switchTab('result');
-  const itabMap = { late:'res-main', short:'res-main', wronglate:'res-main', cctv:'res-cctv', unre:'res-unre' };
-  const typeFilterMap = { late:'late', short:'short', wronglate:'wronglate', cctv:'', unre:'' };
+  const itabMap = { late:'res-main', short:'res-main', wronglate:'res-main', cctv:'res-cctv', unre:'res-unre', earlyout:'res-earlyout' };
+  const typeFilterMap = { late:'late', short:'short', wronglate:'wronglate', cctv:'', unre:'', earlyout:'' };
   const itab = itabMap[type] || 'res-main';
   switchITab(itab);
   const tf = document.getElementById('rf-type');
   if (tf && typeFilterMap[type] !== undefined) tf.value = typeFilterMap[type];
   renderResultTable();
-  // 사이드바 active
   document.querySelectorAll('.sb-item').forEach(el => el.classList.remove('active'));
   const activeEl = document.querySelector(`.sb-item[data-tab="result-${type}"]`);
   if (activeEl) activeEl.classList.add('active');
@@ -1063,21 +1080,20 @@ function switchTabSettings(subTab) {
 
 function switchITab(itab) {
   // figure out parent
-  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings' };
+  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'res-earlyout':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings' };
   const parent = parents[itab];
   currentITab[parent] = itab;
 
-  // toggle itab classes within the active panel
   document.getElementById('panel-' + parent).querySelectorAll('.itab').forEach(el => {
     el.classList.toggle('active', el.dataset.itab === itab);
   });
 
-  // show/hide sub-panels
   if (parent === 'result') {
-    ['res-main','res-cctv','res-unre'].forEach(id => {
+    ['res-main','res-cctv','res-unre','res-earlyout'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = itab === id ? 'block' : 'none';
     });
+    if (itab === 'res-earlyout') renderEarlyoutTable();
   }
   if (parent === 'settings') {
     ['set-emp','set-leave','set-holiday'].forEach(id => {
@@ -1298,6 +1314,7 @@ function removeException(id) {
   saveState();
 }
 function updEx(id, field, val) {
+  console.log('[updEx] id:', id, 'field:', field, 'val:', val);
   const ex = EXCEPTIONS.find(e => e.id === id);
   if (ex) { ex[field] = val; saveState(); }
 }
@@ -1607,6 +1624,7 @@ function runAnalysis() {
     if (!MANAGED_CAMPUSES.has(campus)) continue;
     if (EXCLUDED_POSITIONS.has(position)) continue;
     if (isOnLeave(name, campus, row.date)) continue;
+    if (dupKeys.has(`${name}|${campus}|${row.date}`)) continue; // 기안서 있는 날 제외
     // startDate 이전 날짜는 미등록자로 잡지 않음
     const emp = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
     if (emp && emp.startDate && row.date <= emp.startDate) continue;
@@ -1642,21 +1660,41 @@ function runAnalysis() {
     const baseCIMins = t2m(baseCIStr);
     const actualCIMins = t2m(row.checkIn);
     const actualCOMins = t2m(row.checkOut);
+    const attendType = row.attendType || '';
 
     // ── 신청내역(request) 또는 변경사유(reason)가 있으면 정상 처리 (skip) ──
     const reason  = (row.reason  || '').trim();
     const request = (row.request || '').trim();
     if (reason || request) continue;
 
-    const missingCI = !row.checkIn || row.checkInMethod === '미등록';
-    const missingCO = !row.checkOut || row.checkOutMethod === '미등록';
+    // ── 근태구분별 출퇴근 누락 허용 규칙 ──
+    const rawMissingCI = !row.checkIn || row.checkInMethod === '미등록';
+    const rawMissingCO = !row.checkOut || row.checkOutMethod === '미등록';
+    let effectiveMissingCI = rawMissingCI;
+    let effectiveMissingCO = rawMissingCO;
+    let skipShortWork = false;
 
-    // CCTV
-    if (missingCI || missingCO) {
+    if (attendType === '연차' || attendType === '반반차') {
+      effectiveMissingCI = false; effectiveMissingCO = false; skipShortWork = true;
+    } else if (attendType === '오전반차') {
+      effectiveMissingCI = false; skipShortWork = true;
+    } else if (attendType === '오후반차') {
+      effectiveMissingCO = false; skipShortWork = true;
+    } else if (attendType === '경조휴가' || attendType === '휴일' || attendType === '기타') {
+      effectiveMissingCI = false; effectiveMissingCO = false; skipShortWork = true;
+    } else if (attendType === '조퇴') {
+      // 조퇴는 퇴근 누락 허용, 근무시간 미달 체크 제외
+      effectiveMissingCO = false; skipShortWork = true;
+    } else if (attendType !== '' && attendType !== '지각' && attendType !== '지각/조퇴' && attendType !== '정상') {
+      skipShortWork = true;
+    }
+
+    // ── CCTV 확인 ──
+    if (effectiveMissingCI || effectiveMissingCO) {
       RESULTS.push({ campus, name, position, date,
         checkIn:row.checkIn, checkOut:row.checkOut,
         type:'cctv', typeLabel:'CCTV확인',
-        note:(missingCI?'출근미등록':'')+(missingCI&&missingCO?' / ':'')+(missingCO?'퇴근미등록':''),
+        note:(effectiveMissingCI?'출근미등록':'')+(effectiveMissingCI&&effectiveMissingCO?' / ':'')+(effectiveMissingCO?'퇴근미등록':''),
         baseCI: baseCIStr||'-', workMins:null, cctvChecked:false, cctvMemo:''
       });
       continue;
@@ -1689,6 +1727,11 @@ function runAnalysis() {
     if (isShort && SHORT_WORK_EXCLUDED_CAMPUSES.has(campus)) isShort = false;
     if (isShort && optYu && position==='유치부주임') isShort = false;
     if (isShort && exApplied(name,campus,date,'workexclude')) isShort = false;
+    // 지각 또는 오지각(정상처리) 일자는 근무시간 미달 제외
+    if (isShort && (isLate || isWrongLate)) isShort = false;
+
+    // 조퇴 감지
+    const isEarlyout = attendType === '조퇴';
 
     const hrs = workMins!==null ? (workMins/60).toFixed(1)+'h' : '-';
 
@@ -1716,13 +1759,22 @@ function runAnalysis() {
         baseCI:baseCIStr||'-', workMins
       });
     }
+    if (isEarlyout) {
+      RESULTS.push({ campus, name, position, date,
+        checkIn:row.checkIn, checkOut:row.checkOut,
+        type:'earlyout', typeLabel:'조퇴',
+        note:`근무 ${hrs}`,
+        baseCI:baseCIStr||'-', workMins
+      });
+    }
   }
 
-  resPage=1; cctvPage=1; unrePage=1;
+  resPage=1; cctvPage=1; unrePage=1; earlyoutPage=1;
   updateSummary();
   renderResultTable();
   renderCCTVTable();
   renderUnregisteredTable();
+  renderEarlyoutTable();
   renderCampusPanel();
   populateCampusSelects();
   switchTab('result');
@@ -1735,13 +1787,14 @@ function runAnalysis() {
 // ══════════════════════════════════════
 function rerunAnalysis() {
   if (!RAW_DATA.length) return;
-  const prevTab = currentTab;
 
   const start = document.getElementById('dt-start').value;
   const end   = document.getElementById('dt-end').value;
   const optWL = document.getElementById('opt-wronglate').checked;
   const optYu = document.getElementById('opt-yuchi').checked;
   const thr   = parseFloat(document.getElementById('work-thr').value)||10;
+
+  console.log('[rerunAnalysis] start:', start, 'end:', end, 'thr:', thr, 'RAW_DATA:', RAW_DATA.length);
 
   RESULTS = [];
   UNREGISTERED = [];
@@ -1753,6 +1806,7 @@ function rerunAnalysis() {
     if (isNonWorkday(r.date))    return false;
     return true;
   });
+  console.log("[rerunAnalysis] filtered rows:", filtered.length);
 
   // ── 중복 날짜 감지: 동일인+동일날짜 행이 2개 이상 = 기안서(외근/연차 등) 존재 → 정상 처리 ──
   const dupKeyCount = {};
@@ -1769,6 +1823,7 @@ function rerunAnalysis() {
     if (!MANAGED_CAMPUSES.has(campus)) continue;
     if (EXCLUDED_POSITIONS.has(position)) continue;
     if (isOnLeave(name, campus, row.date)) continue;
+    if (dupKeys.has(`${name}|${campus}|${row.date}`)) continue; // 기안서 있는 날 제외
     const emp = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
     if (emp && emp.startDate && row.date <= emp.startDate) continue;
     if (!getEmpRef(name, campus, row.date)) {
@@ -1837,6 +1892,10 @@ function rerunAnalysis() {
       effectiveMissingCI = false;
       effectiveMissingCO = false;
       skipShortWork = true;
+    } else if (attendType === '조퇴') {
+      // 조퇴는 퇴근 누락 허용, 근무시간 미달 체크 제외
+      effectiveMissingCO = false;
+      skipShortWork = true;
     } else if (attendType !== '') {
       // 근태구분이 비어있지 않으면 근무시간 미달 체크 제외
       skipShortWork = true;
@@ -1878,6 +1937,11 @@ function rerunAnalysis() {
     if (isShort && SHORT_WORK_EXCLUDED_CAMPUSES.has(campus)) isShort = false;
     if (isShort && optYu && position==='유치부주임') isShort = false;
     if (isShort && exApplied(name,campus,date,'workexclude')) isShort = false;
+    // 지각 또는 오지각(정상처리) 일자는 근무시간 미달 제외
+    if (isShort && (isLate || isWrongLate)) isShort = false;
+
+    // 조퇴 감지
+    const isEarlyout = attendType === '조퇴';
 
     const hrs = workMins!==null ? (workMins/60).toFixed(1)+'h' : '-';
 
@@ -1891,14 +1955,19 @@ function rerunAnalysis() {
       checkIn:row.checkIn, checkOut:row.checkOut, type:'short', typeLabel:'근무시간미달',
       note:`근무 ${hrs} (기준 ${getEffectiveWorkHours(name,campus,date,thr)}h)`,
       baseCI:baseCIStr||'-', workMins });
+    if (isEarlyout) RESULTS.push({ campus, name, position, date,
+      checkIn:row.checkIn, checkOut:row.checkOut, type:'earlyout', typeLabel:'조퇴',
+      note:`근무 ${hrs}`, baseCI:baseCIStr||'-', workMins });
   }
 
-  // UI 갱신 (현재 탭이 result/exceptions/settings 어디든 반영)
+  // UI 갱신
+  console.log('[rerunAnalysis] RESULTS:', RESULTS.length, 'short:', RESULTS.filter(r=>r.type==='short').length, 'late:', RESULTS.filter(r=>r.type==='late').length);
   updateSummary();
   if (currentTab === 'result') {
     renderResultTable();
     renderCCTVTable();
     renderUnregisteredTable();
+    renderEarlyoutTable();
   }
   renderSidebar();
   if (currentTab === 'report') refreshReport();
@@ -1911,10 +1980,14 @@ function rerunAnalysis() {
 // ══════════════════════════════════════
 function updateSummary() {
   const R = selectedCampus==='전체' ? RESULTS : RESULTS.filter(r=>r.campus===selectedCampus);
-  document.getElementById('s-late').textContent  = R.filter(r=>r.type==='late').length;
-  document.getElementById('s-short').textContent = R.filter(r=>r.type==='short').length;
-  document.getElementById('s-wl').textContent    = R.filter(r=>r.type==='wronglate').length;
-  document.getElementById('s-cctv').textContent  = R.filter(r=>r.type==='cctv').length;
+  document.getElementById('s-late').textContent     = R.filter(r=>r.type==='late').length;
+  document.getElementById('s-short').textContent    = R.filter(r=>r.type==='short').length;
+  document.getElementById('s-wl').textContent       = R.filter(r=>r.type==='wronglate').length;
+  document.getElementById('s-cctv').textContent     = R.filter(r=>r.type==='cctv').length;
+  const earlyoutCnt = R.filter(r=>r.type==='earlyout').length;
+  document.getElementById('s-earlyout').textContent = earlyoutCnt;
+  const eob = document.getElementById('earlyout-badge');
+  if (eob) { eob.textContent = earlyoutCnt; eob.style.display = earlyoutCnt ? 'inline' : 'none'; }
 
   const camTitle = selectedCampus==='전체' ? '전체 캠퍼스' : selectedCampus;
   document.getElementById('res-campus-title').textContent = `📊 ${camTitle} 분석 결과`;
@@ -1934,7 +2007,8 @@ function getFilteredRes() {
   const search = (document.getElementById('rf-search')?.value||'').toLowerCase();
   const type   = document.getElementById('rf-type')?.value||'';
   return RESULTS.filter(r => {
-    if (r.type==='cctv') return false; // shown in CCTV tab
+    if (r.type==='cctv') return false;     // CCTV 탭
+    if (r.type==='earlyout') return false; // 조퇴 탭
     if (selectedCampus!=='전체' && r.campus!==selectedCampus) return false;
     if (type && r.type!==type) return false;
     if (search && !r.name.toLowerCase().includes(search)) return false;
@@ -1980,6 +2054,50 @@ function getFilteredCCTV() {
     if (search && !r.name.toLowerCase().includes(search)) return false;
     return true;
   });
+}
+
+let earlyoutPage = 1;
+function renderEarlyoutTable() {
+  const search = (document.getElementById('eof-search')?.value||'').toLowerCase();
+  const rows = RESULTS.filter(r => {
+    if (r.type !== 'earlyout') return false;
+    if (selectedCampus !== '전체' && r.campus !== selectedCampus) return false;
+    if (search && !r.name.toLowerCase().includes(search)) return false;
+    return true;
+  });
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total/PAGE_SIZE));
+  earlyoutPage = Math.min(earlyoutPage, totalPages);
+  const slice = rows.slice((earlyoutPage-1)*PAGE_SIZE, earlyoutPage*PAGE_SIZE);
+
+  document.getElementById('earlyout-count').textContent = `총 ${total}건`;
+  const tbody = document.getElementById('earlyout-tbody');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px;">조퇴 대상 없음</td></tr>`;
+    document.getElementById('earlyout-pg').innerHTML = '';
+    return;
+  }
+  tbody.innerHTML = slice.map(r => {
+    const hrs = r.workMins != null ? (r.workMins/60).toFixed(1)+'h' : '-';
+    return `<tr>
+      <td>${r.campus}</td>
+      <td style="font-weight:600;">${r.name}</td>
+      <td style="color:var(--text2);">${r.position||''}</td>
+      <td class="mono">${r.date}</td>
+      <td class="mono">${r.checkIn||'-'}</td>
+      <td class="mono">${r.checkOut||'-'}</td>
+      <td class="mono">${hrs}</td>
+      <td style="font-size:12px;color:var(--text2);">${r.note||''}</td>
+    </tr>`;
+  }).join('');
+
+  // 페이지네이션
+  const pgEl = document.getElementById('earlyout-pg');
+  if (totalPages <= 1) { pgEl.innerHTML = ''; return; }
+  pgEl.innerHTML = Array.from({length:totalPages},(_,i)=>
+    `<button class="pg-btn${earlyoutPage===i+1?' active':''}" onclick="earlyoutPage=${i+1};renderEarlyoutTable()">${i+1}</button>`
+  ).join('');
 }
 
 function renderCCTVTable() {
@@ -2182,6 +2300,7 @@ function exportCSV() {
 // STATE (localStorage)
 // ══════════════════════════════════════
 function saveState() {
+  console.log('[saveState] RAW_DATA:', RAW_DATA.length, 'RESULTS:', RESULTS.length);
   // Firebase 연동 시 설정도 동기화
   if (window._fbReady && currentUser) saveSettingsToFirebase().catch(()=>{});
   // RAW_DATA가 있으면 자동 재분석, 없고 RESULTS만 있으면(기록 불러오기 상태) 보고자료만 갱신
