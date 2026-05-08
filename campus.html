@@ -1712,22 +1712,18 @@ function runAnalysis() {
 
     // ── WORK HOURS ──
     let workMins = null, isShort = false;
-    // 연차/반차/경조/휴일 등은 근무시간미달 체크 제외
-    const skipShortWork = ['연차','반반차','오전반차','오후반차','경조휴가','휴일','기타'].includes(row.attendType) ||
-                          (row.attendType !== '' && row.attendType !== '지각' && row.attendType !== '지각/조퇴' && row.attendType !== '정상');
-    if (actualCIMins!==null && actualCOMins!==null) {
+    if (!skipShortWork && actualCIMins!==null && actualCOMins!==null) {
       workMins = actualCOMins - actualCIMins;
       if (workMins<0) workMins += 1440;
-      if (!skipShortWork) {
-        const empWorkHours = getEffectiveWorkHours(name, campus, date, thr);
-        if (workMins < empWorkHours*60) isShort = true;
-      }
+      const empWorkHours = getEffectiveWorkHours(name, campus, date, thr);
+      if (workMins < empWorkHours*60) isShort = true;
+    } else if (actualCIMins!==null && actualCOMins!==null) {
+      workMins = actualCOMins - actualCIMins;
+      if (workMins<0) workMins += 1440;
     }
-    // ⑥ Exclude certain campuses from work-hour check
     if (isShort && SHORT_WORK_EXCLUDED_CAMPUSES.has(campus)) isShort = false;
     if (isShort && optYu && position==='유치부주임') isShort = false;
     if (isShort && exApplied(name,campus,date,'workexclude')) isShort = false;
-    // 지각 또는 오지각(정상처리) 일자는 근무시간 미달 제외
     if (isShort && (isLate || isWrongLate)) isShort = false;
 
     // 조퇴 감지
