@@ -22,9 +22,9 @@
 
   let app, db, auth;
   try {
-    app  = initializeApp(FIREBASE_CONFIG);
-    db   = getFirestore(app);
-    auth = getAuth(app);
+    app     = initializeApp(FIREBASE_CONFIG);
+    db      = getFirestore(app);
+    auth    = getAuth(app);
     await setPersistence(auth, browserSessionPersistence);
     window._fb = { db, auth, doc, getDoc, setDoc, collection, getDocs, query, orderBy,
                    signOut, onAuthStateChanged };
@@ -2585,7 +2585,7 @@ async function saveHistory() {
   if (!RESULTS.length) { showToast('분석 결과가 없습니다', 'err'); return; }
 
   const start = document.getElementById('dt-start').value;
-  const monthKey = start.slice(0, 7); // "2026-03"
+  const monthKey = start.slice(0, 7);
   const record = {
     monthKey,
     analysedAt: new Date().toISOString(),
@@ -2612,8 +2612,8 @@ async function saveHistory() {
     const { db, doc, setDoc } = window._fb;
     try {
       await setDoc(doc(db, 'history', monthKey), record);
-      await saveSettingsToFirebase(); // 설정도 함께 동기화
-      showToast(`✅ ${monthKey} 기록 Firebase에 저장됨`, 'ok');
+      await saveSettingsToFirebase();
+      showToast(`✅ ${monthKey} 기록 저장됨`, 'ok');
     } catch(e) {
       showToast(`⚠ 로컬 저장됨 (Firebase 오류: ${e.message})`, 'err');
     }
@@ -2679,17 +2679,15 @@ function renderHistoryTable() {
   }).join('');
 }
 
-function loadHistoryRecord(monthKey) {
+async function loadHistoryRecord(monthKey) {
   const record = HISTORY.find(h=>h.monthKey===monthKey);
   if (!record) return;
-  RESULTS = record.results || [];
+  RESULTS      = record.results || [];
   UNREGISTERED = record.unregistered || [];
   resPage=1; cctvPage=1; unrePage=1;
-  // 불러온 기록의 월로 헤더 갱신
   const [ry, rm] = monthKey.split('-').map(Number);
   const hdrel = document.getElementById('hdr-month');
   if (hdrel) hdrel.textContent = `${ry}년 ${rm}월`;
-  // dt-start도 맞춰줌
   const dtStart = document.getElementById('dt-start');
   if (dtStart) dtStart.value = monthKey + '-01';
   updateSummary();
@@ -2698,10 +2696,10 @@ function loadHistoryRecord(monthKey) {
   renderUnregisteredTable();
   renderSidebar();
   switchTab('report');
-  const saveBtn=document.getElementById('save-history-btn');
-  if(saveBtn) saveBtn.style.display=(window._campusRole==='owner')?'inline-flex':'none';
-  showToast(`📂 ${monthKey} 기록 불러옴`, 'ok');
+  const saveBtn = document.getElementById('save-history-btn');
+  if (saveBtn) saveBtn.style.display = (window._campusRole==='owner') ? 'inline-flex' : 'none';
   refreshReport();
+  showToast(`📂 ${monthKey} 기록 불러옴`, 'ok');
 }
 
 async function deleteHistoryRecord(monthKey) {
