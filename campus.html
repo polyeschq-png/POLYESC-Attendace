@@ -1751,8 +1751,12 @@ function runAnalysis() {
     if (isShort && exApplied(name,campus,date,'workexclude')) isShort = false;
     if (isShort && (isLate || isWrongLate)) isShort = false;
 
-    // 조퇴 감지
-    const isEarlyout = attendType === '조퇴';
+    // 조퇴 감지 — 실제 근무시간이 해당 직원 기준을 충족하면 조퇴에서 제외
+    let isEarlyout = attendType === '조퇴';
+    if (isEarlyout && workMins !== null) {
+      const empWorkHours = getEffectiveWorkHours(name, campus, date, thr);
+      if (workMins >= empWorkHours * 60) isEarlyout = false;
+    }
 
     const hrs = workMins!==null ? (workMins/60).toFixed(1)+'h' : '-';
 
@@ -1974,8 +1978,12 @@ function rerunAnalysis() {
     // 지각 또는 오지각(정상처리) 일자는 근무시간 미달 제외
     if (isShort && (isLate || isWrongLate)) isShort = false;
 
-    // 조퇴 감지
-    const isEarlyout = attendType === '조퇴';
+    // 조퇴 감지 — 실제 근무시간이 해당 직원 기준을 충족하면 조퇴에서 제외
+    let isEarlyout = attendType === '조퇴';
+    if (isEarlyout && workMins !== null) {
+      const empWorkHours = getEffectiveWorkHours(name, campus, date, thr);
+      if (workMins >= empWorkHours * 60) isEarlyout = false;
+    }
 
     const hrs = workMins!==null ? (workMins/60).toFixed(1)+'h' : '-';
 
