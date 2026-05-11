@@ -377,6 +377,8 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
 .col { flex: 1; min-width: 0; }
 </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 </head>
 <body>
 
@@ -2181,31 +2183,42 @@ function renderCopyPreview() {
   // 도입부
   const intro = `안녕하세요 원장님,\n인사팀 이윤지 대리입니다.\n\n${monthLabel} 근태관련 특이사항 제출기한이었던 ${deadline}이 지나, 별도로 근태 관련 정보 공유 부탁 드립니다.\n`;
 
-  // 지각 표
+  // 지각 표 — 인원별 묶음
   let lateSection = '';
   if (inclLate) {
     const lateRows = R.filter(r => r.type === 'late');
     if (lateRows.length) {
-      const header = '─'.repeat(46);
-      const rows = lateRows.map(r => {
+      // 이름+직급 기준으로 묶기
+      const grouped = {};
+      lateRows.forEach(r => {
+        const key = r.name + '|' + (r.position||'');
+        if (!grouped[key]) grouped[key] = { name:r.name, position:r.position||'', dates:[] };
         const d = r.date ? r.date.slice(5).replace('-','/') : '-';
-        return `  ${r.name.padEnd(10)} ${(r.position||'').padEnd(8)} ${d.padEnd(7)} ${r.checkIn||'-'}`;
-      }).join('\n');
-      lateSection = `\n【 지각 인원 】\n${header}\n  이름         직급       일자    출근시간\n${header}\n${rows}\n${header}\n`;
+        grouped[key].dates.push(`${d}  (출근) ${r.checkIn||'-'}`);
+      });
+      const body = Object.values(grouped).map(g =>
+        `${g.name} ${g.position}\n${g.dates.map(d => `  ${d}`).join('\n')}`
+      ).join('\n\n');
+      lateSection = `\n【 지각 인원 】\n${body}\n`;
     }
   }
 
-  // CCTV 표
+  // CCTV 표 — 인원별 묶음
   let cctvSection = '';
   if (inclCctv) {
     const cctvRows = R.filter(r => r.type === 'cctv' && !r.cctvChecked);
     if (cctvRows.length) {
-      const header = '─'.repeat(52);
-      const rows = cctvRows.map(r => {
+      const grouped = {};
+      cctvRows.forEach(r => {
+        const key = r.name + '|' + (r.position||'');
+        if (!grouped[key]) grouped[key] = { name:r.name, position:r.position||'', dates:[] };
         const d = r.date ? r.date.slice(5).replace('-','/') : '-';
-        return `  ${r.name.padEnd(10)} ${(r.position||'').padEnd(8)} ${d.padEnd(7)} ${r.note||'-'}`;
-      }).join('\n');
-      cctvSection = `\n【 출퇴근 미등록 확인 필요 】\n${header}\n  이름         직급       일자    미등록 항목\n${header}\n${rows}\n${header}\n`;
+        grouped[key].dates.push(`${d}  ${r.note||'-'}`);
+      });
+      const body = Object.values(grouped).map(g =>
+        `${g.name} ${g.position}\n${g.dates.map(d => `  ${d}`).join('\n')}`
+      ).join('\n\n');
+      cctvSection = `\n【 출퇴근 미등록 확인 필요 】\n${body}\n`;
     }
   }
 
@@ -2222,21 +2235,31 @@ function renderCopyPreview() {
   // 종결부
   const outro = `\n출퇴근 미등록은 CCTV 자료를 증빙 부탁 드리며,\n오전 셔틀탑승의 경우, 별도로 말씀 주셔야 지각처리 되지 않습니다.\n\n빠짐없는 출퇴근 등록 독려 부탁 드립니다.\n\n대표님 보고 예정이오니 빠른 회신 부탁 드립니다.\n\n감사합니다.\n이윤지 드림.`;
 
-  preview.textContent = intro + lateSection + cctvSection + outro;
+  // 순수 텍스트 (복사용) — data 속성에 저장
+  const plainText = intro + lateSection + cctvSection + outro;
+  preview.dataset.plain = plainText;
+
+  // HTML 렌더링 — 섹션 제목만 파란색
+  function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function toHtml(text) {
+    return escHtml(text).replace(
+      /【[^】]+】/g,
+      m => `<span style="color:#1565c0;font-weight:700;">${m}</span>`
+    ).replace(/\n/g,'<br>');
+  }
+  preview.innerHTML = toHtml(plainText);
 }
 
 async function copyEmailContent() {
   const preview = document.getElementById('copy-preview');
-  if (!preview || !preview.textContent.trim()) {
-    showToast('복사할 내용이 없습니다', 'err'); return;
-  }
+  const text = preview?.dataset?.plain || preview?.textContent || '';
+  if (!text.trim()) { showToast('복사할 내용이 없습니다', 'err'); return; }
   try {
-    await navigator.clipboard.writeText(preview.textContent);
+    await navigator.clipboard.writeText(text);
     showToast('✅ 클립보드에 복사됐습니다. 이메일에 붙여넣기 하세요.', 'ok');
   } catch(e) {
-    // fallback
     const ta = document.createElement('textarea');
-    ta.value = preview.textContent;
+    ta.value = text;
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
@@ -2792,44 +2815,132 @@ function downloadReportPDF() {
 
   const monthKey = getReportMonthKey();
   const monthLabel = monthKey ? monthKey.replace('-','년 ')+'월' : '';
+  const receipts = monthKey ? (REPORT_RECEIPTS[monthKey]||{}) : {};
+  const today = new Date().toLocaleDateString('ko-KR');
 
-  // 인쇄용 헤더 표시 후 print()
-  const ph = document.getElementById('rpt-print-header');
-  const pt = document.getElementById('rpt-print-title');
-  const pd = document.getElementById('rpt-print-date');
-  pt.textContent = `${monthLabel}_캠퍼스 근태 보고자료`;
-  pd.textContent = `출력일: ${new Date().toLocaleDateString('ko-KR')}`;
-  ph.style.display = 'block';
+  const C = {
+    primary:'#1565C0', light:'#E3F2FD', white:'#FFFFFF',
+    gray:'#F5F7FA', border:'#BBDEFB', textDark:'#212121',
+    textGray:'#546E7A', green:'#2E7D32', red:'#C62828',
+  };
 
-  // 인쇄 전용 CSS 적용
-  const style = document.createElement('style');
-  style.id = 'print-style';
-  style.textContent = `
-    @media print {
-      body > *:not(#main-content-wrap) { display:none !important; }
-      header,nav,.top-tabs,.sidebar,#panel-upload,#panel-exceptions,#panel-result,
-      #panel-history,#panel-settings,.btn { display:none !important; }
-      #panel-report { display:block !important; padding:0; }
-      #rpt-wrap { display:block !important; }
-      .rpt-table { font-size:11px; }
-      .rpt-table th,.rpt-table td { padding:6px 8px; border:1px solid #ccc; color:#000 !important; background:#fff !important; }
-      .receipt-sel,.receipt-input { display:none; }
-      .rpt-names { color:#000; }
-      .rpt-name-item { color:#000; }
-      .rpt-cnt { background:#eee !important; color:#000 !important; }
-      .rpt-dates { color:#555 !important; }
-      #rpt-print-header { display:block !important; color:#000; }
+  const campuses = [...new Set(RESULTS.map(r=>r.campus))]
+    .filter(c=>MANAGED_CAMPUSES.has(c))
+    .sort((a,b)=>a.localeCompare(b,'ko'));
+
+  const tableBody = campuses.map((campus, i) => {
+    const cr = RESULTS.filter(r=>r.campus===campus);
+    const rec = receipts[campus] || { date:'', unnecessary:false, unreceived:false };
+    let replyYn, replyDate, replyColor;
+    if (rec.date && rec.date.length===10) {
+      replyYn='O'; replyDate=rec.date.slice(5).replace('-','/'); replyColor=C.green;
+    } else if (rec.unnecessary) {
+      replyYn='-'; replyDate='-'; replyColor=C.textGray;
+    } else if (rec.unreceived) {
+      replyYn='X'; replyDate='X'; replyColor=C.red;
+    } else {
+      replyYn='-'; replyDate='-'; replyColor=C.textGray;
     }
-  `;
-  document.head.appendChild(style);
+    const lateList=[...new Set(cr.filter(r=>r.type==='late').map(r=>r.name))];
+    const shortList=[...new Set(cr.filter(r=>r.type==='short').map(r=>r.name))];
+    const rowBg = i%2===0 ? C.white : C.gray;
+    return [
+      {text:campus, style:'cell', fillColor:rowBg, alignment:'center'},
+      {text:replyYn, style:'cell', fillColor:rowBg, alignment:'center', color:replyColor, bold:true},
+      {text:replyDate, style:'cell', fillColor:rowBg, alignment:'center', color:replyColor},
+      {text:lateList.join(', ')||'-', style:'cell', fillColor:rowBg},
+      {text:shortList.join(', ')||'-', style:'cell', fillColor:rowBg},
+    ];
+  });
 
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => {
-      ph.style.display = 'none';
-      document.getElementById('print-style')?.remove();
-    }, 1000);
-  }, 200);
+  const totalLate  = [...new Set(RESULTS.filter(r=>r.type==='late').map(r=>r.name+r.campus))].length;
+  const totalShort = [...new Set(RESULTS.filter(r=>r.type==='short').map(r=>r.name+r.campus))].length;
+  const totalCctv  = RESULTS.filter(r=>r.type==='cctv'&&!r.cctvChecked).length;
+  const totalReply = campuses.filter(c=>{const r=receipts[c]||{};return r.date&&r.date.length===10;}).length;
+  const totalUnrec = campuses.filter(c=>{const r=receipts[c]||{};return r.unreceived;}).length;
+
+  function summaryCard(label, value, valColor, bg) {
+    return {
+      stack:[
+        {text:label, fontSize:8, color:C.textGray, margin:[0,6,0,2], alignment:'center'},
+        {text:value, fontSize:14, bold:true, color:valColor, alignment:'center', margin:[0,0,0,6]},
+      ],
+      fillColor:bg, width:'*',
+    };
+  }
+
+  const docDef = {
+    pageSize:'A4', pageMargins:[30,40,30,40],
+    content:[
+      // 헤더 배너
+      {
+        canvas:[{type:'rect',x:0,y:0,w:535,h:60,r:8,color:C.primary}],
+        margin:[0,0,0,0]
+      },
+      {
+        columns:[
+          {text:`${monthLabel} 캠퍼스 근태 보고자료`, style:'headerTitle', width:'*'},
+          {text:`출력일  ${today}`, style:'headerDate', width:'auto', margin:[0,20,4,0]},
+        ],
+        absolutePosition:{x:46,y:52},
+      },
+      {text:'', margin:[0,30,0,0]},
+      // 요약 카드
+      {
+        columns:[
+          summaryCard('지각', totalLate+'명', C.primary, C.light),
+          {text:'',width:6},
+          summaryCard('근무미달', totalShort+'명', '#283593', '#E8EAF6'),
+          {text:'',width:6},
+          summaryCard('미등록확인', totalCctv+'건', '#01579B', '#E1F5FE'),
+          {text:'',width:6},
+          summaryCard('보고회신', totalReply+'/'+campuses.length, C.green, '#E8F5E9'),
+          {text:'',width:6},
+          summaryCard('미회신', totalUnrec+'개', C.red, '#FFEBEE'),
+        ],
+        margin:[0,0,0,18]
+      },
+      // 메인 표
+      {
+        table:{
+          headerRows:1,
+          widths:[70,42,52,'*','*'],
+          body:[
+            [
+              {text:'캠퍼스', style:'tableHeader'},
+              {text:'회신여부', style:'tableHeader'},
+              {text:'회신일', style:'tableHeader'},
+              {text:'지각 인원', style:'tableHeader'},
+              {text:'근무미달 인원', style:'tableHeader'},
+            ],
+            ...tableBody,
+          ]
+        },
+        layout:{
+          hLineWidth:(i)=>i===0||i===1?0:0.5,
+          vLineWidth:()=>0.5,
+          hLineColor:()=>C.border,
+          vLineColor:()=>C.border,
+          fillColor:(i)=>i===0?C.primary:null,
+        }
+      },
+      {
+        text:'※ 회신여부: O = 회신완료  /  - = 해당없음  /  X = 미회신',
+        style:'footer', margin:[0,10,0,0]
+      },
+    ],
+    styles:{
+      headerTitle:{fontSize:16,bold:true,color:'#FFFFFF'},
+      headerDate: {fontSize:9, color:'#BBDEFB'},
+      tableHeader:{fontSize:10,bold:true,color:'#FFFFFF',alignment:'center',margin:[0,6,0,6]},
+      cell:       {fontSize:9.5,color:C.textDark,margin:[4,5,4,5]},
+      footer:     {fontSize:8,color:C.textGray,italics:true},
+    },
+    defaultStyle:{font:'Roboto'}
+  };
+
+  pdfMake.createPdf(docDef).download(`${monthLabel}_캠퍼스근태보고자료.pdf`);
+  showToast('📄 PDF 다운로드 중...', 'ok');
 }
 
 // ══════════════════════════════════════
