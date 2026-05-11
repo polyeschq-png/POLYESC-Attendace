@@ -1534,11 +1534,21 @@ function t2m(t) {
   return isNaN(h)||isNaN(m) ? null : h*60+m;
 }
 
+// 이름 정규화: 앞뒤 공백 제거, 괄호 영문명 포함 비교용
+function normName(n) { return (n||'').trim().replace(/\s+/g,' '); }
+function empNameMatch(eName, rowName) {
+  const en = normName(eName), rn = normName(rowName);
+  if (en === rn) return true;
+  // 괄호 제거 후 비교 (e.g. "최유화 (Jamie)" vs "최유화(Jamie)")
+  const enBase = en.replace(/\s*\(.*?\)/g,'').trim();
+  const rnBase = rn.replace(/\s*\(.*?\)/g,'').trim();
+  return enBase === rnBase && enBase !== '';
+}
+
 function getEmpRef(name, campus, date) {
-  const byBoth = EMPLOYEES.find(e=>e.name===name&&e.campus===campus);
-  const byName = EMPLOYEES.find(e=>e.name===name);
+  const byBoth = EMPLOYEES.find(e=>empNameMatch(e.name,name)&&e.campus===campus);
+  const byName = EMPLOYEES.find(e=>empNameMatch(e.name,name));
   const emp = byBoth || byName || null;
-  // startDate 있으면: 해당 날짜 다음날부터 적용
   if (emp && emp.startDate && date && date <= emp.startDate) return null;
   return emp;
 }
@@ -1630,7 +1640,7 @@ function runAnalysis() {
     if (isOnLeave(name, campus, row.date)) continue;
     if (dupKeys.has(`${name}|${campus}|${row.date}`)) continue;
     // EMPLOYEES에서 직접 찾아서 startDate 이전이면 미등록 체크 제외
-    const empRaw = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
+    const empRaw = EMPLOYEES.find(e=>empNameMatch(e.name,name)&&e.campus===campus) || EMPLOYEES.find(e=>empNameMatch(e.name,name));
     if (empRaw) {
       // 등록된 직원 — startDate 이전 날짜는 미등록으로 잡지 않음
       if (empRaw.startDate && row.date <= empRaw.startDate) continue;
@@ -1660,7 +1670,7 @@ function runAnalysis() {
     if (exApplied(name, campus, date, 'normalall')) continue;
 
     // startDate 이전 날짜는 분석 제외 (입사/승진일 전)
-    const empRawCheck = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
+    const empRawCheck = EMPLOYEES.find(e=>empNameMatch(e.name,name)&&e.campus===campus) || EMPLOYEES.find(e=>empNameMatch(e.name,name));
     if (empRawCheck && empRawCheck.startDate && date <= empRawCheck.startDate) continue;
 
     const emp = getEmpRef(name, campus, date);
@@ -1833,7 +1843,7 @@ function rerunAnalysis() {
     if (isOnLeave(name, campus, row.date)) continue;
     if (dupKeys.has(`${name}|${campus}|${row.date}`)) continue;
     // EMPLOYEES에서 직접 찾아서 startDate 이전이면 미등록 체크 제외
-    const empRaw = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
+    const empRaw = EMPLOYEES.find(e=>empNameMatch(e.name,name)&&e.campus===campus) || EMPLOYEES.find(e=>empNameMatch(e.name,name));
     if (empRaw) {
       if (empRaw.startDate && row.date <= empRaw.startDate) continue;
       continue;
@@ -1858,7 +1868,7 @@ function rerunAnalysis() {
     if (exApplied(name, campus, date, 'normalall')) continue;
 
     // startDate 이전 날짜는 분석 제외 (입사/승진일 전)
-    const empRawCheck = EMPLOYEES.find(e=>(e.name===name&&e.campus===campus)||e.name===name);
+    const empRawCheck = EMPLOYEES.find(e=>empNameMatch(e.name,name)&&e.campus===campus) || EMPLOYEES.find(e=>empNameMatch(e.name,name));
     if (empRawCheck && empRawCheck.startDate && date <= empRawCheck.startDate) continue;
 
     const emp = getEmpRef(name, campus, date);
