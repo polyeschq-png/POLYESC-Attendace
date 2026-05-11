@@ -1151,7 +1151,11 @@ function selectCampus(campus) {
   selectedCampus = campus;
   renderSidebar();
   if (currentTab === 'exceptions') renderExList();
-  if (currentTab === 'result') { resPage=1; cctvPage=1; unrePage=1; renderResultTable(); renderCCTVTable(); renderUnregisteredTable(); updateSummary(); }
+  if (currentTab === 'result') {
+    resPage=1; cctvPage=1; unrePage=1; earlyoutPage=1;
+    renderResultTable(); renderCCTVTable(); renderUnregisteredTable();
+    renderEarlyoutTable(); updateSummary();
+  }
 }
 
 
@@ -1997,7 +2001,9 @@ function updateSummary() {
   document.getElementById('s-late').textContent     = R.filter(r=>r.type==='late').length;
   document.getElementById('s-short').textContent    = R.filter(r=>r.type==='short').length;
   document.getElementById('s-wl').textContent       = R.filter(r=>r.type==='wronglate').length;
-  document.getElementById('s-cctv').textContent     = R.filter(r=>r.type==='cctv').length;
+  // CCTV: 확인 완료(cctvChecked)된 건 제외
+  const cctvCnt = R.filter(r=>r.type==='cctv' && !r.cctvChecked).length;
+  document.getElementById('s-cctv').textContent     = cctvCnt;
   const earlyoutCnt = R.filter(r=>r.type==='earlyout').length;
   document.getElementById('s-earlyout').textContent = earlyoutCnt;
   const eob = document.getElementById('earlyout-badge');
@@ -2123,7 +2129,8 @@ function renderCCTVTable() {
 
   document.getElementById('cctv-count').textContent = `${total}건`;
   const cctvBadge = document.getElementById('cctv-badge');
-  if (cctvBadge) { cctvBadge.style.display = total>0?'inline':'none'; cctvBadge.textContent = total; }
+  const uncheckedCnt = rows.filter(r=>!r.cctvChecked).length;
+  if (cctvBadge) { cctvBadge.style.display = uncheckedCnt>0?'inline':'none'; cctvBadge.textContent = uncheckedCnt; }
   const tbody = document.getElementById('cctv-tbody');
 
   if (!slice.length) {
@@ -2137,7 +2144,7 @@ function renderCCTVTable() {
         <td class="mono">${r.date}</td>
         <td><span class="chip chip-red">${r.note}</span></td>
         <td><label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="checkbox" ${r.cctvChecked?'checked':''} onchange="RESULTS[${realIdx}].cctvChecked=this.checked">
+          <input type="checkbox" ${r.cctvChecked?'checked':''} onchange="RESULTS[${realIdx}].cctvChecked=this.checked;renderCCTVTable();updateSummary();">
           <span style="font-size:12px;">${r.cctvChecked?'완료':'미확인'}</span>
         </label></td>
         <td><input type="text" value="${r.cctvMemo||''}" placeholder="메모" style="width:180px;"
