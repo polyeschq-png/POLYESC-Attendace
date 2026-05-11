@@ -455,6 +455,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
         <span style="font-size:15px;font-weight:600;" id="rpt-title">📊 보고자료</span>
         <span style="flex:1;"></span>
+        <button class="btn btn-ghost btn-sm" onclick="addReportMemo()" style="border:1.5px dashed var(--border2);color:var(--text2);">특이사항 +</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()">⬇ Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">⬇ PDF</button>
       </div>
@@ -467,6 +468,18 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
           <div id="rpt-print-header" style="display:none;margin-bottom:16px;">
             <div style="font-size:18px;font-weight:700;" id="rpt-print-title"></div>
             <div style="font-size:12px;color:#666;margin-top:4px;" id="rpt-print-date"></div>
+          </div>
+          <div id="rpt-memo-section" style="display:none;margin-bottom:18px;">
+            <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px;">📝 특이사항</div>
+            <div style="position:relative;">
+              <textarea id="rpt-memo-text"
+                placeholder="특이사항을 입력하세요..."
+                oninput="saveReportMemo()"
+                style="width:100%;min-height:80px;padding:10px 12px;font-size:13px;font-family:'Noto Sans KR',sans-serif;border:1.5px solid var(--border2);border-radius:10px;resize:vertical;background:var(--white);color:var(--text);outline:none;box-sizing:border-box;line-height:1.6;"></textarea>
+              <button onclick="deleteReportMemo()"
+                style="position:absolute;bottom:8px;right:8px;font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px;opacity:0.7;"
+                onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">삭제하기</button>
+            </div>
           </div>
           <div class="twrap">
             <table class="rpt-table" id="rpt-table">
@@ -949,6 +962,7 @@ let RESULTS = [];
 let UNREGISTERED = []; // 리스트 미등록이지만 근태기록 있는 인원
 let HISTORY = [];     // 누적 분석 기록 [{monthKey, analysedAt, results, summary}]
 let REPORT_RECEIPTS = {}; // 보고서 수신 {monthKey: {campusName: {status, date}}}
+let REPORT_MEMO = {};     // 보고자료 특이사항 {monthKey: string}
 let currentUser = null; // Firebase 로그인 유저
 let selectedCampus = '전체';
 let currentTab = 'history';
@@ -2367,6 +2381,7 @@ function saveState() {
     localStorage.setItem('att_hol', JSON.stringify(HOLIDAYS));
     localStorage.setItem('att_builtin_hol', JSON.stringify(KR_HOLIDAYS_BUILTIN));
     localStorage.setItem('att_receipts', JSON.stringify(REPORT_RECEIPTS));
+    localStorage.setItem('att_memo', JSON.stringify(REPORT_MEMO));
   } catch(e){}
 }
 function loadState() {
@@ -2383,6 +2398,7 @@ function loadState() {
     }
     const bh=localStorage.getItem('att_builtin_hol'); if(bh) KR_HOLIDAYS_BUILTIN=JSON.parse(bh);
     const rc=localStorage.getItem('att_receipts'); if(rc) REPORT_RECEIPTS=JSON.parse(rc);
+    const mm=localStorage.getItem('att_memo'); if(mm) REPORT_MEMO=JSON.parse(mm);
   } catch(e){}
 }
 
@@ -2393,6 +2409,45 @@ function loadState() {
 // ══════════════════════════════════════
 
 // 현재 보고자료 기준 월키 (분석 결과 기준)
+function addReportMemo() {
+  const monthKey = getReportMonthKey();
+  if (!monthKey) { showToast('분석 데이터가 없습니다', 'err'); return; }
+  if (!REPORT_MEMO[monthKey]) REPORT_MEMO[monthKey] = '';
+  renderReportMemo(monthKey);
+  document.getElementById('rpt-memo-text')?.focus();
+  saveState();
+}
+
+function saveReportMemo() {
+  const monthKey = getReportMonthKey();
+  if (!monthKey) return;
+  const val = document.getElementById('rpt-memo-text')?.value || '';
+  REPORT_MEMO[monthKey] = val;
+  saveState();
+}
+
+function deleteReportMemo() {
+  const monthKey = getReportMonthKey();
+  if (!monthKey) return;
+  if (!confirm('특이사항을 삭제할까요?')) return;
+  delete REPORT_MEMO[monthKey];
+  document.getElementById('rpt-memo-section').style.display = 'none';
+  saveState();
+}
+
+function renderReportMemo(monthKey) {
+  const section = document.getElementById('rpt-memo-section');
+  const textarea = document.getElementById('rpt-memo-text');
+  if (!section || !textarea) return;
+  const memo = monthKey ? (REPORT_MEMO[monthKey] ?? null) : null;
+  if (memo !== null) {
+    section.style.display = 'block';
+    textarea.value = memo;
+  } else {
+    section.style.display = 'none';
+  }
+}
+
 function getReportMonthKey() {
   const start = document.getElementById('dt-start')?.value || '';
   return start ? start.slice(0,7) : '';
@@ -2408,6 +2463,8 @@ function refreshReport() {
   document.getElementById('rpt-no-data').style.display = hasData ? 'none' : 'block';
   document.getElementById('rpt-wrap').style.display    = hasData ? 'block' : 'none';
   if (!hasData) return;
+
+  renderReportMemo(monthKey);
 
   if (monthKey && !REPORT_RECEIPTS[monthKey]) REPORT_RECEIPTS[monthKey] = {};
   const receipts = monthKey ? (REPORT_RECEIPTS[monthKey] || {}) : {};
@@ -2752,6 +2809,7 @@ async function saveSettingsToFirebase() {
       holidays: HOLIDAYS,
       builtinHolidays: KR_HOLIDAYS_BUILTIN,
       reportReceipts: REPORT_RECEIPTS,
+      reportMemo: REPORT_MEMO,
       updatedAt: new Date().toISOString()
     });
   } catch(e) { console.warn('설정 저장 실패:', e); }
@@ -2770,6 +2828,7 @@ async function loadSettingsFromFirebase() {
       if (d.holidays)       HOLIDAYS = d.holidays;
       if (d.builtinHolidays) KR_HOLIDAYS_BUILTIN = d.builtinHolidays;
       if (d.reportReceipts)  REPORT_RECEIPTS = d.reportReceipts;
+      if (d.reportMemo)      REPORT_MEMO = d.reportMemo;
       renderAll();
       showToast('✅ Firebase에서 설정 불러옴', 'ok');
     }
