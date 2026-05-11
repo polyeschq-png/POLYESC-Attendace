@@ -614,6 +614,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
         <div class="itab" data-itab="res-cctv" onclick="switchITab('res-cctv')">🎥 CCTV 확인 필요 <span id="cctv-badge" style="display:none;background:var(--yellow);color:#000;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;font-weight:700;"></span></div>
         <div class="itab" data-itab="res-unre" onclick="switchITab('res-unre')">⚠ 추가 필요 대상 <span id="unre-badge" style="display:none;background:var(--orange);color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;"></span></div>
         <div class="itab" data-itab="res-earlyout" onclick="switchITab('res-earlyout')">🏃 조퇴 <span id="earlyout-badge" style="display:none;background:#7c3aed;color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;"></span></div>
+        <div class="itab" data-itab="res-copy" onclick="switchITab('res-copy')">📋 이메일 복사</div>
       </div>
       <!-- result sub-panel -->
       <div id="res-main">
@@ -670,7 +671,40 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
         </div>
       </div>
 
-      <!-- cctv sub-panel -->
+      <!-- copy panel -->
+      <div id="res-copy" style="display:none;">
+        <div style="display:flex;flex-direction:column;gap:16px;max-width:680px;">
+
+          <!-- 포함 내용 선택 -->
+          <div style="background:var(--bg2);border-radius:10px;padding:14px 16px;">
+            <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:10px;">📌 복사할 내용 선택</div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="copy-chk-late" checked style="width:15px;height:15px;accent-color:var(--primary);">
+                지각 인원
+              </label>
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="copy-chk-cctv" checked style="width:15px;height:15px;accent-color:var(--primary);">
+                CCTV 확인 필요
+              </label>
+            </div>
+          </div>
+
+          <!-- 미리보기 -->
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+              <span style="font-size:13px;font-weight:700;color:var(--text);">📄 미리보기</span>
+              <span style="flex:1;"></span>
+              <button class="btn btn-blue btn-sm" onclick="copyEmailContent()" style="gap:6px;">
+                📋 클립보드에 복사
+              </button>
+            </div>
+            <div id="copy-preview"
+              style="background:var(--white);border:1.5px solid var(--border2);border-radius:10px;padding:20px 24px;font-size:13px;line-height:1.9;color:var(--text);white-space:pre-wrap;min-height:200px;font-family:'Noto Sans KR',sans-serif;">
+            </div>
+          </div>
+        </div>
+      </div>
       <div id="res-cctv" style="display:none;">
         <div class="fbar">
           <input type="text" id="cf-search" placeholder="이름 검색..." oninput="renderCCTVTable()">
@@ -1094,7 +1128,7 @@ function switchTabSettings(subTab) {
 
 function switchITab(itab) {
   // figure out parent
-  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'res-earlyout':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings' };
+  const parents = { 'res-main':'result', 'res-cctv':'result', 'res-unre':'result', 'res-earlyout':'result', 'res-copy':'result', 'set-emp':'settings', 'set-leave':'settings', 'set-holiday':'settings' };
   const parent = parents[itab];
   currentITab[parent] = itab;
 
@@ -1103,11 +1137,12 @@ function switchITab(itab) {
   });
 
   if (parent === 'result') {
-    ['res-main','res-cctv','res-unre','res-earlyout'].forEach(id => {
+    ['res-main','res-cctv','res-unre','res-earlyout','res-copy'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = itab === id ? 'block' : 'none';
     });
     if (itab === 'res-earlyout') renderEarlyoutTable();
+    if (itab === 'res-copy') renderCopyPreview();
   }
   if (parent === 'settings') {
     ['set-emp','set-leave','set-holiday'].forEach(id => {
@@ -1169,6 +1204,7 @@ function selectCampus(campus) {
     resPage=1; cctvPage=1; unrePage=1; earlyoutPage=1;
     renderResultTable(); renderCCTVTable(); renderUnregisteredTable();
     renderEarlyoutTable(); updateSummary();
+    if (currentITab['result'] === 'res-copy') renderCopyPreview();
   }
 }
 
@@ -2115,6 +2151,100 @@ function getFilteredCCTV() {
 }
 
 let earlyoutPage = 1;
+function renderCopyPreview() {
+  const preview = document.getElementById('copy-preview');
+  if (!preview) return;
+
+  // 체크박스 변경 시 자동 업데이트 이벤트 등록 (최초 1회)
+  if (!window._copyListenerSet) {
+    document.getElementById('copy-chk-late')?.addEventListener('change', renderCopyPreview);
+    document.getElementById('copy-chk-cctv')?.addEventListener('change', renderCopyPreview);
+    window._copyListenerSet = true;
+  }
+
+  const inclLate = document.getElementById('copy-chk-late')?.checked;
+  const inclCctv = document.getElementById('copy-chk-cctv')?.checked;
+
+  // 월 정보
+  const start = document.getElementById('dt-start')?.value || '';
+  const month = start ? parseInt(start.slice(5,7)) : null;
+  const year  = start ? parseInt(start.slice(0,4)) : null;
+  const nextMonth = month ? (month === 12 ? 1 : month + 1) : null;
+  const nextYear  = month === 12 ? year + 1 : year;
+  const deadline  = nextMonth ? `${nextMonth}/10` : 'XX/10';
+  const monthLabel = month ? `${month}월` : 'XX월';
+
+  // 캠퍼스 필터
+  const campus = selectedCampus === '전체' ? null : selectedCampus;
+  const R = campus ? RESULTS.filter(r => r.campus === campus) : RESULTS;
+
+  // 도입부
+  const intro = `안녕하세요 원장님,\n인사팀 이윤지 대리입니다.\n\n${monthLabel} 근태관련 특이사항 제출기한이었던 ${deadline}이 지나, 별도로 근태 관련 정보 공유 부탁 드립니다.\n`;
+
+  // 지각 표
+  let lateSection = '';
+  if (inclLate) {
+    const lateRows = R.filter(r => r.type === 'late');
+    if (lateRows.length) {
+      const header = '─'.repeat(46);
+      const rows = lateRows.map(r => {
+        const d = r.date ? r.date.slice(5).replace('-','/') : '-';
+        return `  ${r.name.padEnd(10)} ${(r.position||'').padEnd(8)} ${d.padEnd(7)} ${r.checkIn||'-'}`;
+      }).join('\n');
+      lateSection = `\n【 지각 인원 】\n${header}\n  이름         직급       일자    출근시간\n${header}\n${rows}\n${header}\n`;
+    }
+  }
+
+  // CCTV 표
+  let cctvSection = '';
+  if (inclCctv) {
+    const cctvRows = R.filter(r => r.type === 'cctv' && !r.cctvChecked);
+    if (cctvRows.length) {
+      const header = '─'.repeat(52);
+      const rows = cctvRows.map(r => {
+        const d = r.date ? r.date.slice(5).replace('-','/') : '-';
+        return `  ${r.name.padEnd(10)} ${(r.position||'').padEnd(8)} ${d.padEnd(7)} ${r.note||'-'}`;
+      }).join('\n');
+      cctvSection = `\n【 출퇴근 미등록 확인 필요 】\n${header}\n  이름         직급       일자    미등록 항목\n${header}\n${rows}\n${header}\n`;
+    }
+  }
+
+  // 데이터 없는 경우
+  if (!lateSection && !cctvSection) {
+    if (!inclLate && !inclCctv) {
+      preview.textContent = '복사할 내용을 하나 이상 선택해주세요.';
+      return;
+    }
+    preview.textContent = '선택한 캠퍼스에 해당 데이터가 없습니다.';
+    return;
+  }
+
+  // 종결부
+  const outro = `\n출퇴근 미등록은 CCTV 자료를 증빙 부탁 드리며,\n오전 셔틀탑승의 경우, 별도로 말씀 주셔야 지각처리 되지 않습니다.\n\n빠짐없는 출퇴근 등록 독려 부탁 드립니다.\n\n대표님 보고 예정이오니 빠른 회신 부탁 드립니다.\n\n감사합니다.\n이윤지 드림.`;
+
+  preview.textContent = intro + lateSection + cctvSection + outro;
+}
+
+async function copyEmailContent() {
+  const preview = document.getElementById('copy-preview');
+  if (!preview || !preview.textContent.trim()) {
+    showToast('복사할 내용이 없습니다', 'err'); return;
+  }
+  try {
+    await navigator.clipboard.writeText(preview.textContent);
+    showToast('✅ 클립보드에 복사됐습니다. 이메일에 붙여넣기 하세요.', 'ok');
+  } catch(e) {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = preview.textContent;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✅ 복사 완료', 'ok');
+  }
+}
+
 function renderEarlyoutTable() {
   const search = (document.getElementById('eof-search')?.value||'').toLowerCase();
   const rows = RESULTS.filter(r => {
