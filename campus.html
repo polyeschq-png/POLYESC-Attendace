@@ -377,8 +377,6 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
 .col { flex: 1; min-width: 0; }
 </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 </head>
 <body>
 
@@ -2818,40 +2816,9 @@ function downloadReportPDF() {
   const receipts = monthKey ? (REPORT_RECEIPTS[monthKey]||{}) : {};
   const today = new Date().toLocaleDateString('ko-KR');
 
-  const C = {
-    primary:'#1565C0', light:'#E3F2FD', white:'#FFFFFF',
-    gray:'#F5F7FA', border:'#BBDEFB', textDark:'#212121',
-    textGray:'#546E7A', green:'#2E7D32', red:'#C62828',
-  };
-
   const campuses = [...new Set(RESULTS.map(r=>r.campus))]
     .filter(c=>MANAGED_CAMPUSES.has(c))
     .sort((a,b)=>a.localeCompare(b,'ko'));
-
-  const tableBody = campuses.map((campus, i) => {
-    const cr = RESULTS.filter(r=>r.campus===campus);
-    const rec = receipts[campus] || { date:'', unnecessary:false, unreceived:false };
-    let replyYn, replyDate, replyColor;
-    if (rec.date && rec.date.length===10) {
-      replyYn='O'; replyDate=rec.date.slice(5).replace('-','/'); replyColor=C.green;
-    } else if (rec.unnecessary) {
-      replyYn='-'; replyDate='-'; replyColor=C.textGray;
-    } else if (rec.unreceived) {
-      replyYn='X'; replyDate='X'; replyColor=C.red;
-    } else {
-      replyYn='-'; replyDate='-'; replyColor=C.textGray;
-    }
-    const lateList=[...new Set(cr.filter(r=>r.type==='late').map(r=>r.name))];
-    const shortList=[...new Set(cr.filter(r=>r.type==='short').map(r=>r.name))];
-    const rowBg = i%2===0 ? C.white : C.gray;
-    return [
-      {text:campus, style:'cell', fillColor:rowBg, alignment:'center'},
-      {text:replyYn, style:'cell', fillColor:rowBg, alignment:'center', color:replyColor, bold:true},
-      {text:replyDate, style:'cell', fillColor:rowBg, alignment:'center', color:replyColor},
-      {text:lateList.join(', ')||'-', style:'cell', fillColor:rowBg},
-      {text:shortList.join(', ')||'-', style:'cell', fillColor:rowBg},
-    ];
-  });
 
   const totalLate  = [...new Set(RESULTS.filter(r=>r.type==='late').map(r=>r.name+r.campus))].length;
   const totalShort = [...new Set(RESULTS.filter(r=>r.type==='short').map(r=>r.name+r.campus))].length;
@@ -2859,93 +2826,102 @@ function downloadReportPDF() {
   const totalReply = campuses.filter(c=>{const r=receipts[c]||{};return r.date&&r.date.length===10;}).length;
   const totalUnrec = campuses.filter(c=>{const r=receipts[c]||{};return r.unreceived;}).length;
 
-  function summaryCard(label, value, valColor, bg) {
-    return {
-      stack:[
-        {text:label, fontSize:8, color:C.textGray, margin:[0,6,0,2], alignment:'center'},
-        {text:value, fontSize:14, bold:true, color:valColor, alignment:'center', margin:[0,0,0,6]},
-      ],
-      fillColor:bg, width:'*',
-    };
+  const tableRows = campuses.map((campus, i) => {
+    const cr = RESULTS.filter(r=>r.campus===campus);
+    const rec = receipts[campus] || {date:'',unnecessary:false,unreceived:false};
+    let replyYn, replyDate, replyClass;
+    if (rec.date && rec.date.length===10) {
+      replyYn='O'; replyDate=rec.date.slice(5).replace('-','/'); replyClass='reply-ok';
+    } else if (rec.unnecessary) {
+      replyYn='-'; replyDate='-'; replyClass='reply-na';
+    } else if (rec.unreceived) {
+      replyYn='X'; replyDate='X'; replyClass='reply-no';
+    } else {
+      replyYn='-'; replyDate='-'; replyClass='reply-na';
+    }
+    const lateList=[...new Set(cr.filter(r=>r.type==='late').map(r=>r.name))].join(', ')||'-';
+    const shortList=[...new Set(cr.filter(r=>r.type==='short').map(r=>r.name))].join(', ')||'-';
+    const rowBg = i%2===0 ? '#ffffff' : '#f5f7fa';
+    return `<tr style="background:${rowBg};">
+      <td style="text-align:center;font-weight:600;">${campus}</td>
+      <td class="${replyClass}" style="text-align:center;font-weight:700;">${replyYn}</td>
+      <td class="${replyClass}" style="text-align:center;">${replyDate}</td>
+      <td>${lateList}</td>
+      <td>${shortList}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<title>${monthLabel} 캠퍼스 근태 보고자료</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Sans KR',sans-serif;background:#fff;padding:32px;color:#212121;font-size:13px;}
+  .header{background:linear-gradient(135deg,#1565C0,#1976D2);border-radius:12px;padding:24px 28px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .header-title{color:#fff;font-size:20px;font-weight:700;}
+  .header-sub{color:#BBDEFB;font-size:11px;margin-top:4px;}
+  .header-date{color:#BBDEFB;font-size:11px;text-align:right;}
+  .summary{display:flex;gap:10px;margin-bottom:20px;}
+  .sum-card{flex:1;border-radius:10px;padding:14px 12px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .sum-card .val{font-size:20px;font-weight:700;margin-bottom:3px;}
+  .sum-card .lbl{font-size:10px;color:#546E7A;}
+  table{width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;box-shadow:0 1px 6px rgba(21,101,192,.1);}
+  thead tr{background:#1565C0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  thead th{color:#fff;font-weight:600;padding:10px 12px;font-size:12px;text-align:center;}
+  thead th:nth-child(4),thead th:nth-child(5){text-align:left;}
+  tbody td{padding:9px 12px;border-bottom:1px solid #BBDEFB;font-size:12px;vertical-align:middle;}
+  .reply-ok{color:#2E7D32;font-weight:700;}
+  .reply-no{color:#C62828;font-weight:700;}
+  .reply-na{color:#546E7A;}
+  .footer{margin-top:14px;font-size:10px;color:#546E7A;font-style:italic;}
+  @media print{
+    body{padding:16px;}
+    .header,.sum-card,thead tr{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="header-title">${monthLabel} 캠퍼스 근태 보고자료</div>
+      <div class="header-sub">Poly ESC 인사팀</div>
+    </div>
+    <div class="header-date">출력일<br>${today}</div>
+  </div>
+  <div class="summary">
+    <div class="sum-card" style="background:#E3F2FD;"><div class="val" style="color:#1565C0;">${totalLate}명</div><div class="lbl">지각</div></div>
+    <div class="sum-card" style="background:#E8EAF6;"><div class="val" style="color:#283593;">${totalShort}명</div><div class="lbl">근무미달</div></div>
+    <div class="sum-card" style="background:#E1F5FE;"><div class="val" style="color:#01579B;">${totalCctv}건</div><div class="lbl">미등록확인</div></div>
+    <div class="sum-card" style="background:#E8F5E9;"><div class="val" style="color:#2E7D32;">${totalReply}/${campuses.length}</div><div class="lbl">보고회신</div></div>
+    <div class="sum-card" style="background:#FFEBEE;"><div class="val" style="color:#C62828;">${totalUnrec}개</div><div class="lbl">미회신</div></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:80px;">캠퍼스</th>
+        <th style="width:60px;">회신여부</th>
+        <th style="width:66px;">회신일</th>
+        <th>지각 인원</th>
+        <th>근무미달 인원</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div class="footer">※ 회신여부: O = 회신완료 &nbsp;/&nbsp; - = 해당없음 &nbsp;/&nbsp; X = 미회신</div>
+</body>
+</html>`;
 
-  const docDef = {
-    pageSize:'A4', pageMargins:[30,40,30,40],
-    content:[
-      // 헤더 배너
-      {
-        canvas:[{type:'rect',x:0,y:0,w:535,h:60,r:8,color:C.primary}],
-        margin:[0,0,0,0]
-      },
-      {
-        columns:[
-          {text:`${monthLabel} 캠퍼스 근태 보고자료`, style:'headerTitle', width:'*'},
-          {text:`출력일  ${today}`, style:'headerDate', width:'auto', margin:[0,20,4,0]},
-        ],
-        absolutePosition:{x:46,y:52},
-      },
-      {text:'', margin:[0,30,0,0]},
-      // 요약 카드
-      {
-        columns:[
-          summaryCard('지각', totalLate+'명', C.primary, C.light),
-          {text:'',width:6},
-          summaryCard('근무미달', totalShort+'명', '#283593', '#E8EAF6'),
-          {text:'',width:6},
-          summaryCard('미등록확인', totalCctv+'건', '#01579B', '#E1F5FE'),
-          {text:'',width:6},
-          summaryCard('보고회신', totalReply+'/'+campuses.length, C.green, '#E8F5E9'),
-          {text:'',width:6},
-          summaryCard('미회신', totalUnrec+'개', C.red, '#FFEBEE'),
-        ],
-        margin:[0,0,0,18]
-      },
-      // 메인 표
-      {
-        table:{
-          headerRows:1,
-          widths:[70,42,52,'*','*'],
-          body:[
-            [
-              {text:'캠퍼스', style:'tableHeader'},
-              {text:'회신여부', style:'tableHeader'},
-              {text:'회신일', style:'tableHeader'},
-              {text:'지각 인원', style:'tableHeader'},
-              {text:'근무미달 인원', style:'tableHeader'},
-            ],
-            ...tableBody,
-          ]
-        },
-        layout:{
-          hLineWidth:(i)=>i===0||i===1?0:0.5,
-          vLineWidth:()=>0.5,
-          hLineColor:()=>C.border,
-          vLineColor:()=>C.border,
-          fillColor:(i)=>i===0?C.primary:null,
-        }
-      },
-      {
-        text:'※ 회신여부: O = 회신완료  /  - = 해당없음  /  X = 미회신',
-        style:'footer', margin:[0,10,0,0]
-      },
-    ],
-    styles:{
-      headerTitle:{fontSize:16,bold:true,color:'#FFFFFF'},
-      headerDate: {fontSize:9, color:'#BBDEFB'},
-      tableHeader:{fontSize:10,bold:true,color:'#FFFFFF',alignment:'center',margin:[0,6,0,6]},
-      cell:       {fontSize:9.5,color:C.textDark,margin:[4,5,4,5]},
-      footer:     {fontSize:8,color:C.textGray,italics:true},
-    },
-    defaultStyle:{font:'Roboto'}
-  };
-
-  pdfMake.createPdf(docDef).download(`${monthLabel}_캠퍼스근태보고자료.pdf`);
-  showToast('📄 PDF 다운로드 중...', 'ok');
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { win.focus(); win.print(); };
+  showToast('📄 PDF 저장 창이 열렸습니다', 'ok');
 }
 
-// ══════════════════════════════════════
-// FIREBASE AUTH & HISTORY
-// ══════════════════════════════════════
+
 function initFirebase() {
   if (!window._fbReady) {
     document.getElementById('fb-status').textContent = '⚠ 오프라인 모드 (Firebase 미설정)';
