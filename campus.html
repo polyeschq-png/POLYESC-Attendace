@@ -2822,13 +2822,13 @@ function downloadReportPDF() {
 
   const totalLate  = [...new Set(RESULTS.filter(r=>r.type==='late').map(r=>r.name+r.campus))].length;
   const totalShort = [...new Set(RESULTS.filter(r=>r.type==='short').map(r=>r.name+r.campus))].length;
-  const totalCctv  = RESULTS.filter(r=>r.type==='cctv'&&!r.cctvChecked).length;
   const totalReply = campuses.filter(c=>{const r=receipts[c]||{};return r.date&&r.date.length===10;}).length;
   const totalUnrec = campuses.filter(c=>{const r=receipts[c]||{};return r.unreceived;}).length;
 
   const tableRows = campuses.map((campus, i) => {
     const cr = RESULTS.filter(r=>r.campus===campus);
     const rec = receipts[campus] || {date:'',unnecessary:false,unreceived:false};
+
     let replyYn, replyDate, replyClass;
     if (rec.date && rec.date.length===10) {
       replyYn='O'; replyDate=rec.date.slice(5).replace('-','/'); replyClass='reply-ok';
@@ -2839,15 +2839,28 @@ function downloadReportPDF() {
     } else {
       replyYn='-'; replyDate='-'; replyClass='reply-na';
     }
-    const lateList=[...new Set(cr.filter(r=>r.type==='late').map(r=>r.name))].join(', ')||'-';
-    const shortList=[...new Set(cr.filter(r=>r.type==='short').map(r=>r.name))].join(', ')||'-';
-    const rowBg = i%2===0 ? '#ffffff' : '#f5f7fa';
+
+    // 지각: 이름(횟수)
+    const lateMap = {};
+    cr.filter(r=>r.type==='late').forEach(r=>{ lateMap[r.name]=(lateMap[r.name]||0)+1; });
+    const lateStr = Object.keys(lateMap).length
+      ? Object.entries(lateMap).map(([n,c])=>`${n}(${c}회)`).join(', ')
+      : '-';
+
+    // 근무미달: 이름(횟수)
+    const shortMap = {};
+    cr.filter(r=>r.type==='short').forEach(r=>{ shortMap[r.name]=(shortMap[r.name]||0)+1; });
+    const shortStr = Object.keys(shortMap).length
+      ? Object.entries(shortMap).map(([n,c])=>`${n}(${c}회)`).join(', ')
+      : '-';
+
+    const rowBg = i%2===0 ? '#ffffff' : '#f0f5ff';
     return `<tr style="background:${rowBg};">
-      <td style="text-align:center;font-weight:600;">${campus}</td>
-      <td class="${replyClass}" style="text-align:center;font-weight:700;">${replyYn}</td>
-      <td class="${replyClass}" style="text-align:center;">${replyDate}</td>
-      <td>${lateList}</td>
-      <td>${shortList}</td>
+      <td class="tc fw">${campus}</td>
+      <td class="tc ${replyClass}">${replyYn}</td>
+      <td class="tc ${replyClass}">${replyDate}</td>
+      <td>${lateStr}</td>
+      <td>${shortStr}</td>
     </tr>`;
   }).join('');
 
@@ -2859,57 +2872,69 @@ function downloadReportPDF() {
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet"/>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'Noto Sans KR',sans-serif;background:#fff;padding:32px;color:#212121;font-size:13px;}
-  .header{background:linear-gradient(135deg,#1565C0,#1976D2);border-radius:12px;padding:24px 28px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .header-title{color:#fff;font-size:20px;font-weight:700;}
-  .header-sub{color:#BBDEFB;font-size:11px;margin-top:4px;}
-  .header-date{color:#BBDEFB;font-size:11px;text-align:right;}
-  .summary{display:flex;gap:10px;margin-bottom:20px;}
-  .sum-card{flex:1;border-radius:10px;padding:14px 12px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .sum-card .val{font-size:20px;font-weight:700;margin-bottom:3px;}
-  .sum-card .lbl{font-size:10px;color:#546E7A;}
-  table{width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;box-shadow:0 1px 6px rgba(21,101,192,.1);}
+  body{font-family:'Noto Sans KR',sans-serif;background:#fff;padding:18px 24px;color:#212121;font-size:11px;}
+
+  /* 헤더 배너 */
+  .header{background:linear-gradient(135deg,#1565C0,#1E88E5);border-radius:8px;padding:10px 18px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .header-title{color:#fff;font-size:15px;font-weight:700;}
+  .header-date{color:#BBDEFB;font-size:10px;text-align:right;}
+
+  /* 요약 카드 */
+  .summary{display:flex;gap:7px;margin-bottom:12px;}
+  .sum-card{flex:1;border-radius:7px;padding:7px 8px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .sum-card .val{font-size:16px;font-weight:700;line-height:1.2;}
+  .sum-card .lbl{font-size:9px;color:#546E7A;margin-top:2px;}
+
+  /* 표 */
+  table{width:100%;border-collapse:collapse;font-size:10.5px;}
   thead tr{background:#1565C0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  thead th{color:#fff;font-weight:600;padding:10px 12px;font-size:12px;text-align:center;}
+  thead th{color:#fff;font-weight:600;padding:7px 8px;text-align:center;white-space:nowrap;}
   thead th:nth-child(4),thead th:nth-child(5){text-align:left;}
-  tbody td{padding:9px 12px;border-bottom:1px solid #BBDEFB;font-size:12px;vertical-align:middle;}
+  tbody td{padding:6px 8px;border-bottom:1px solid #BBDEFB;vertical-align:top;line-height:1.5;}
+  tbody tr:last-child td{border-bottom:none;}
+  table{border:1px solid #BBDEFB;border-radius:8px;overflow:hidden;}
+
+  .tc{text-align:center;}
+  .fw{font-weight:600;}
   .reply-ok{color:#2E7D32;font-weight:700;}
   .reply-no{color:#C62828;font-weight:700;}
   .reply-na{color:#546E7A;}
-  .footer{margin-top:14px;font-size:10px;color:#546E7A;font-style:italic;}
+
+  .footer{margin-top:8px;font-size:9px;color:#546E7A;font-style:italic;}
+
   @media print{
-    body{padding:16px;}
+    body{padding:10px 14px;}
     .header,.sum-card,thead tr{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    @page{margin:10mm 12mm;}
   }
 </style>
 </head>
 <body>
   <div class="header">
-    <div>
-      <div class="header-title">${monthLabel} 캠퍼스 근태 보고자료</div>
-      <div class="header-sub">Poly ESC 인사팀</div>
-    </div>
-    <div class="header-date">출력일<br>${today}</div>
+    <div class="header-title">${monthLabel} 캠퍼스 근태 보고자료</div>
+    <div class="header-date">출력일 ${today}</div>
   </div>
+
   <div class="summary">
     <div class="sum-card" style="background:#E3F2FD;"><div class="val" style="color:#1565C0;">${totalLate}명</div><div class="lbl">지각</div></div>
     <div class="sum-card" style="background:#E8EAF6;"><div class="val" style="color:#283593;">${totalShort}명</div><div class="lbl">근무미달</div></div>
-    <div class="sum-card" style="background:#E1F5FE;"><div class="val" style="color:#01579B;">${totalCctv}건</div><div class="lbl">미등록확인</div></div>
     <div class="sum-card" style="background:#E8F5E9;"><div class="val" style="color:#2E7D32;">${totalReply}/${campuses.length}</div><div class="lbl">보고회신</div></div>
     <div class="sum-card" style="background:#FFEBEE;"><div class="val" style="color:#C62828;">${totalUnrec}개</div><div class="lbl">미회신</div></div>
   </div>
+
   <table>
     <thead>
       <tr>
-        <th style="width:80px;">캠퍼스</th>
-        <th style="width:60px;">회신여부</th>
-        <th style="width:66px;">회신일</th>
+        <th style="width:68px;">캠퍼스</th>
+        <th style="width:44px;">회신여부</th>
+        <th style="width:50px;">회신일</th>
         <th>지각 인원</th>
         <th>근무미달 인원</th>
       </tr>
     </thead>
     <tbody>${tableRows}</tbody>
   </table>
+
   <div class="footer">※ 회신여부: O = 회신완료 &nbsp;/&nbsp; - = 해당없음 &nbsp;/&nbsp; X = 미회신</div>
 </body>
 </html>`;
