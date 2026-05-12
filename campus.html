@@ -2840,16 +2840,19 @@ function downloadReportPDF() {
       replyYn='-'; replyDate='-'; replyClass='reply-na';
     }
 
+    // 이름에서 "(" 이전 부분만 추출
+    const trimName = n => n.includes('(') ? n.slice(0, n.indexOf('(')).trim() : n.trim();
+
     // 지각: 이름(횟수)
     const lateMap = {};
-    cr.filter(r=>r.type==='late').forEach(r=>{ lateMap[r.name]=(lateMap[r.name]||0)+1; });
+    cr.filter(r=>r.type==='late').forEach(r=>{ const n=trimName(r.name); lateMap[n]=(lateMap[n]||0)+1; });
     const lateStr = Object.keys(lateMap).length
       ? Object.entries(lateMap).map(([n,c])=>`${n}(${c}회)`).join(', ')
       : '-';
 
     // 근무미달: 이름(횟수)
     const shortMap = {};
-    cr.filter(r=>r.type==='short').forEach(r=>{ shortMap[r.name]=(shortMap[r.name]||0)+1; });
+    cr.filter(r=>r.type==='short').forEach(r=>{ const n=trimName(r.name); shortMap[n]=(shortMap[n]||0)+1; });
     const shortStr = Object.keys(shortMap).length
       ? Object.entries(shortMap).map(([n,c])=>`${n}(${c}회)`).join(', ')
       : '-';
@@ -2886,11 +2889,10 @@ function downloadReportPDF() {
   .sum-card .lbl{font-size:9px;color:#546E7A;margin-top:2px;}
 
   /* 표 */
-  table{width:100%;border-collapse:collapse;font-size:10.5px;}
-  thead tr{background:#1565C0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  thead th{color:#fff;font-weight:600;padding:7px 8px;text-align:center;white-space:nowrap;}
+  table{width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed;}
+  thead th{color:#fff;font-weight:600;padding:7px 8px;text-align:center;white-space:nowrap;overflow:hidden;}
   thead th:nth-child(4),thead th:nth-child(5){text-align:left;}
-  tbody td{padding:6px 8px;border-bottom:1px solid #BBDEFB;vertical-align:top;line-height:1.5;}
+  tbody td{padding:6px 8px;border-bottom:1px solid #BBDEFB;vertical-align:top;line-height:1.5;word-break:keep-all;overflow-wrap:break-word;}
   tbody tr:last-child td{border-bottom:none;}
   table{border:1px solid #BBDEFB;border-radius:8px;overflow:hidden;}
 
@@ -2928,8 +2930,8 @@ function downloadReportPDF() {
         <th style="width:68px;">캠퍼스</th>
         <th style="width:44px;">회신여부</th>
         <th style="width:50px;">회신일</th>
-        <th>지각 인원</th>
-        <th>근무미달 인원</th>
+        <th style="width:50%;">지각 인원</th>
+        <th style="width:50%;">근무미달 인원</th>
       </tr>
     </thead>
     <tbody>${tableRows}</tbody>
@@ -3086,6 +3088,7 @@ async function saveHistory() {
   const record = {
     monthKey,
     analysedAt: new Date().toISOString(),
+    completed: false,  // Owner가 완료 처리 전까지 false
     summary: {
       late:      RESULTS.filter(r=>r.type==='late').length,
       short:     RESULTS.filter(r=>r.type==='short').length,
@@ -3161,6 +3164,17 @@ function renderHistoryTable() {
     const s = h.summary || {};
     const dt = h.analysedAt ? new Date(h.analysedAt).toLocaleString('ko-KR') : '-';
     const isOwner = window._campusRole === 'owner';
+    const isCompleted = !!h.completed;
+
+    const completedBtn = isCompleted
+      ? `<button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;border:1.5px solid #a5d6a7;font-size:11px;" onclick="loadHistoryRecord('${h.monthKey}')">✅ 완료된 보고자료</button>`
+      : `<button class="btn btn-sm" style="background:#f5f5f5;color:#9e9e9e;border:1.5px solid #e0e0e0;font-size:11px;cursor:default;" disabled>📋 완료된 보고자료</button>`;
+
+    const ownerBtns = isOwner ? `
+      <button class="btn btn-ghost btn-sm" onclick="loadHistoryRecord('${h.monthKey}')">📂 불러오기</button>
+      <button class="btn btn-sm" style="font-size:11px;${isCompleted ? 'background:#fff3e0;color:#e65100;border:1.5px solid #ffcc80;' : 'background:#e3f2fd;color:#1565c0;border:1.5px solid #90caf9;'}" onclick="toggleHistoryComplete('${h.monthKey}')">${isCompleted ? '↩ 완료취소' : '✔ 완료처리'}</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteHistoryRecord('${h.monthKey}')">삭제</button>` : '';
+
     return `<tr>
       <td class="mono" style="font-weight:600;">${h.monthKey}</td>
       <td style="font-size:12px;color:var(--text2);">${dt}</td>
@@ -3168,9 +3182,9 @@ function renderHistoryTable() {
       <td><span class="chip chip-orange">${s.short||0}</span></td>
       <td><span class="chip chip-green">${s.wronglate||0}</span></td>
       <td><span class="chip chip-yellow">${s.cctv||0}</span></td>
-      <td style="display:flex;gap:6px;">
-        <button class="btn btn-ghost btn-sm" onclick="loadHistoryRecord('${h.monthKey}')">📂 불러오기</button>
-        ${isOwner ? `<button class="btn btn-danger btn-sm" onclick="deleteHistoryRecord('${h.monthKey}')">삭제</button>` : ''}
+      <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        ${completedBtn}
+        ${ownerBtns}
       </td>
     </tr>`;
   }).join('');
@@ -3197,6 +3211,23 @@ async function loadHistoryRecord(monthKey) {
   if (saveBtn) saveBtn.style.display = (window._campusRole==='owner') ? 'inline-flex' : 'none';
   refreshReport();
   showToast(`📂 ${monthKey} 기록 불러옴`, 'ok');
+}
+
+async function toggleHistoryComplete(monthKey) {
+  const record = HISTORY.find(h=>h.monthKey===monthKey);
+  if (!record) return;
+  record.completed = !record.completed;
+  // 로컬 저장
+  localStorage.setItem('att_history', JSON.stringify(HISTORY));
+  // Firebase 저장
+  if (window._fbReady && currentUser) {
+    try {
+      const { db, doc, setDoc } = window._fb;
+      await setDoc(doc(db, 'history', monthKey), record);
+    } catch(e) { console.warn('Firebase 저장 실패:', e); }
+  }
+  renderHistoryTable();
+  showToast(record.completed ? '✅ 완료 처리됐습니다' : '↩ 완료가 취소됐습니다', 'ok');
 }
 
 async function deleteHistoryRecord(monthKey) {
