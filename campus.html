@@ -2254,7 +2254,7 @@ function renderCopyPreview() {
 
   } else {
     // ── 지각·근무미달 유형 ──
-    const intro = `안녕하세요 원장님,\n인사팀입니다.\n\n${monthLabel} 근태 보고 결과 관련하여 아래와 같이 안내 드립니다.\n`;
+    const intro = `안녕하세요 원장님,\n인사팀입니다.\n\n대표님 지시에 따라,\n${monthLabel} 근태 보고 결과를 아래와 같이 공유해 드립니다.\n`;
     let lateSection = '';
     if (inclLate) {
       const rows = R.filter(r => r.type === 'late');
@@ -2296,7 +2296,7 @@ function renderCopyPreview() {
       preview.textContent = '선택한 캠퍼스에 해당 데이터가 없습니다.';
       preview.dataset.plain = ''; return;
     }
-    const outro = `\n빠짐없는 출퇴근 기록 및 근무시간 준수 독려 부탁 드립니다.\n\n감사합니다.\n인사팀 드림.`;
+    const outro = `\n빠짐없는 출퇴근 기록 및 근무시간 준수 독려 부탁 드립니다.\n*정기/비정기적 셔틀탑승, 임신기와 같은 특이사항은 매달 근태 자료 전달 주실 때 언급해 주셔야 지각/근무시간미달 처리 되지 않습니다. 또한 근로자 근태는 언제든지 그룹웨어에서 확인 및 관리가 가능하오니 특이사항은 직접 반영 부탁 드립니다.\n\n감사합니다.\n인사팀 드림.`;
     const plain = intro + lateSection + shortSection + outro;
     preview.dataset.plain = plain;
     renderEmailHTML(preview, plain);
@@ -2307,24 +2307,41 @@ function renderEmailHTML(preview, text) {
   function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   preview.innerHTML = escHtml(text)
     .replace(/【[^】]+】/g, m => `<span style="color:#1565c0;font-weight:700;">${m}</span>`)
+    .replace(/(\*정기\/비정기적[^\n]+)/g, m => `<span style="color:#1565c0;font-size:11px;">${m}</span>`)
     .replace(/\n/g,'<br>');
 }
 
 async function copyEmailContent() {
   const preview = document.getElementById('copy-preview');
-  const text = preview?.dataset?.plain || preview?.textContent || '';
-  if (!text.trim()) { showToast('복사할 내용이 없습니다', 'err'); return; }
+  const plain = preview?.dataset?.plain || '';
+  if (!plain.trim()) { showToast('복사할 내용이 없습니다', 'err'); return; }
+
+  // HTML 버전 (파란색 등 서식 포함) — Outlook 등에서 붙여넣기 시 유지됨
+  const htmlContent = preview.innerHTML
+    .replace(/<br>/g, '\n')  // 줄바꿈 유지용
+    .replace(/<br>/g, '<br>');
+  const fullHtml = `<div style="font-family:'맑은 고딕','Noto Sans KR',sans-serif;font-size:14px;line-height:1.8;">${preview.innerHTML}</div>`;
+
   try {
-    await navigator.clipboard.writeText(text);
-    showToast('✅ 클립보드에 복사됐습니다. 이메일에 붙여넣기 하세요.', 'ok');
+    // ClipboardItem으로 HTML+텍스트 동시 복사 (서식 유지)
+    const htmlBlob = new Blob([fullHtml], { type: 'text/html' });
+    const textBlob = new Blob([plain], { type: 'text/plain' });
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })
+    ]);
+    showToast('✅ 복사됐습니다. 이메일에 붙여넣기 하면 서식이 유지됩니다.', 'ok');
   } catch(e) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    showToast('✅ 복사 완료', 'ok');
+    // 폴백: 일반 텍스트 복사
+    try {
+      await navigator.clipboard.writeText(plain);
+      showToast('✅ 복사됐습니다. (텍스트만 복사됨)', 'ok');
+    } catch(e2) {
+      const ta = document.createElement('textarea');
+      ta.value = plain;
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      showToast('✅ 복사 완료', 'ok');
+    }
   }
 }
 
