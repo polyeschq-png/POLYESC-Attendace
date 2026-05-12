@@ -2890,14 +2890,16 @@ function downloadReportPDF() {
 
   /* 표 */
   table{width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed;}
-  thead th{color:#fff;font-weight:600;padding:7px 8px;text-align:center;white-space:nowrap;overflow:hidden;}
+  thead th{color:#fff;font-weight:600;padding:7px 8px;text-align:center;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.3);}
+  thead th:last-child{border-right:none;}
   thead th:nth-child(4),thead th:nth-child(5){text-align:left;}
-  tbody td{padding:6px 8px;border-bottom:1px solid #BBDEFB;vertical-align:top;line-height:1.5;word-break:keep-all;overflow-wrap:break-word;}
+  tbody td{padding:6px 8px;border-bottom:1px solid #BBDEFB;border-right:1px solid #BBDEFB;vertical-align:top;line-height:1.5;word-break:keep-all;overflow-wrap:break-word;}
+  tbody td:last-child{border-right:none;}
   tbody tr:last-child td{border-bottom:none;}
   table{border:1px solid #BBDEFB;border-radius:8px;overflow:hidden;}
 
   .tc{text-align:center;}
-  .fw{font-weight:600;}
+  .fw{font-weight:600;white-space:nowrap;}
   .reply-ok{color:#2E7D32;font-weight:700;}
   .reply-no{color:#C62828;font-weight:700;}
   .reply-na{color:#546E7A;}
@@ -2921,13 +2923,13 @@ function downloadReportPDF() {
     <div class="sum-card" style="background:#E3F2FD;"><div class="val" style="color:#1565C0;">${totalLate}명</div><div class="lbl">지각</div></div>
     <div class="sum-card" style="background:#E8EAF6;"><div class="val" style="color:#283593;">${totalShort}명</div><div class="lbl">근무미달</div></div>
     <div class="sum-card" style="background:#E8F5E9;"><div class="val" style="color:#2E7D32;">${totalReply}/${campuses.length}</div><div class="lbl">보고회신</div></div>
-    <div class="sum-card" style="background:#FFEBEE;"><div class="val" style="color:#C62828;">${totalUnrec}개</div><div class="lbl">미회신</div></div>
+    <div class="sum-card" style="background:#FFEBEE;"><div class="val" style="color:#C62828;">${totalUnrec}곳</div><div class="lbl">미회신</div></div>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th style="width:68px;">캠퍼스</th>
+        <th style="width:88px;">캠퍼스</th>
         <th style="width:44px;">회신여부</th>
         <th style="width:50px;">회신일</th>
         <th style="width:50%;">지각 인원</th>
