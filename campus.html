@@ -2890,9 +2890,12 @@ function downloadReportPDF() {
 
   /* 표 */
   table{width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed;}
+  thead tr{background:#1565C0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   thead th{color:#fff;font-weight:600;padding:7px 8px;text-align:center;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.3);}
   thead th:last-child{border-right:none;}
-  thead th:nth-child(4),thead th:nth-child(5){text-align:left;}
+  thead th:nth-child(4),thead th:nth-child(5){text-align:center;}
+  tbody td:nth-child(4),tbody td:nth-child(5){text-align:center;}
+  tbody tr{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   tbody td{padding:6px 8px;border-bottom:1px solid #BBDEFB;border-right:1px solid #BBDEFB;vertical-align:top;line-height:1.5;word-break:keep-all;overflow-wrap:break-word;}
   tbody td:last-child{border-right:none;}
   tbody tr:last-child td{border-bottom:none;}
@@ -2908,7 +2911,7 @@ function downloadReportPDF() {
 
   @media print{
     body{padding:10px 14px;}
-    .header,.sum-card,thead tr{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .header,.sum-card,thead tr,tbody tr{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     @page{margin:10mm 12mm;}
   }
 </style>
