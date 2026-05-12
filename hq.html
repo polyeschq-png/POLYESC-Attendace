@@ -84,8 +84,6 @@ function applyRoleTabs(role){
   // PDF/이미지 저장 버튼 Owner만 표시
   const printBtn=document.querySelector('.print-btn');
   if(printBtn) printBtn.style.display=role==='owner'?'':'none';
-  const imgBtn=document.getElementById('img-save-btn');
-  if(imgBtn) imgBtn.style.display=role==='owner'?'':'none';
   // 💾 저장 버튼 Owner만 표시
   const saveBtn=document.getElementById('save-record-btn');
   if(saveBtn) saveBtn.style.display=role==='owner'?'':'none';
