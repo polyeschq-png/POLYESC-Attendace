@@ -2220,7 +2220,7 @@ function renderCopyPreview() {
       grouped[key].dates.push(dateFn(r));
     });
     return Object.values(grouped).map(g =>
-      `${g.name} ${g.position}\n${g.dates.map(d=>`  ${d}`).join('\n')}`
+      `${g.name} ${g.position}\n${g.dates.join('\n')}`
     ).join('\n\n');
   }
 
@@ -2254,28 +2254,49 @@ function renderCopyPreview() {
 
   } else {
     // ── 지각·근무미달 유형 ──
-    const intro = `안녕하세요 원장님,\n인사팀 이윤지 대리입니다.\n\n${monthLabel} 근태 현황 관련하여 아래와 같이 안내 드립니다.\n`;
+    const intro = `안녕하세요 원장님,\n인사팀입니다.\n\n${monthLabel} 근태 보고 결과 관련하여 아래와 같이 안내 드립니다.\n`;
     let lateSection = '';
     if (inclLate) {
       const rows = R.filter(r => r.type === 'late');
-      if (rows.length) lateSection = `\n【 지각 인원 】\n${groupByPerson(rows, r => {
-        const d = r.date ? r.date.slice(5).replace('-','/') : '-';
-        return `${d}  (출근) ${r.checkIn||'-'}`;
-      })}\n`;
+      if (rows.length) {
+        const grouped = {};
+        rows.forEach(r => {
+          const key = r.name + '|' + (r.position||'');
+          if (!grouped[key]) grouped[key] = { name:r.name, position:r.position||'', dates:[] };
+          const d = r.date ? r.date.slice(5).replace('-','/') : '-';
+          grouped[key].dates.push(`${d}  (출근) ${r.checkIn||'-'}`);
+        });
+        const body = Object.values(grouped).map(g =>
+          `${g.name} ${g.position}\n${g.dates.join('\n')}`
+        ).join('\n\n');
+        lateSection = `\n【 지각 인원 】\n${body}\n`;
+      }
     }
     let shortSection = '';
     if (inclShort) {
       const rows = R.filter(r => r.type === 'short');
-      if (rows.length) shortSection = `\n【 근무시간 미달 인원 】\n${groupByPerson(rows, r => {
-        const d = r.date ? r.date.slice(5).replace('-','/') : '-';
-        return `${d}  ${r.note||'-'}`;
-      })}\n`;
+      if (rows.length) {
+        const grouped = {};
+        rows.forEach(r => {
+          const key = r.name + '|' + (r.position||'');
+          if (!grouped[key]) grouped[key] = { name:r.name, position:r.position||'', dates:[] };
+          const d = r.date ? r.date.slice(5).replace('-','/') : '-';
+          const ci = r.checkIn  || '-';
+          const co = r.checkOut || '-';
+          const note = r.note   || '';
+          grouped[key].dates.push(`${d}  (출근) ${ci}  (퇴근) ${co}${note ? '  ' + note : ''}`);
+        });
+        const body = Object.values(grouped).map(g =>
+          `${g.name} ${g.position}\n${g.dates.join('\n')}`
+        ).join('\n\n');
+        shortSection = `\n【 근무시간 미달 인원 】\n${body}\n`;
+      }
     }
     if (!lateSection && !shortSection) {
       preview.textContent = '선택한 캠퍼스에 해당 데이터가 없습니다.';
       preview.dataset.plain = ''; return;
     }
-    const outro = `\n빠짐없는 출퇴근 등록 및 근무시간 준수 독려 부탁 드립니다.\n\n대표님 보고 예정이오니 빠른 확인 부탁 드립니다.\n\n감사합니다.\n이윤지 드림.`;
+    const outro = `\n빠짐없는 출퇴근 기록 및 근무시간 준수 독려 부탁 드립니다.\n\n감사합니다.\n인사팀 드림.`;
     const plain = intro + lateSection + shortSection + outro;
     preview.dataset.plain = plain;
     renderEmailHTML(preview, plain);
