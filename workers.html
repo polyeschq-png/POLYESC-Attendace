@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>전체 근로자 근태 — Poly ESC</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#1565C0;--primary-light:#E3F2FD;--primary-mid:#90CAF9;
+  --green:#2e7d32;--green-light:#e8f5e9;
+  --red:#c62828;--red-light:#ffebee;
+  --orange:#e65100;--orange-light:#fff3e0;
+  --yellow:#f57f17;--yellow-light:#fffde7;
+  --purple:#6a1b9a;--purple-light:#f3e5f5;
+  --white:#fff;--bg:#f0f4f8;--bg2:#e8edf3;
+  --border:#dde3ea;--border2:#c8d0db;
+  --text:#1a2332;--text2:#4a5568;--text3:#8a98a8;
+  --mono:'Courier New',monospace;
+  --shadow:0 2px 12px rgba(21,101,192,.1);
+  --radius:12px;
+}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;opacity:0;transition:opacity .3s}
+/* ── LAYOUT ── */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+header{display:flex;align-items:center;gap:12px;padding:0 24px;height:54px;background:var(--primary);box-shadow:0 2px 8px rgba(0,0,0,.2);flex-shrink:0;z-index:100}
+.logo{display:flex;align-items:center;gap:8px;color:#fff;font-size:15px;font-weight:700}
+.logo img{height:26px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.header-right span{color:rgba(255,255,255,.8);font-size:12px}
+.btn-logout{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+.btn-logout:hover{background:rgba(255,255,255,.25)}
+.btn-home{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+
+/* tabs */
+.tabs{display:flex;background:var(--white);border-bottom:2px solid var(--border);padding:0 24px;flex-shrink:0}
+.tab{padding:14px 18px;font-size:13px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;white-space:nowrap}
+.tab:hover{color:var(--primary)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:700}
+
+.content{flex:1;overflow-y:auto;padding:24px}
+
+/* ── PANELS ── */
+.panel{display:none}
+.panel.active{display:block}
+
+/* ── CARDS ── */
+.card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 24px;margin-bottom:16px}
+.card-title{font-size:14px;font-weight:700;color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+
+/* ── UPLOAD AREA ── */
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.upload-box{border:2px dashed var(--border2);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)}
+.upload-box:hover{border-color:var(--primary);background:var(--primary-light)}
+.upload-box.has-file{border-color:var(--green);background:var(--green-light);border-style:solid}
+.upload-box .icon{font-size:28px;margin-bottom:8px}
+.upload-box .label{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px}
+.upload-box .sub{font-size:11px;color:var(--text3)}
+.upload-box.has-file .label{color:var(--green)}
+input[type=file]{display:none}
+
+.campus-list{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.campus-item{background:var(--bg2);border-radius:8px;padding:10px 12px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.campus-item.loaded{background:var(--green-light);color:var(--green)}
+.campus-item.loaded .ci-name{font-weight:600}
+.campus-item .ci-btn{font-size:10px;padding:2px 8px;border:none;border-radius:4px;cursor:pointer;background:var(--primary);color:#fff;white-space:nowrap}
+.campus-item.loaded .ci-btn{background:var(--green)}
+
+/* ── SUMMARY CARDS ── */
+.sum-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.scard{background:var(--white);border-radius:10px;padding:16px;box-shadow:var(--shadow);text-align:center}
+.scard .num{font-size:28px;font-weight:700;line-height:1}
+.scard .lbl{font-size:11px;color:var(--text3);margin-top:4px}
+.scard.red .num{color:var(--red)}
+.scard.orange .num{color:var(--orange)}
+.scard.green .num{color:var(--green)}
+.scard.purple .num{color:var(--purple)}
+
+/* ── TABLES ── */
+.twrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:var(--primary);color:#fff;padding:9px 12px;text-align:left;font-weight:600;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:nth-child(even) td{background:#f8faff}
+tr:hover td{background:var(--primary-light)}
+
+/* ── MATCHING ── */
+.match-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.match-row:last-child{border-bottom:none}
+.match-name{flex:1;font-size:13px}
+.match-campus{font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:20px}
+.match-arrow{color:var(--text3);font-size:16px}
+.match-select{border:1.5px solid var(--border2);border-radius:6px;padding:6px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:200px;background:var(--white)}
+.match-select.matched{border-color:var(--green)}
+.match-badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600}
+.badge-auto{background:var(--green-light);color:var(--green)}
+.badge-manual{background:var(--primary-light);color:var(--primary)}
+.badge-unmatched{background:var(--red-light);color:var(--red)}
+.badge-dup{background:var(--purple-light);color:var(--purple)}
+
+/* ── CHIP ── */
+.chip{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.chip-red{background:var(--red-light);color:var(--red)}
+.chip-green{background:var(--green-light);color:var(--green)}
+.chip-orange{background:var(--orange-light);color:var(--orange)}
+.chip-purple{background:var(--purple-light);color:var(--purple)}
+.chip-blue{background:var(--primary-light);color:var(--primary)}
+
+/* ── BUTTONS ── */
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#0d47a1}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{opacity:.9}
+.btn-ghost{background:var(--bg2);color:var(--text2);border:1.5px solid var(--border2)}.btn-ghost:hover{background:var(--border)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ── SECTION TITLE ── */
+.sec-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+
+/* ── FILTER BAR ── */
+.fbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.fbar input,.fbar select{border:1.5px solid var(--border2);border-radius:8px;padding:7px 10px;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:var(--white);outline:none}
+.fbar input:focus,.fbar select:focus{border-color:var(--primary)}
+
+/* ── ITABS ── */
+.itabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:0}
+.itab{padding:8px 16px;font-size:12px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:6px 6px 0 0;transition:all .15s}
+.itab:hover{color:var(--primary);background:var(--primary-light)}
+.itab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:700;background:var(--primary-light)}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:24px;background:#1a2332;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;z-index:9999;max-width:320px}
+#toast.show{opacity:1}
+#toast.ok{background:var(--green)}
+#toast.err{background:var(--red)}
+
+/* ── COPY PREVIEW ── */
+#copy-preview{background:var(--white);border:1.5px solid var(--border);border-radius:10px;padding:20px;font-size:13px;line-height:1.9;white-space:pre-wrap;min-height:150px;font-family:'Noto Sans KR',sans-serif}
+
+/* ── PROGRESS ── */
+.progress-wrap{background:var(--bg2);border-radius:20px;height:6px;margin-top:8px;overflow:hidden}
+.progress-bar{height:100%;background:var(--primary);border-radius:20px;transition:width .3s}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:40px;color:var(--text3)}
+.empty .icon{font-size:36px;margin-bottom:8px}
+.empty h3{font-size:14px;font-weight:600;margin-bottom:4px}
+.empty p{font-size:12px}
+
+/* ── REPORT TABLE ── */
+.rpt-table{width:100%;border-collapse:collapse;font-size:12px}
+.rpt-table th{background:var(--primary);color:#fff;padding:8px 10px;text-align:center;font-weight:600;white-space:nowrap}
+.rpt-table td{padding:7px 10px;border:1px solid var(--border);text-align:center;vertical-align:middle}
+.rpt-table tr:nth-child(even) td{background:#f8faff}
+
+/* ── INFO BOX ── */
+.info-box{background:var(--primary-light);border:1px solid var(--primary-mid);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--primary);margin-bottom:12px;line-height:1.6}
+
+.pagination{display:flex;gap:4px;margin-top:12px;justify-content:center;flex-wrap:wrap}
+.pg-btn{padding:4px 10px;border:1.5px solid var(--border2);border-radius:6px;font-size:12px;background:var(--white);cursor:pointer}
+.pg-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="logo">
+    <img src="Poly_Emblem_Blue_A.png" alt="logo" onerror="this.style.display='none'">
+    전체 근로자 근태
+  </div>
+  <div class="header-right">
+    <span id="user-display"></span>
+    <button class="btn-home" onclick="window.location.href='landing.html'">🏠 메인으로</button>
+    <button class="btn-logout" onclick="handleSignOut()">로그아웃</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="upload" onclick="switchTab('upload')">📁 파일 업로드</div>
+  <div class="tab" data-tab="match" onclick="switchTab('match')">🔗 이름 매칭</div>
+  <div class="tab" data-tab="result" onclick="switchTab('result')">📊 분석 결과</div>
+  <div class="tab" data-tab="report" onclick="switchTab('report')">📋 보고자료</div>
+  <div class="tab" data-tab="email" onclick="switchTab('email')">✉️ 이메일 복사</div>
+  <div class="tab" data-tab="history" onclick="switchTab('history')">💾 월별 기록</div>
+</div>
+
+<div class="content">
+
+<!-- ── 파일 업로드 ── -->
+<div class="panel active" id="panel-upload">
+  <div class="card">
+    <div class="card-title">📅 분석 기준</div>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">분기</label>
+        <select id="sel-quarter" style="border:1.5px solid var(--border2);border-radius:8px;padding:7px 12px;font-size:13px;font-family:'Noto Sans KR',sans-serif;background:var(--white)">
+          <option value="1">1분기 (1~3월)</option>
+          <option value="2">2분기 (4~6월)</option>
+          <option value="3">3분기 (7~9월)</option>
+          <option value="4">4분기 (10~12월)</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">연도</label>
+        <input type="number" id="sel-year" value="2026" min="2020" max="2030" style="border:1.5px solid var(--border2);border-radius:8px;padding:7px 12px;font-size:13px;width:100px">
+      </div>
+      <div style="margin-top:18px">
+        <button class="btn btn-primary" onclick="runAnalysis()">🔍 분석 실행</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="upload-grid">
+    <!-- 급여대장 -->
+    <div class="card">
+      <div class="card-title">💰 급여대장</div>
+      <div class="info-box">캠퍼스별 탭이 포함된 급여대장 엑셀 1개를 업로드하세요.</div>
+      <div class="upload-box" id="payroll-box" onclick="document.getElementById('payroll-file').click()">
+        <div class="icon">📊</div>
+        <div class="label" id="payroll-label">급여대장 업로드</div>
+        <div class="sub">클릭하여 파일 선택 (.xlsx)</div>
+      </div>
+      <input type="file" id="payroll-file" accept=".xlsx,.xls" onchange="loadPayroll(this)">
+      <div id="payroll-status" style="margin-top:10px;font-size:12px;color:var(--text3)"></div>
+    </div>
+
+    <!-- 출퇴근 파일 -->
+    <div class="card">
+      <div class="card-title">🕐 출퇴근 파일 <span style="font-size:11px;font-weight:400;color:var(--text3)">캠퍼스별 1개씩</span></div>
+      <div class="info-box">캠퍼스명이 포함된 출퇴근 엑셀을 각각 업로드하세요.</div>
+      <div class="upload-box" onclick="document.getElementById('attend-file').click()">
+        <div class="icon">📁</div>
+        <div class="label">출퇴근 파일 추가</div>
+        <div class="sub">여러 개 동시 선택 가능</div>
+      </div>
+      <input type="file" id="attend-file" accept=".xlsx,.xls" multiple onchange="loadAttendance(this)">
+      <div class="campus-list" id="campus-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 이름 매칭 ── -->
+<div class="panel" id="panel-match">
+  <div class="card">
+    <div class="card-title">🔗 이름 매칭 현황</div>
+    <div class="sum-row" style="grid-template-columns:repeat(4,1fr)">
+      <div class="scard green"><div class="num" id="m-auto">0</div><div class="lbl">자동 매칭</div></div>
+      <div class="scard"><div class="num" id="m-manual" style="color:var(--primary)">0</div><div class="lbl">수동 매칭</div></div>
+      <div class="scard red"><div class="num" id="m-unmatched">0</div><div class="lbl">미매칭</div></div>
+      <div class="scard purple"><div class="num" id="m-dup">0</div><div class="lbl">중복 계정</div></div>
+    </div>
+    <div class="info-box">급여대장에는 있지만 출퇴근 파일에서 자동으로 매칭되지 않은 인원입니다. 드롭다운에서 출퇴근 파일의 이름을 직접 선택해주세요.</div>
+  </div>
+
+  <!-- 미매칭 -->
+  <div class="card" id="unmatched-card">
+    <div class="card-title">⚠️ 미매칭 인원 <span style="font-size:11px;font-weight:400;color:var(--text3)">(급여대장 기준)</span></div>
+    <div class="fbar">
+      <select id="match-campus-filter" onchange="renderMatchTable()">
+        <option value="">전체 캠퍼스</option>
+      </select>
+    </div>
+    <div id="match-list"><div class="empty"><div class="icon">✅</div><p>미매칭 인원 없음</p></div></div>
+  </div>
+
+  <!-- 중복 계정 -->
+  <div class="card" id="dup-card">
+    <div class="card-title">🔴 중복 계정 <span style="font-size:11px;font-weight:400;color:var(--text3)">(출퇴근 파일 기준)</span></div>
+    <div id="dup-list"><div class="empty"><div class="icon">✅</div><p>중복 계정 없음</p></div></div>
+  </div>
+</div>
+
+<!-- ── 분석 결과 ── -->
+<div class="panel" id="panel-result">
+  <div class="sum-row">
+    <div class="scard red" onclick="switchITab('res-delete')" style="cursor:pointer">
+      <div class="num" id="s-delete">0</div><div class="lbl">삭제 필요</div>
+    </div>
+    <div class="scard orange" onclick="switchITab('res-register')" style="cursor:pointer">
+      <div class="num" id="s-register">0</div><div class="lbl">등록 필요</div>
+    </div>
+    <div class="scard" style="cursor:pointer" onclick="switchITab('res-absence')">
+      <div class="num" id="s-absence" style="color:var(--yellow)">0</div><div class="lbl">출근률 미달</div>
+    </div>
+    <div class="scard purple" onclick="switchITab('res-dup')" style="cursor:pointer">
+      <div class="num" id="s-dup2">0</div><div class="lbl">중복 계정</div>
+    </div>
+  </div>
+
+  <div class="itabs">
+    <div class="itab active" data-itab="res-delete" onclick="switchITab('res-delete')">🗑 삭제 필요</div>
+    <div class="itab" data-itab="res-register" onclick="switchITab('res-register')">➕ 등록 필요</div>
+    <div class="itab" data-itab="res-absence" onclick="switchITab('res-absence')">📉 출근률 미달</div>
+    <div class="itab" data-itab="res-dup" onclick="switchITab('res-dup')">🔴 중복 계정</div>
+  </div>
+
+  <!-- 삭제 필요 -->
+  <div id="res-delete">
+    <div class="fbar">
+      <input type="text" id="del-search" placeholder="이름 검색..." oninput="renderDeleteTable()">
+      <select id="del-campus" onchange="renderDeleteTable()"><option value="">전체 캠퍼스</option></select>
+      <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="del-count"></span>
+    </div>
+    <div class="twrap"><table>
+      <thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>사번</th><th>비고</th></tr></thead>
+      <tbody id="del-tbody"></tbody>
+    </table></div>
+    <div class="pagination" id="del-pg"></div>
+  </div>
+
+  <!-- 등록 필요 -->
+  <div id="res-register" style="display:none">
+    <div class="fbar">
+      <input type="text" id="reg-search" placeholder="이름 검색..." oninput="renderRegisterTable()">
+      <select id="reg-campus" onchange="renderRegisterTable()"><option value="">전체 캠퍼스</option></select>
+      <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="reg-count"></span>
+    </div>
+    <div class="twrap"><table>
+      <thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>입사일</th><th>비고</th></tr></thead>
+      <tbody id="reg-tbody"></tbody>
+    </table></div>
+    <div class="pagination" id="reg-pg"></div>
+  </div>
+
+  <!-- 출근률 미달 -->
+  <div id="res-absence" style="display:none">
+    <div class="info-box">출근 + 퇴근 합산 출근률 60% 미만 인원 (휴직자·퇴사자 제외)</div>
+    <div class="fbar">
+      <input type="text" id="abs-search" placeholder="이름 검색..." oninput="renderAbsenceTable()">
+      <select id="abs-campus" onchange="renderAbsenceTable()"><option value="">전체 캠퍼스</option></select>
+      <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="abs-count"></span>
+    </div>
+    <div class="twrap"><table>
+      <thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>출근률</th><th>퇴근률</th><th>합산</th><th>비고</th></tr></thead>
+      <tbody id="abs-tbody"></tbody>
+    </table></div>
+    <div class="pagination" id="abs-pg"></div>
+  </div>
+
+  <!-- 중복 계정 -->
+  <div id="res-dup" style="display:none">
+    <div class="info-box">출퇴근 파일에 동일 이름이 2개 이상 등록된 인원입니다.</div>
+    <div class="twrap"><table>
+      <thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>중복 수</th><th>비고</th></tr></thead>
+      <tbody id="dup-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ── 보고자료 ── -->
+<div class="panel" id="panel-report">
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px">
+    <button class="btn btn-ghost btn-sm" onclick="downloadReportImage()">🖼️ 이미지 저장</button>
+  </div>
+  <div id="report-area">
+    <div class="empty"><div class="icon">📋</div><h3>분석 후 보고자료가 표시됩니다</h3></div>
+  </div>
+</div>
+
+<!-- ── 이메일 복사 ── -->
+<div class="panel" id="panel-email">
+  <div class="card">
+    <div class="card-title">✉️ 이메일 복사</div>
+    <div class="info-box">캠퍼스별 미삭제/미등록/출근률미달 인원을 이메일 형식으로 복사합니다.</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <select id="email-campus" onchange="renderEmailPreview()" style="border:1.5px solid var(--border2);border-radius:8px;padding:7px 12px;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:var(--white)">
+        <option value="">캠퍼스 선택...</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="chk-delete" checked onchange="renderEmailPreview()"> 미삭제
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="chk-register" checked onchange="renderEmailPreview()"> 미등록
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="chk-absence" checked onchange="renderEmailPreview()"> 출근률미달
+      </label>
+      <button class="btn btn-primary btn-sm" onclick="copyEmailContent()" style="margin-left:auto">📋 복사</button>
+    </div>
+    <div id="copy-preview" style="min-height:120px;color:var(--text3)">캠퍼스를 선택하면 미리보기가 표시됩니다.</div>
+  </div>
+</div>
+
+<!-- ── 월별 기록 ── -->
+<div class="panel" id="panel-history">
+  <div class="card">
+    <div class="card-title">💾 분석 기록 저장/불러오기</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="saveHistory()" id="save-history-btn" style="display:none">💾 현재 분석 저장</button>
+    </div>
+    <div id="history-list"><div class="empty"><div class="icon">💾</div><p>저장된 기록이 없습니다</p></div></div>
+  </div>
+</div>
+
+</div><!-- /content -->
+</div><!-- /app -->
+
+<div id="toast"></div>
+
+<script type="module">
+import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
+import{getFirestore,doc,getDoc,setDoc,collection,getDocs,deleteDoc,query,orderBy}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
+import{getAuth,onAuthStateChanged,signOut,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+
+const FIREBASE_CONFIG={apiKey:"AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",authDomain:"polyesc-attendance.firebaseapp.com",projectId:"polyesc-attendance",storageBucket:"polyesc-attendance.firebasestorage.app",messagingSenderId:"430669631304",appId:"1:430669631304:web:eb06ac4ba8d1d5108fed7d"};
+
+const app=initializeApp(FIREBASE_CONFIG);
+const db=getFirestore(app);
+const auth=getAuth(app);
+await setPersistence(auth,browserSessionPersistence);
+
+let currentUser=null;
+window._role='report';
+
+onAuthStateChanged(auth,async user=>{
+  if(!user){window.location.href='index.html';return;}
+  currentUser=user;
+  const snap=await getDoc(doc(db,'Users',user.email));
+  const role=snap.exists()?snap.data().role:'report';
+  window._role=role;
+  document.getElementById('user-display').textContent=user.displayName||user.email;
+  // 저장 버튼은 owner만
+  if(role==='owner') document.getElementById('save-history-btn').style.display='inline-flex';
+  document.body.style.opacity='1';
+  loadHistory();
+});
+
+window.handleSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
+
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let PAYROLL = {};      // {캠퍼스: [{name,position,empId,hireDate,leaveDate,status}]}
+let ATTEND  = {};      // {캠퍼스: [{name,position,ciRate,coRate,isDup}]}
+let MATCHES = {};      // {캠퍼스: {급여대장이름: 출퇴근이름|null}}
+let DUPS    = [];      // [{campus,name,count}]
+let RESULTS = {delete:[],register:[],absence:[],dup:[]};
+let HISTORY = [];
+
+const PAGE = 30;
+let delPage=1,regPage=1,absPage=1;
+
+const CAMPUS_MAP = {
+  '광교':'광교','광명':'광명','대전':'대전','MIL':'MIL','mil':'MIL',
+  '대치폴리매그넷':'대치폴리매그넷','대치폴리':'대치폴리매그넷',
+  '목동':'목동','목동매그넷':'목동매그넷','분당':'분당',
+  '송도':'송도','송파':'송파','수지':'수지','수지2':'수지2',
+  '운정':'운정','위례':'위례','유성':'유성','일산':'일산','정발':'정발','중계':'중계',
+  '대전엠폴리':'대전엠폴리','대전m':'대전엠폴리','대전M':'대전엠폴리',
+  '목동엠폴리':'목동엠폴리','목동m':'목동엠폴리','목동M':'목동엠폴리',
+  '분당엠폴리':'분당엠폴리','분당m':'분당엠폴리','분당M':'분당엠폴리',
+  '영통엠폴리':'영통엠폴리','영통m':'영통엠폴리','영통M':'영통엠폴리',
+  '일산엠폴리':'일산엠폴리','일산m':'일산엠폴리','일산M':'일산엠폴리',
+};
+
+// ══════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════
+window.switchTab=function(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+tab));
+  if(tab==='match') renderMatchTable();
+  if(tab==='result') renderAllResults();
+  if(tab==='report') renderReport();
+  if(tab==='email') renderEmailCampusOptions();
+  if(tab==='history') loadHistory();
+};
+
+window.switchITab=function(itab){
+  document.querySelectorAll('.itab').forEach(t=>t.classList.toggle('active',t.dataset.itab===itab));
+  ['res-delete','res-register','res-absence','res-dup'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display=id===itab?'block':'none';
+  });
+  if(itab==='res-delete') renderDeleteTable();
+  if(itab==='res-register') renderRegisterTable();
+  if(itab==='res-absence') renderAbsenceTable();
+};
+
+// ══════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════
+function showToast(msg,type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className='show '+(type==='ok'?'ok':'err');
+  clearTimeout(window._toastTimer);
+  window._toastTimer=setTimeout(()=>el.className='',3000);
+}
+
+// ══════════════════════════════════════
+// FILE LOADING — PAYROLL
+// ══════════════════════════════════════
+window.loadPayroll=function(input){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const SKIP_SHEETS=['Sheet1','202604 지급내역 요약','202604 급여지출내역','202604 참고사항','월별비교표','월별 비교표'];
+    PAYROLL={};
+    let count=0;
+    wb.SheetNames.forEach(sname=>{
+      if(SKIP_SHEETS.some(s=>sname.includes(s.slice(0,4))||s===sname)) return;
+      const campus=normCampus(sname);
+      if(!campus) return;
+      const ws=wb.Sheets[sname];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+      // 헤더 행 찾기 (사번,성명 있는 행)
+      let hdrIdx=-1;
+      for(let i=0;i<Math.min(rows.length,10);i++){
+        if(rows[i].some(c=>String(c).includes('성') && String(c).includes('명'))){
+          hdrIdx=i; break;
+        }
+      }
+      if(hdrIdx<0) return;
+      const hdr=rows[hdrIdx].map(c=>String(c).trim());
+      const iName=hdr.findIndex(h=>h.includes('성')&&h.includes('명'));
+      const iPos=hdr.findIndex(h=>h.includes('직급'));
+      const iEmp=hdr.findIndex(h=>h.includes('사번'));
+      const iHire=hdr.findIndex(h=>h.includes('입사일'));
+      const iLeave=hdr.findIndex(h=>h.includes('퇴사일'));
+      const iDiv=hdr.findIndex(h=>h.includes('구분'));
+      if(!PAYROLL[campus]) PAYROLL[campus]=[];
+      for(let i=hdrIdx+2;i<rows.length;i++){
+        const r=rows[i];
+        const name=String(r[iName]||'').trim().replace(/\s+/g,' ');
+        if(!name||name==='합 계') continue;
+        // 퇴사자 제외 (퇴사일 있으면)
+        const leaveDate=r[iLeave]?String(r[iLeave]).trim():'';
+        const empId=String(r[iEmp]||'').trim();
+        const status=String(r[iDiv]||'').trim(); // 정규직/계약직
+        const position=String(r[iPos]||'').trim();
+        // 사번에 휴직 등 텍스트가 들어오는 경우
+        const note=isNaN(empId)?empId:'';
+        PAYROLL[campus].push({name,position,empId,leaveDate,status,note,campus});
+        count++;
+      }
+    });
+    document.getElementById('payroll-label').textContent=`✅ ${file.name}`;
+    document.getElementById('payroll-status').textContent=`${Object.keys(PAYROLL).length}개 캠퍼스 / 총 ${count}명 로드`;
+    document.getElementById('payroll-box').classList.add('has-file');
+    showToast(`급여대장 로드 완료: ${count}명`,'ok');
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+// ══════════════════════════════════════
+// FILE LOADING — ATTENDANCE
+// ══════════════════════════════════════
+window.loadAttendance=function(input){
+  const files=Array.from(input.files);
+  files.forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      // 파일명 또는 첫 시트명에서 캠퍼스 추출
+      const campus=normCampusFromFilename(file.name)||normCampus(wb.SheetNames[0]);
+      if(!campus){showToast(`캠퍼스 인식 실패: ${file.name}`,'err');return;}
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+      parseAttendSheet(campus,rows);
+      updateCampusList();
+      showToast(`${campus} 출퇴근 파일 로드`,'ok');
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+function parseAttendSheet(campus,rows){
+  if(!rows.length) return;
+  // 헤더: A=부서,B=직급,C=이름,D=사번/특이,E=구분(출근/퇴근)
+  // 출근행/퇴근행 쌍으로 구성
+  // AL열(37)=출근횟수, AM열(38)=출근률
+  const persons=[];
+  const nameCount={};
+  let i=0;
+  while(i<rows.length){
+    const r=rows[i];
+    const name=String(r[2]||'').trim().replace(/\s+/g,' ');
+    const div=String(r[4]||'').trim();
+    if(!name||div!=='출근'){i++;continue;}
+    const position=String(r[1]||'').trim();
+    const note=String(r[3]||'').trim();
+    // 출근행
+    const ciRate=parseFloat(String(rows[i][38]||'').replace('%',''))||0;
+    // 다음행이 퇴근행이면
+    let coRate=0;
+    if(i+1<rows.length && String(rows[i+1][4]||'').trim()==='퇴근'){
+      coRate=parseFloat(String(rows[i+1][38]||'').replace('%',''))||0;
+      i+=2;
+    } else {i++;}
+    nameCount[name]=(nameCount[name]||0)+1;
+    persons.push({name,position,note,ciRate,coRate,campus});
+  }
+  // 중복 표시
+  persons.forEach(p=>{p.isDup=nameCount[p.name]>1;});
+  ATTEND[campus]=persons;
+  // 중복 목록
+  DUPS=DUPS.filter(d=>d.campus!==campus);
+  Object.entries(nameCount).forEach(([name,cnt])=>{
+    if(cnt>1) DUPS.push({campus,name,count:cnt});
+  });
+}
+
+function normCampus(name){
+  if(!name) return null;
+  const n=name.trim();
+  if(CAMPUS_MAP[n]) return CAMPUS_MAP[n];
+  // 부분 매칭
+  for(const [k,v] of Object.entries(CAMPUS_MAP)){
+    if(n.includes(k)||k.includes(n)) return v;
+  }
+  return null;
+}
+function normCampusFromFilename(name){
+  // 파일명에서 캠퍼스 추출
+  const n=name.replace(/\.xlsx?$/i,'');
+  for(const [k,v] of Object.entries(CAMPUS_MAP)){
+    if(n.includes(k)) return v;
+  }
+  return null;
+}
+
+function updateCampusList(){
+  const el=document.getElementById('campus-list');
+  const campuses=Object.keys(ATTEND).sort();
+  if(!campuses.length){el.innerHTML='';return;}
+  el.innerHTML=campuses.map(c=>`
+    <div class="campus-item loaded">
+      <span class="ci-name">${c}</span>
+      <span>${ATTEND[c].length}명</span>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════
+// NAME MATCHING
+// ══════════════════════════════════════
+function normName(n){
+  return (n||'').trim()
+    .replace(/\s*\(.*?\)/g,'')  // 괄호 제거
+    .replace(/\s+/g,' ')
+    .toLowerCase();
+}
+
+function autoMatch(payrollName,attendNames){
+  const pn=normName(payrollName);
+  // 1. 완전 일치
+  const exact=attendNames.find(a=>normName(a)===pn);
+  if(exact) return {match:exact,type:'exact'};
+  // 2. 포함 (급여대장 이름이 출퇴근 이름에 포함, 또는 반대)
+  const partial=attendNames.find(a=>{
+    const an=normName(a);
+    return an.includes(pn)||pn.includes(an);
+  });
+  if(partial) return {match:partial,type:'partial'};
+  // 3. 첫 단어 일치 (원어민 성만 일치)
+  const pFirst=pn.split(' ')[0];
+  if(pFirst.length>2){
+    const firstMatch=attendNames.find(a=>normName(a).split(' ')[0]===pFirst);
+    if(firstMatch) return {match:firstMatch,type:'first'};
+  }
+  return {match:null,type:'none'};
+}
+
+function buildMatches(){
+  MATCHES={};
+  Object.keys(PAYROLL).forEach(campus=>{
+    MATCHES[campus]={};
+    const attendNames=(ATTEND[campus]||[]).map(p=>p.name);
+    PAYROLL[campus].forEach(p=>{
+      const {match,type}=autoMatch(p.name,attendNames);
+      MATCHES[campus][p.name]={attendName:match,type,campus};
+    });
+  });
+}
+
+window.renderMatchTable=function(){
+  const campusFilter=document.getElementById('match-campus-filter').value;
+  // 필터 옵션
+  const el=document.getElementById('match-campus-filter');
+  const campuses=Object.keys(MATCHES).sort();
+  if(el.children.length<=1){
+    campuses.forEach(c=>{
+      const o=document.createElement('option');
+      o.value=c;o.textContent=c;
+      el.appendChild(o);
+    });
+  }
+  // 미매칭 목록
+  const list=document.getElementById('match-list');
+  const rows=[];
+  campuses.forEach(campus=>{
+    if(campusFilter&&campus!==campusFilter) return;
+    Object.entries(MATCHES[campus]).forEach(([payName,m])=>{
+      if(m.type==='none') rows.push({campus,payName,m});
+    });
+  });
+  // 요약 카운트
+  let auto=0,manual=0,unmatched=0;
+  Object.values(MATCHES).forEach(cm=>{
+    Object.values(cm).forEach(m=>{
+      if(m.type==='manual') manual++;
+      else if(m.type==='none') unmatched++;
+      else auto++;
+    });
+  });
+  document.getElementById('m-auto').textContent=auto;
+  document.getElementById('m-manual').textContent=manual;
+  document.getElementById('m-unmatched').textContent=unmatched;
+  document.getElementById('m-dup').textContent=DUPS.length;
+
+  if(!rows.length){
+    list.innerHTML='<div class="empty"><div class="icon">✅</div><p>미매칭 인원 없음</p></div>';
+  } else {
+    list.innerHTML=rows.map(({campus,payName})=>{
+      const attendOpts=(ATTEND[campus]||[]).map(p=>`<option value="${p.name}">${p.name}</option>`).join('');
+      const cur=MATCHES[campus][payName].attendName||'';
+      return `<div class="match-row">
+        <span class="match-campus">${campus}</span>
+        <span class="match-name">${payName}</span>
+        <span class="match-arrow">→</span>
+        <select class="match-select" onchange="setManualMatch('${campus}','${payName.replace(/'/g,"\\'")}',this.value)">
+          <option value="">— 출퇴근 파일에서 선택 —</option>
+          ${attendOpts}
+        </select>
+        <span class="match-badge badge-unmatched">미매칭</span>
+      </div>`;
+    }).join('');
+  }
+
+  // 중복 계정
+  const dupList=document.getElementById('dup-list');
+  if(!DUPS.length){
+    dupList.innerHTML='<div class="empty"><div class="icon">✅</div><p>중복 계정 없음</p></div>';
+  } else {
+    dupList.innerHTML=DUPS.map(d=>`
+      <div class="match-row">
+        <span class="match-campus">${d.campus}</span>
+        <span class="match-name">${d.name}</span>
+        <span class="match-badge badge-dup">${d.count}개 중복</span>
+      </div>`).join('');
+  }
+};
+
+window.setManualMatch=function(campus,payName,attendName){
+  if(!MATCHES[campus]) return;
+  MATCHES[campus][payName]={attendName:attendName||null,type:attendName?'manual':'none',campus};
+  renderMatchTable();
+};
+
+// ══════════════════════════════════════
+// ANALYSIS
+// ══════════════════════════════════════
+window.runAnalysis=function(){
+  if(!Object.keys(PAYROLL).length){showToast('급여대장을 먼저 업로드하세요','err');return;}
+  if(!Object.keys(ATTEND).length){showToast('출퇴근 파일을 먼저 업로드하세요','err');return;}
+  buildMatches();
+  RESULTS={delete:[],register:[],absence:[],dup:[...DUPS]};
+  const allCampuses=new Set([...Object.keys(PAYROLL),...Object.keys(ATTEND)]);
+  allCampuses.forEach(campus=>{
+    const payroll=PAYROLL[campus]||[];
+    const attend=ATTEND[campus]||[];
+    const matchMap=MATCHES[campus]||{};
+    // 매칭된 출퇴근 이름 집합
+    const matchedAttendNames=new Set(Object.values(matchMap).map(m=>m.attendName).filter(Boolean));
+    // 1. 삭제 필요: 출퇴근에 있는데 급여대장에 없는 인원
+    attend.forEach(a=>{
+      if(a.isDup) return;
+      const isInPayroll=matchedAttendNames.has(a.name)||
+        payroll.some(p=>normName(p.name)===normName(a.name)||
+          (matchMap[p.name]&&matchMap[p.name].attendName===a.name));
+      if(!isInPayroll){
+        RESULTS.delete.push({campus,name:a.name,position:a.position,note:a.note||''});
+      }
+    });
+    // 2. 등록 필요: 급여대장에 있는데 출퇴근에 없는 인원 (퇴사자 제외)
+    payroll.forEach(p=>{
+      if(p.leaveDate&&p.leaveDate.trim()) return; // 퇴사자 제외
+      const m=matchMap[p.name];
+      const matched=m&&m.attendName;
+      if(!matched){
+        RESULTS.register.push({campus,name:p.name,position:p.position,empId:p.empId,hireDate:p.note||'',note:p.note});
+      }
+    });
+    // 3. 출근률 미달: 합산 60% 미만 (휴직자 제외)
+    attend.forEach(a=>{
+      if(a.isDup) return;
+      // 급여대장에서 해당 인원 찾기
+      const payPerson=payroll.find(p=>{
+        const m=matchMap[p.name];
+        return m&&m.attendName===a.name;
+      });
+      // 휴직자 제외
+      if(payPerson&&(payPerson.note.includes('휴직')||payPerson.status.includes('휴직'))) return;
+      if(payPerson&&payPerson.leaveDate&&payPerson.leaveDate.trim()) return;
+      const total=a.ciRate+a.coRate;
+      if(total<60){
+        RESULTS.absence.push({
+          campus,name:a.name,position:a.position,
+          ciRate:a.ciRate,coRate:a.coRate,total,note:''
+        });
+      }
+    });
+  });
+  updateSummary();
+  renderAllResults();
+  renderCampusFilters();
+  showToast(`분석 완료 — 삭제필요 ${RESULTS.delete.length}명 / 등록필요 ${RESULTS.register.length}명 / 출근률미달 ${RESULTS.absence.length}명`,'ok');
+  switchTab('result');
+};
+
+function updateSummary(){
+  document.getElementById('s-delete').textContent=RESULTS.delete.length;
+  document.getElementById('s-register').textContent=RESULTS.register.length;
+  document.getElementById('s-absence').textContent=RESULTS.absence.length;
+  document.getElementById('s-dup2').textContent=RESULTS.dup.length;
+}
+
+function renderCampusFilters(){
+  const campuses=[...new Set([
+    ...RESULTS.delete.map(r=>r.campus),
+    ...RESULTS.register.map(r=>r.campus),
+    ...RESULTS.absence.map(r=>r.campus),
+  ])].sort();
+  ['del-campus','reg-campus','abs-campus'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.innerHTML='<option value="">전체 캠퍼스</option>';
+    campuses.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;el.appendChild(o);});
+  });
+}
+
+function renderAllResults(){
+  renderDeleteTable();
+  renderRegisterTable();
+  renderAbsenceTable();
+  renderDupTable();
+}
+
+function paginate(arr,page,size){return arr.slice((page-1)*size,page*size);}
+function renderPg(containerId,total,cur,size,setter){
+  const el=document.getElementById(containerId);
+  const pages=Math.max(1,Math.ceil(total/size));
+  if(pages<=1){el.innerHTML='';return;}
+  el.innerHTML=Array.from({length:pages},(_,i)=>
+    `<button class="pg-btn${cur===i+1?' active':''}" onclick="${setter}(${i+1})">${i+1}</button>`).join('');
+}
+
+window.renderDeleteTable=function(pg){
+  if(pg) delPage=pg;
+  const search=(document.getElementById('del-search').value||'').toLowerCase();
+  const campus=document.getElementById('del-campus').value;
+  const rows=RESULTS.delete.filter(r=>
+    (!campus||r.campus===campus)&&(!search||r.name.toLowerCase().includes(search)));
+  document.getElementById('del-count').textContent=`총 ${rows.length}명`;
+  const slice=paginate(rows,delPage,PAGE);
+  document.getElementById('del-tbody').innerHTML=slice.map((r,i)=>`
+    <tr>
+      <td>${r.campus}</td>
+      <td style="font-weight:600">${r.name}</td>
+      <td>${r.position}</td>
+      <td style="color:var(--text3)">${r.empId||'-'}</td>
+      <td style="font-size:11px;color:var(--text3)">${r.note||''}</td>
+    </tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">해당 없음</td></tr>';
+  renderPg('del-pg',rows.length,delPage,PAGE,'window.renderDeleteTable');
+};
+
+window.renderRegisterTable=function(pg){
+  if(pg) regPage=pg;
+  const search=(document.getElementById('reg-search').value||'').toLowerCase();
+  const campus=document.getElementById('reg-campus').value;
+  const rows=RESULTS.register.filter(r=>
+    (!campus||r.campus===campus)&&(!search||r.name.toLowerCase().includes(search)));
+  document.getElementById('reg-count').textContent=`총 ${rows.length}명`;
+  const slice=paginate(rows,regPage,PAGE);
+  document.getElementById('reg-tbody').innerHTML=slice.map(r=>`
+    <tr>
+      <td>${r.campus}</td>
+      <td style="font-weight:600">${r.name}</td>
+      <td>${r.position}</td>
+      <td style="color:var(--text3);font-size:11px">${r.note||'-'}</td>
+      <td style="font-size:11px;color:var(--text3)">${r.note||''}</td>
+    </tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">해당 없음</td></tr>';
+  renderPg('reg-pg',rows.length,regPage,PAGE,'window.renderRegisterTable');
+};
+
+window.renderAbsenceTable=function(pg){
+  if(pg) absPage=pg;
+  const search=(document.getElementById('abs-search').value||'').toLowerCase();
+  const campus=document.getElementById('abs-campus').value;
+  const rows=RESULTS.absence.filter(r=>
+    (!campus||r.campus===campus)&&(!search||r.name.toLowerCase().includes(search)));
+  document.getElementById('abs-count').textContent=`총 ${rows.length}명`;
+  const slice=paginate(rows,absPage,PAGE);
+  document.getElementById('abs-tbody').innerHTML=slice.map(r=>`
+    <tr>
+      <td>${r.campus}</td>
+      <td style="font-weight:600">${r.name}</td>
+      <td>${r.position}</td>
+      <td class="mono">${r.ciRate.toFixed(1)}%</td>
+      <td class="mono">${r.coRate.toFixed(1)}%</td>
+      <td class="mono" style="font-weight:700;color:var(--red)">${r.total.toFixed(1)}%</td>
+      <td style="font-size:11px;color:var(--text3)">${r.note||''}</td>
+    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">해당 없음</td></tr>';
+  renderPg('abs-pg',rows.length,absPage,PAGE,'window.renderAbsenceTable');
+};
+
+function renderDupTable(){
+  document.getElementById('dup-tbody').innerHTML=DUPS.map(d=>`
+    <tr>
+      <td>${d.campus}</td>
+      <td style="font-weight:600">${d.name}</td>
+      <td>${(ATTEND[d.campus]||[]).find(p=>p.name===d.name)?.position||'-'}</td>
+      <td><span class="chip chip-red">${d.count}개</span></td>
+      <td></td>
+    </tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">중복 없음</td></tr>';
+}
+
+// ══════════════════════════════════════
+// REPORT
+// ══════════════════════════════════════
+function renderReport(){
+  const area=document.getElementById('report-area');
+  if(!RESULTS.delete.length&&!RESULTS.register.length&&!RESULTS.absence.length){
+    area.innerHTML='<div class="empty"><div class="icon">📋</div><h3>분석 후 보고자료가 표시됩니다</h3></div>';
+    return;
+  }
+  const quarter=document.getElementById('sel-quarter').value;
+  const year=document.getElementById('sel-year').value;
+  const campuses=[...new Set([
+    ...RESULTS.delete.map(r=>r.campus),
+    ...RESULTS.register.map(r=>r.campus),
+    ...RESULTS.absence.map(r=>r.campus),
+  ])].sort((a,b)=>a.localeCompare(b,'ko'));
+
+  const tableRows=campuses.map((campus,i)=>{
+    const del=RESULTS.delete.filter(r=>r.campus===campus);
+    const reg=RESULTS.register.filter(r=>r.campus===campus);
+    const abs=RESULTS.absence.filter(r=>r.campus===campus);
+    const dup=DUPS.filter(d=>d.campus===campus);
+    const bg=i%2===0?'#fff':'#f5f7fa';
+    return `<tr style="background:${bg}">
+      <td style="font-weight:700;text-align:center">${campus}</td>
+      <td style="color:${del.length?'#c62828':'#2e7d32'};font-weight:${del.length?700:400};text-align:center">${del.length||'-'}</td>
+      <td style="color:${reg.length?'#e65100':'#2e7d32'};font-weight:${reg.length?700:400};text-align:center">${reg.length||'-'}</td>
+      <td style="color:${abs.length?'#f57f17':'#2e7d32'};font-weight:${abs.length?700:400};text-align:center">${abs.length||'-'}</td>
+      <td style="color:${dup.length?'#6a1b9a':'#2e7d32'};font-weight:${dup.length?700:400};text-align:center">${dup.length||'-'}</td>
+    </tr>`;
+  }).join('');
+
+  area.innerHTML=`
+    <div style="background:#fff;border-radius:12px;box-shadow:var(--shadow);padding:24px;" id="report-content">
+      <div style="background:linear-gradient(135deg,#1565C0,#1976D2);border-radius:8px;padding:14px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+        <div style="color:#fff;font-size:16px;font-weight:700">${year}년 ${quarter}분기 전체 근로자 근태 보고자료</div>
+        <div style="color:#BBDEFB;font-size:11px">출력일 ${new Date().toLocaleDateString('ko-KR')}</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:20px">
+        ${[
+          ['삭제 필요',RESULTS.delete.length,'#c62828','#ffebee'],
+          ['등록 필요',RESULTS.register.length,'#e65100','#fff3e0'],
+          ['출근률 미달',RESULTS.absence.length,'#f57f17','#fffde7'],
+          ['중복 계정',DUPS.length,'#6a1b9a','#f3e5f5'],
+        ].map(([l,n,c,bg])=>`
+          <div style="flex:1;background:${bg};border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:20px;font-weight:700;color:${c}">${n}명</div>
+            <div style="font-size:10px;color:#546E7A;margin-top:3px">${l}</div>
+          </div>`).join('')}
+      </div>
+      <table class="rpt-table">
+        <thead><tr>
+          <th style="width:100px">캠퍼스</th>
+          <th>삭제 필요</th>
+          <th>등록 필요</th>
+          <th>출근률 미달</th>
+          <th>중복 계정</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <div style="margin-top:10px;font-size:10px;color:#546E7A;font-style:italic">※ 출근률 미달 기준: 출근+퇴근 합산 60% 미만 (휴직자·퇴사자 제외)</div>
+    </div>`;
+}
+
+window.downloadReportImage=async function(){
+  const el=document.getElementById('report-content');
+  if(!el){showToast('보고자료가 없습니다','err');return;}
+  const quarter=document.getElementById('sel-quarter').value;
+  const year=document.getElementById('sel-year').value;
+  try{
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    document.head.appendChild(script);
+    await new Promise(r=>script.onload=r);
+    const canvas=await html2canvas(el,{scale:2,backgroundColor:'#fff',useCORS:true});
+    const link=document.createElement('a');
+    link.download=`${year}년_${quarter}분기_전체근로자근태보고.jpg`;
+    link.href=canvas.toDataURL('image/jpeg',0.95);
+    link.click();
+    showToast('이미지 저장 완료','ok');
+  }catch(e){showToast('이미지 저장 실패: '+e.message,'err');}
+};
+
+// ══════════════════════════════════════
+// EMAIL COPY
+// ══════════════════════════════════════
+function renderEmailCampusOptions(){
+  const el=document.getElementById('email-campus');
+  const campuses=[...new Set([
+    ...RESULTS.delete.map(r=>r.campus),
+    ...RESULTS.register.map(r=>r.campus),
+    ...RESULTS.absence.map(r=>r.campus),
+  ])].sort((a,b)=>a.localeCompare(b,'ko'));
+  el.innerHTML='<option value="">캠퍼스 선택...</option>'+
+    campuses.map(c=>`<option value="${c}">${c}</option>`).join('');
+}
+
+window.renderEmailPreview=function(){
+  const campus=document.getElementById('email-campus').value;
+  const inclDel=document.getElementById('chk-delete').checked;
+  const inclReg=document.getElementById('chk-register').checked;
+  const inclAbs=document.getElementById('chk-absence').checked;
+  const preview=document.getElementById('copy-preview');
+  if(!campus){preview.textContent='캠퍼스를 선택하면 미리보기가 표시됩니다.';preview.style.color='var(--text3)';return;}
+
+  const del=RESULTS.delete.filter(r=>r.campus===campus);
+  const reg=RESULTS.register.filter(r=>r.campus===campus);
+  const abs=RESULTS.absence.filter(r=>r.campus===campus);
+
+  let text='';
+  if(inclDel&&del.length){
+    text+=`【 삭제 필요 인원 】\n`;
+    del.forEach(r=>text+=`  ${r.name} (${r.position||'-'})\n`);
+    text+='\n';
+  }
+  if(inclReg&&reg.length){
+    text+=`【 등록 필요 인원 】\n`;
+    reg.forEach(r=>text+=`  ${r.name} (${r.position||'-'})\n`);
+    text+='\n';
+  }
+  if(inclAbs&&abs.length){
+    text+=`【 출근률 미달 인원 】\n`;
+    abs.forEach(r=>text+=`  ${r.name} (${r.position||'-'}) — ${r.total.toFixed(1)}%\n`);
+    text+='\n';
+  }
+
+  if(!text){preview.innerHTML='<span style="color:var(--text3)">해당 캠퍼스에 표시할 데이터가 없습니다.</span>';preview.dataset.plain='';return;}
+
+  preview.dataset.plain=text;
+  function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  preview.innerHTML=escHtml(text).replace(/【[^】]+】/g,m=>`<span style="color:#1565c0;font-weight:700">${m}</span>`).replace(/\n/g,'<br>');
+  preview.style.color='var(--text)';
+};
+
+window.copyEmailContent=async function(){
+  const text=document.getElementById('copy-preview').dataset.plain||'';
+  if(!text.trim()){showToast('복사할 내용이 없습니다','err');return;}
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('✅ 클립보드에 복사됐습니다','ok');
+  }catch(e){
+    const ta=document.createElement('textarea');
+    ta.value=text;document.body.appendChild(ta);ta.select();
+    document.execCommand('copy');document.body.removeChild(ta);
+    showToast('✅ 복사 완료','ok');
+  }
+};
+
+// ══════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════
+window.saveHistory=async function(){
+  if(!RESULTS.delete.length&&!RESULTS.register.length&&!RESULTS.absence.length){
+    showToast('분석 결과가 없습니다','err');return;
+  }
+  const quarter=document.getElementById('sel-quarter').value;
+  const year=document.getElementById('sel-year').value;
+  const key=`${year}-Q${quarter}`;
+  const record={key,year,quarter,savedAt:new Date().toLocaleString('ko-KR'),results:RESULTS,dups:DUPS,completed:false};
+  try{
+    await setDoc(doc(db,'workers_history',key),record);
+    showToast(`✅ ${key} 저장 완료`,'ok');
+    loadHistory();
+  }catch(e){showToast('저장 실패: '+e.message,'err');}
+};
+
+async function loadHistory(){
+  try{
+    const snap=await getDocs(query(collection(db,'workers_history'),orderBy('savedAt','desc')));
+    HISTORY=[];snap.forEach(d=>HISTORY.push(d.data()));
+    renderHistoryList();
+  }catch(e){console.warn(e);}
+}
+
+function renderHistoryList(){
+  const el=document.getElementById('history-list');
+  if(!HISTORY.length){el.innerHTML='<div class="empty"><div class="icon">💾</div><p>저장된 기록이 없습니다</p></div>';return;}
+  const isOwner=window._role==='owner';
+  el.innerHTML=HISTORY.map(h=>{
+    const isCompleted=!!h.completed;
+    const completedBtn=isCompleted
+      ?`<button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;border:1.5px solid #a5d6a7;font-size:11px" onclick="loadRecord('${h.key}')">✅ 완료된 보고자료</button>`
+      :`<button class="btn btn-sm" style="background:#f5f5f5;color:#9e9e9e;border:1.5px solid #e0e0e0;font-size:11px;cursor:default" disabled>📋 완료된 보고자료</button>`;
+    return `<div style="background:var(--white);border-radius:10px;padding:14px 18px;margin-bottom:8px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow)">
+      <div>
+        <div style="font-weight:700;font-size:14px">${h.year}년 ${h.quarter}분기</div>
+        <div style="font-size:11px;color:var(--text3)">저장: ${h.savedAt}</div>
+      </div>
+      <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
+        ${completedBtn}
+        ${isOwner?`<button class="btn btn-ghost btn-sm" onclick="loadRecord('${h.key}')">📂 불러오기</button>`:''}
+        ${isOwner?`<button class="btn btn-sm" style="font-size:11px;${isCompleted?'background:#fff3e0;color:#e65100;border:1.5px solid #ffcc80':'background:#e3f2fd;color:#1565c0;border:1.5px solid #90caf9'}" onclick="toggleComplete('${h.key}')">${isCompleted?'↩ 완료취소':'✔ 완료처리'}</button>`:''}
+        ${isOwner?`<button class="btn btn-sm" style="background:#ffebee;color:#c62828;border:1.5px solid #ef9a9a;font-size:11px" onclick="deleteRecord('${h.key}')">삭제</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.loadRecord=async function(key){
+  const h=HISTORY.find(r=>r.key===key);
+  if(!h) return;
+  RESULTS=h.results||{delete:[],register:[],absence:[],dup:[]};
+  DUPS=h.dups||[];
+  updateSummary();
+  renderAllResults();
+  renderCampusFilters();
+  switchTab('result');
+  showToast(`📂 ${h.year}년 ${h.quarter}분기 불러옴`,'ok');
+};
+
+window.toggleComplete=async function(key){
+  const h=HISTORY.find(r=>r.key===key);
+  if(!h) return;
+  h.completed=!h.completed;
+  await setDoc(doc(db,'workers_history',key),h);
+  renderHistoryList();
+  showToast(h.completed?'✅ 완료 처리됐습니다':'↩ 완료가 취소됐습니다','ok');
+};
+
+window.deleteRecord=async function(key){
+  if(!confirm(`${key} 기록을 삭제할까요?`)) return;
+  await deleteDoc(doc(db,'workers_history',key));
+  HISTORY=HISTORY.filter(h=>h.key!==key);
+  renderHistoryList();
+  showToast('삭제됨','ok');
+};
+</script>
+</body>
+</html>
