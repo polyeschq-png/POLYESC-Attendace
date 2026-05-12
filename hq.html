@@ -345,7 +345,6 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
     <button class="btn btn-g" style="padding:6px 14px;font-size:12px" onclick="exportReport()">📊 보고자료</button>
     <button class="btn btn-s" style="padding:6px 14px;font-size:12px;border-color:#16a34a;color:#16a34a" onclick="exportOTExcel()">📥 격려수당 엑셀</button>
     <button id="save-record-btn" class="btn btn-p" style="padding:6px 14px;font-size:12px" onclick="saveRecord()">💾 저장</button>
-<button class="print-btn" id="img-save-btn" onclick="saveReportAsImage()">🖼️ 이미지 저장</button>
   </div>
 </div>
 <div class="main">
@@ -566,6 +565,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
   <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px">
     <button class="btn btn-g" onclick="exportOTExcel()">📥 격려수당 엑셀</button>
     <button class="btn btn-s" onclick="openReportPopup()">🖨 팝업으로 보기/인쇄</button>
+    <button id="img-save-btn" class="btn btn-p" onclick="saveReportAsImage()">🖼️ 이미지 저장</button>
   </div>
   <div id="report-preview" style="background:#fff;border:1px solid var(--bdr);border-radius:10px;padding:24px;min-height:400px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#1e2132">
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--tx3);gap:8px">
