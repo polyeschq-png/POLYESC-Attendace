@@ -675,17 +675,40 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
       <div id="res-copy" style="display:none;">
         <div style="display:flex;flex-direction:column;gap:16px;max-width:680px;">
 
+          <!-- 이메일 유형 선택 -->
+          <div style="background:var(--bg2);border-radius:10px;padding:14px 16px;">
+            <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:10px;">📧 이메일 유형</div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
+                <input type="radio" name="email-type" id="email-type-cctv" value="cctv" checked
+                  style="accent-color:var(--primary);" onchange="renderCopyPreview()">
+                CCTV·지각 안내 (출퇴근 미등록 / 지각)
+              </label>
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
+                <input type="radio" name="email-type" id="email-type-late" value="late"
+                  style="accent-color:var(--primary);" onchange="renderCopyPreview()">
+                지각·근무미달 안내 (지각 / 근무시간 미달)
+              </label>
+            </div>
+          </div>
+
           <!-- 포함 내용 선택 -->
           <div style="background:var(--bg2);border-radius:10px;padding:14px 16px;">
             <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:10px;">📌 복사할 내용 선택</div>
-            <div style="display:flex;gap:20px;flex-wrap:wrap;">
-              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
+            <div style="display:flex;gap:20px;flex-wrap:wrap;" id="copy-chk-wrap">
+              <!-- CCTV 유형 체크박스 -->
+              <label id="chk-label-late" style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
                 <input type="checkbox" id="copy-chk-late" checked style="width:15px;height:15px;accent-color:var(--primary);">
                 지각 인원
               </label>
-              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
+              <label id="chk-label-cctv" style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
                 <input type="checkbox" id="copy-chk-cctv" checked style="width:15px;height:15px;accent-color:var(--primary);">
                 CCTV 확인 필요
+              </label>
+              <!-- 근무미달 유형 체크박스 (초기 숨김) -->
+              <label id="chk-label-short" style="display:none;align-items:center;gap:7px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="copy-chk-short" checked style="width:15px;height:15px;accent-color:var(--primary);">
+                근무시간 미달
               </label>
             </div>
           </div>
@@ -2155,97 +2178,115 @@ function renderCopyPreview() {
   const preview = document.getElementById('copy-preview');
   if (!preview) return;
 
-  // 체크박스 변경 시 자동 업데이트 이벤트 등록 (최초 1회)
   if (!window._copyListenerSet) {
-    document.getElementById('copy-chk-late')?.addEventListener('change', renderCopyPreview);
-    document.getElementById('copy-chk-cctv')?.addEventListener('change', renderCopyPreview);
+    ['copy-chk-late','copy-chk-cctv','copy-chk-short'].forEach(id => {
+      document.getElementById(id)?.addEventListener('change', renderCopyPreview);
+    });
+    document.querySelectorAll('input[name="email-type"]').forEach(r =>
+      r.addEventListener('change', renderCopyPreview)
+    );
     window._copyListenerSet = true;
   }
 
-  const inclLate = document.getElementById('copy-chk-late')?.checked;
-  const inclCctv = document.getElementById('copy-chk-cctv')?.checked;
+  const emailType = document.querySelector('input[name="email-type"]:checked')?.value || 'cctv';
+
+  // 체크박스 전환
+  const lateLabel  = document.getElementById('chk-label-late');
+  const cctvLabel  = document.getElementById('chk-label-cctv');
+  const shortLabel = document.getElementById('chk-label-short');
+  if (lateLabel)  lateLabel.style.display  = 'flex';
+  if (cctvLabel)  cctvLabel.style.display  = emailType === 'cctv' ? 'flex' : 'none';
+  if (shortLabel) shortLabel.style.display = emailType === 'cctv' ? 'none' : 'flex';
+
+  const inclLate  = document.getElementById('copy-chk-late')?.checked;
+  const inclCctv  = document.getElementById('copy-chk-cctv')?.checked;
+  const inclShort = document.getElementById('copy-chk-short')?.checked;
 
   // 월 정보
   const start = document.getElementById('dt-start')?.value || '';
   const month = start ? parseInt(start.slice(5,7)) : null;
-  const year  = start ? parseInt(start.slice(0,4)) : null;
   const nextMonth = month ? (month === 12 ? 1 : month + 1) : null;
-  const nextYear  = month === 12 ? year + 1 : year;
   const deadline  = nextMonth ? `${nextMonth}/10` : 'XX/10';
   const monthLabel = month ? `${month}월` : 'XX월';
 
-  // 캠퍼스 필터
   const campus = selectedCampus === '전체' ? null : selectedCampus;
   const R = campus ? RESULTS.filter(r => r.campus === campus) : RESULTS;
 
-  // 도입부
-  const intro = `안녕하세요 원장님,\n인사팀 이윤지 대리입니다.\n\n${monthLabel} 근태관련 특이사항 제출기한이었던 ${deadline}이 지나, 별도로 근태 관련 정보 공유 부탁 드립니다.\n`;
+  function groupByPerson(rows, dateFn) {
+    const grouped = {};
+    rows.forEach(r => {
+      const key = r.name + '|' + (r.position||'');
+      if (!grouped[key]) grouped[key] = { name:r.name, position:r.position||'', dates:[] };
+      grouped[key].dates.push(dateFn(r));
+    });
+    return Object.values(grouped).map(g =>
+      `${g.name} ${g.position}\n${g.dates.map(d=>`  ${d}`).join('\n')}`
+    ).join('\n\n');
+  }
 
-  // 지각 표 — 인원별 묶음
-  let lateSection = '';
-  if (inclLate) {
-    const lateRows = R.filter(r => r.type === 'late');
-    if (lateRows.length) {
-      // 이름+직급 기준으로 묶기
-      const grouped = {};
-      lateRows.forEach(r => {
-        const key = r.name + '|' + (r.position||'');
-        if (!grouped[key]) grouped[key] = { name:r.name, position:r.position||'', dates:[] };
+  if (emailType === 'cctv') {
+    // ── CCTV·지각 유형 ──
+    const intro = `안녕하세요 원장님,\n인사팀 이윤지 대리입니다.\n\n${monthLabel} 근태관련 특이사항 제출기한이었던 ${deadline}이 지나, 별도로 근태 관련 정보 공유 부탁 드립니다.\n`;
+    let lateSection = '';
+    if (inclLate) {
+      const rows = R.filter(r => r.type === 'late');
+      if (rows.length) lateSection = `\n【 지각 인원 】\n${groupByPerson(rows, r => {
         const d = r.date ? r.date.slice(5).replace('-','/') : '-';
-        grouped[key].dates.push(`${d}  (출근) ${r.checkIn||'-'}`);
-      });
-      const body = Object.values(grouped).map(g =>
-        `${g.name} ${g.position}\n${g.dates.map(d => `  ${d}`).join('\n')}`
-      ).join('\n\n');
-      lateSection = `\n【 지각 인원 】\n${body}\n`;
+        return `${d}  (출근) ${r.checkIn||'-'}`;
+      })}\n`;
     }
-  }
-
-  // CCTV 표 — 인원별 묶음
-  let cctvSection = '';
-  if (inclCctv) {
-    const cctvRows = R.filter(r => r.type === 'cctv' && !r.cctvChecked);
-    if (cctvRows.length) {
-      const grouped = {};
-      cctvRows.forEach(r => {
-        const key = r.name + '|' + (r.position||'');
-        if (!grouped[key]) grouped[key] = { name:r.name, position:r.position||'', dates:[] };
+    let cctvSection = '';
+    if (inclCctv) {
+      const rows = R.filter(r => r.type === 'cctv' && !r.cctvChecked);
+      if (rows.length) cctvSection = `\n【 출퇴근 미등록 확인 필요 】\n${groupByPerson(rows, r => {
         const d = r.date ? r.date.slice(5).replace('-','/') : '-';
-        grouped[key].dates.push(`${d}  ${r.note||'-'}`);
-      });
-      const body = Object.values(grouped).map(g =>
-        `${g.name} ${g.position}\n${g.dates.map(d => `  ${d}`).join('\n')}`
-      ).join('\n\n');
-      cctvSection = `\n【 출퇴근 미등록 확인 필요 】\n${body}\n`;
+        return `${d}  ${r.note||'-'}`;
+      })}\n`;
     }
-  }
-
-  // 데이터 없는 경우
-  if (!lateSection && !cctvSection) {
-    if (!inclLate && !inclCctv) {
-      preview.textContent = '복사할 내용을 하나 이상 선택해주세요.';
-      return;
+    if (!lateSection && !cctvSection) {
+      preview.textContent = '선택한 캠퍼스에 해당 데이터가 없습니다.';
+      preview.dataset.plain = ''; return;
     }
-    preview.textContent = '선택한 캠퍼스에 해당 데이터가 없습니다.';
-    return;
+    const outro = `\n출퇴근 미등록은 CCTV 자료를 증빙 부탁 드리며,\n오전 셔틀탑승의 경우, 별도로 말씀 주셔야 지각처리 되지 않습니다.\n\n빠짐없는 출퇴근 등록 독려 부탁 드립니다.\n\n대표님 보고 예정이오니 빠른 회신 부탁 드립니다.\n\n감사합니다.\n이윤지 드림.`;
+    const plain = intro + lateSection + cctvSection + outro;
+    preview.dataset.plain = plain;
+    renderEmailHTML(preview, plain);
+
+  } else {
+    // ── 지각·근무미달 유형 ──
+    const intro = `안녕하세요 원장님,\n인사팀 이윤지 대리입니다.\n\n${monthLabel} 근태 현황 관련하여 아래와 같이 안내 드립니다.\n`;
+    let lateSection = '';
+    if (inclLate) {
+      const rows = R.filter(r => r.type === 'late');
+      if (rows.length) lateSection = `\n【 지각 인원 】\n${groupByPerson(rows, r => {
+        const d = r.date ? r.date.slice(5).replace('-','/') : '-';
+        return `${d}  (출근) ${r.checkIn||'-'}`;
+      })}\n`;
+    }
+    let shortSection = '';
+    if (inclShort) {
+      const rows = R.filter(r => r.type === 'short');
+      if (rows.length) shortSection = `\n【 근무시간 미달 인원 】\n${groupByPerson(rows, r => {
+        const d = r.date ? r.date.slice(5).replace('-','/') : '-';
+        return `${d}  ${r.note||'-'}`;
+      })}\n`;
+    }
+    if (!lateSection && !shortSection) {
+      preview.textContent = '선택한 캠퍼스에 해당 데이터가 없습니다.';
+      preview.dataset.plain = ''; return;
+    }
+    const outro = `\n빠짐없는 출퇴근 등록 및 근무시간 준수 독려 부탁 드립니다.\n\n대표님 보고 예정이오니 빠른 확인 부탁 드립니다.\n\n감사합니다.\n이윤지 드림.`;
+    const plain = intro + lateSection + shortSection + outro;
+    preview.dataset.plain = plain;
+    renderEmailHTML(preview, plain);
   }
+}
 
-  // 종결부
-  const outro = `\n출퇴근 미등록은 CCTV 자료를 증빙 부탁 드리며,\n오전 셔틀탑승의 경우, 별도로 말씀 주셔야 지각처리 되지 않습니다.\n\n빠짐없는 출퇴근 등록 독려 부탁 드립니다.\n\n대표님 보고 예정이오니 빠른 회신 부탁 드립니다.\n\n감사합니다.\n이윤지 드림.`;
-
-  // 순수 텍스트 (복사용) — data 속성에 저장
-  const plainText = intro + lateSection + cctvSection + outro;
-  preview.dataset.plain = plainText;
-
-  // HTML 렌더링 — 섹션 제목만 파란색
+function renderEmailHTML(preview, text) {
   function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  function toHtml(text) {
-    return escHtml(text).replace(
-      /【[^】]+】/g,
-      m => `<span style="color:#1565c0;font-weight:700;">${m}</span>`
-    ).replace(/\n/g,'<br>');
-  }
-  preview.innerHTML = toHtml(plainText);
+  preview.innerHTML = escHtml(text)
+    .replace(/【[^】]+】/g, m => `<span style="color:#1565c0;font-weight:700;">${m}</span>`)
+    .replace(/\n/g,'<br>');
 }
 
 async function copyEmailContent() {
