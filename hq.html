@@ -81,6 +81,14 @@ function applyRoleTabs(role){
   // 전체 기록 삭제 버튼 Owner만 표시
   const delBtn=document.getElementById('records-del-btn');
   if(delBtn) delBtn.style.display=role==='owner'?'':'none';
+  // PDF/이미지 저장 버튼 Owner만 표시
+  const printBtn=document.querySelector('.print-btn');
+  if(printBtn) printBtn.style.display=role==='owner'?'':'none';
+  const imgBtn=document.getElementById('img-save-btn');
+  if(imgBtn) imgBtn.style.display=role==='owner'?'':'none';
+  // 💾 저장 버튼 Owner만 표시
+  const saveBtn=document.getElementById('save-record-btn');
+  if(saveBtn) saveBtn.style.display=role==='owner'?'':'none';
   // 첫 화면은 항상 월별 기록
   sw('records');
 }
@@ -291,6 +299,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
 .hol-tag{display:inline-flex;align-items:center;gap:5px;background:#fee2e2;border:1px solid #fecaca;border-radius:4px;padding:2px 8px;font-size:11px;color:#dc2626;margin:2px}
 .hol-tag button{background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;padding:0 1px}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body style="opacity:0;transition:opacity 0.3s">
 <div class="app-layout">
@@ -335,7 +344,8 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
     <span class="save-indicator" id="save-indicator">✓ 저장됨</span>
     <button class="btn btn-g" style="padding:6px 14px;font-size:12px" onclick="exportReport()">📊 보고자료</button>
     <button class="btn btn-s" style="padding:6px 14px;font-size:12px;border-color:#16a34a;color:#16a34a" onclick="exportOTExcel()">📥 격려수당 엑셀</button>
-    <button class="btn btn-p" style="padding:6px 14px;font-size:12px" onclick="saveRecord()">💾 저장</button>
+    <button id="save-record-btn" class="btn btn-p" style="padding:6px 14px;font-size:12px" onclick="saveRecord()">💾 저장</button>
+<button class="print-btn" id="img-save-btn" onclick="saveReportAsImage()">🖼️ 이미지 저장</button>
   </div>
 </div>
 <div class="main">
@@ -2116,6 +2126,51 @@ function exportReport(){
   openReportPopup();
 }
 
+async function saveReportAsImage(){
+  if(!analysed){alert('먼저 파일을 업로드하세요.');return;}
+
+  const{y,m}=analysed;
+  const btn=document.getElementById('img-save-btn');
+  if(btn){btn.textContent='⏳ 생성 중...';btn.disabled=true;}
+
+  try{
+    // 보고자료 HTML을 새 창에 렌더링 후 html2canvas로 캡처
+    const html=await buildReportHTML('');
+    const win=window.open('','_blank','width=1200,height=900');
+    win.document.write(html);
+    win.document.close();
+
+    // 폰트/이미지 로딩 대기
+    await new Promise(r=>win.addEventListener('load',r,{once:true}));
+    await new Promise(r=>setTimeout(r,600));
+
+    // 전체 페이지 높이로 캡처
+    const canvas=await win.html2canvas(win.document.body,{
+      scale:2,
+      useCORS:true,
+      allowTaint:true,
+      backgroundColor:'#ffffff',
+      width:win.document.body.scrollWidth,
+      height:win.document.body.scrollHeight,
+      windowWidth:win.document.body.scrollWidth,
+      windowHeight:win.document.body.scrollHeight,
+    });
+
+    // JPG 다운로드
+    const link=document.createElement('a');
+    link.download=`${y}년${m}월_본사근태보고자료.jpg`;
+    link.href=canvas.toDataURL('image/jpeg',0.95);
+    link.click();
+
+    win.close();
+  }catch(e){
+    alert('이미지 저장 중 오류가 발생했습니다: '+e.message);
+    console.error(e);
+  }finally{
+    if(btn){btn.textContent='🖼️ 이미지 저장';btn.disabled=false;}
+  }
+}
+
 async function buildReportHTML(extraMemo){
   const{lateList,otList,y,m}=analysed;
   const totalOT=otList.reduce((s,r)=>s+r.pay,0);
@@ -2179,6 +2234,7 @@ async function buildReportHTML(extraMemo){
   const memoSection=extraMemo.trim()?`<div class="section" style="border-left:4px solid #6366f1"><div class="sec-hdr"><h2>📝 추가 설명</h2></div><div style="padding:16px 20px;font-size:13px;line-height:1.9;color:#334155;white-space:pre-wrap">${extraMemo.trim()}</div></div>`:'';
 
   const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${y}년 ${m}월 본사 근태 보고자료</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -2223,7 +2279,6 @@ tr.dept-hdr td{background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;b
 .footer{text-align:center;color:#94a3b8;font-size:11px;margin-top:18px;padding-top:13px;border-top:1px solid #e2e8f0}
 @media print{body{padding:8px;background:#fff}.section,.sum-card,.cmp-card{box-shadow:none;break-inside:avoid}.report-hdr{-webkit-print-color-adjust:exact;print-color-adjust:exact}.print-btn{display:none}}
 </style></head><body>
-<button class="print-btn" onclick="window.print()">🖨️ PDF 저장</button>
 <div class="page">
 <div class="report-hdr">
   <h1>📋 ${y}년 ${m}월 본사 근태 보고자료</h1>
