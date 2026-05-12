@@ -715,11 +715,17 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
 
           <!-- 미리보기 -->
           <div>
+            <!-- 제목 복사 -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;background:var(--bg2);border-radius:8px;padding:10px 14px;">
+              <span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">📌 제목</span>
+              <span id="email-subject-text" style="flex:1;font-size:13px;color:var(--text);font-weight:500;"></span>
+              <button class="btn btn-ghost btn-sm" onclick="copySubject()" style="white-space:nowrap;">📋 제목 복사</button>
+            </div>
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-              <span style="font-size:13px;font-weight:700;color:var(--text);">📄 미리보기</span>
+              <span style="font-size:13px;font-weight:700;color:var(--text);">📄 본문 미리보기</span>
               <span style="flex:1;"></span>
               <button class="btn btn-blue btn-sm" onclick="copyEmailContent()" style="gap:6px;">
-                📋 클립보드에 복사
+                📋 본문 복사
               </button>
             </div>
             <div id="copy-preview"
@@ -2190,6 +2196,15 @@ function renderCopyPreview() {
 
   const emailType = document.querySelector('input[name="email-type"]:checked')?.value || 'cctv';
 
+  // 제목 업데이트
+  const subjectEl = document.getElementById('email-subject-text');
+  if (subjectEl) {
+    const subjectMonth = month ? `${month}월` : 'XX월';
+    subjectEl.textContent = emailType === 'cctv'
+      ? `[인사팀] ${subjectMonth} 근태자료 요청 드립니다.`
+      : `[인사팀] ${subjectMonth} 근태 결과 공유 드립니다.`;
+  }
+
   // 체크박스 전환
   const lateLabel  = document.getElementById('chk-label-late');
   const cctvLabel  = document.getElementById('chk-label-cctv');
@@ -2309,6 +2324,20 @@ function renderEmailHTML(preview, text) {
     .replace(/【[^】]+】/g, m => `<span style="color:#1565c0;font-weight:700;">${m}</span>`)
     .replace(/(\*정기\/비정기적[^\n]+)/g, m => `<span style="color:#1565c0;font-size:11px;">${m}</span>`)
     .replace(/\n/g,'<br>');
+}
+
+async function copySubject() {
+  const text = document.getElementById('email-subject-text')?.textContent || '';
+  if (!text) { showToast('제목이 없습니다', 'err'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('✅ 제목이 복사됐습니다', 'ok');
+  } catch(e) {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('✅ 제목 복사 완료', 'ok');
+  }
 }
 
 async function copyEmailContent() {
