@@ -2660,7 +2660,8 @@ function refreshReport() {
 
     var receiptHtml;
     if (rec.date && rec.date.length === 10) {
-      receiptHtml = inBase + ' value="'+rec.date+'" style="'+inStyle+'border:1.5px solid var(--green);">';
+      var dateBorder = isLateDate(rec.date) ? '#ef4444' : 'var(--green)';
+      receiptHtml = inBase + ' value="'+rec.date+'" style="'+inStyle+'border:1.5px solid '+dateBorder+';">';
     } else if (rec.unnecessary) {
       receiptHtml = selBase + ' style="'+selStyle+'border:1.5px solid var(--green);">'+opts_unnec+'</select>';
     } else if (rec.unreceived) {
@@ -2728,17 +2729,26 @@ function updateReceiptCellStyle(campus, monthKey) {
   const cctvCount = RESULTS.filter(r => r.campus === campus && r.type === 'cctv').length;
   // 완료: 날짜 입력 또는 불필요 → 초록
   // 미수신 또는 CCTV 5건 이상인데 미처리 → 빨강
-  const isDone = (rec.date && rec.date.length === 10) || rec.unnecessary;
-  const isAlert = rec.unreceived || (!isDone && cctvCount >= 5);
+  const isDone = ((rec.date && rec.date.length === 10 && !isLateDate(rec.date)) || rec.unnecessary);
+  const isAlert = rec.unreceived || (!isDone && cctvCount >= 5) || (rec.date && isLateDate(rec.date));
   const borderColor = isDone ? 'var(--green)' : isAlert ? '#ef4444' : 'var(--border2)';
   // data 속성으로 셀 찾기
   const cell = document.querySelector(`[data-receipt-campus="${CSS.escape(campus)}"]`);
   if (cell) cell.style.borderColor = borderColor;
 }
 
+function isLateDate(dateStr) {
+  // 날짜가 11일 이후인지 확인 (YYYY-MM-DD)
+  if (!dateStr || dateStr.length !== 10) return false;
+  const day = parseInt(dateStr.slice(8, 10));
+  return day >= 11;
+}
+
 function getReceiptBorderColor(rec, cctvCount) {
-  const isDone = (rec.date && rec.date.length === 10) || rec.unnecessary;
-  if (isDone) return 'var(--green)';
+  if (rec.unnecessary) return 'var(--green)';
+  if (rec.date && rec.date.length === 10) {
+    return isLateDate(rec.date) ? '#ef4444' : 'var(--green)';
+  }
   if (rec.unreceived || cctvCount >= 5) return '#ef4444';
   return 'var(--border2)';
 }
@@ -2831,7 +2841,9 @@ function downloadReportPDF() {
 
     let replyYn, replyDate, replyClass;
     if (rec.date && rec.date.length===10) {
-      replyYn='O'; replyDate=rec.date.slice(5).replace('-','/'); replyClass='reply-ok';
+      const late = isLateDate(rec.date);
+      replyYn='O'; replyDate=rec.date.slice(5).replace('-','/');
+      replyClass = late ? 'reply-no' : 'reply-ok';
     } else if (rec.unnecessary) {
       replyYn='-'; replyDate='-'; replyClass='reply-na';
     } else if (rec.unreceived) {
