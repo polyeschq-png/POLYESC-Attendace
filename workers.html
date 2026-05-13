@@ -21,8 +21,8 @@
 :root{
   --green:#ffcd4a;--green-dk:#d4a800;--green-lt:#feefc5;
   --navy:#feefc5;--navy-dk:#fde8a8;
-  --bg:#fdf6e3;--white:#fff;--border:#f0d98a;--border2:#e8c84a;
-  --text:#2d2200;--text2:#5c4a00;--text3:#9e8a3a;
+  --bg:#f4f6f8;--white:#fff;--border:#dde2ea;--border2:#c8d0db;
+  --text:#1e2a3a;--text2:#4a5568;--text3:#8a96a8;
   --red:#e53e3e;--orange:#dd6b20;--yellow:#d69e2e;--blue:#3182ce;--purple:#7c3aed;
   --radius:8px;--shadow:0 1px 3px rgba(0,0,0,.08);--shadow-md:0 4px 12px rgba(0,0,0,.10);
   --mono:'JetBrains Mono',monospace;--sans:'Noto Sans KR',sans-serif;
@@ -62,7 +62,7 @@ header{background:var(--white);border-bottom:1px solid var(--border);padding:0 2
 .chip-x{cursor:pointer;color:var(--text3);line-height:1}.chip-x:hover{color:var(--red)}
 .sum-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
 .scard{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s}
-.scard:hover{box-shadow:var(--shadow-md);background:#fffdf5}
+.scard:hover{box-shadow:var(--shadow-md);background:#f8fafc}
 .scard .num{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:3px}
 .scard .lbl{font-size:11px;color:var(--text2)}
 .scard.red .num{color:var(--red)}.scard.orange .num{color:var(--orange)}.scard.yellow .num{color:var(--yellow)}.scard.green .num{color:var(--green)}.scard.purple .num{color:var(--purple)}
@@ -99,7 +99,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .badge-manual{background:#ebf4ff;color:var(--blue);font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600}
 .badge-none{background:#fff0f0;color:var(--red);font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600}
 .badge-dup{background:#f5f0ff;color:var(--purple);font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600}
-.info-box{background:#fef8e1;border:1px solid #f0d98a;border-radius:var(--radius);padding:11px 14px;font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6}
+.info-box{background:#f0f7e8;border:1px solid #c6e0a0;border-radius:var(--radius);padding:11px 14px;font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6}
 .warn-box{background:#fffbeb;border:1px solid #fcd34d;border-radius:var(--radius);padding:11px 14px;font-size:13px;color:var(--text2);margin-bottom:14px}
 .pagination{display:flex;align-items:center;gap:4px;padding:12px 16px;border-top:1px solid var(--border)}
 .pgbtn{width:30px;height:30px;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;border:1px solid var(--border);color:var(--text2);background:var(--white);font-family:var(--mono);transition:all .15s}
@@ -107,9 +107,27 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .empty{text-align:center;padding:40px 20px;color:var(--text3)}.empty .icon{font-size:32px;margin-bottom:8px}.empty h3{color:var(--text2);font-size:14px;margin-bottom:4px}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:11px 15px;font-size:13px;z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s;max-width:320px;box-shadow:var(--shadow-md)}
 .toast.show{transform:translateY(0);opacity:1}.toast.ok{border-color:var(--green)}.toast.err{border-color:var(--red)}
-/* 인원관리 탭 */
-.person-table input[type=text]{width:100%;padding:5px 8px;font-size:12px}
-.person-table select{width:100%;padding:5px 8px;font-size:12px}
+/* ── 인원관리 2패널 ── */
+#pm-list{width:200px;min-width:200px;border-right:1px solid var(--border);overflow-y:auto;background:var(--white);flex-shrink:0}
+#pm-detail{flex:1;overflow-y:auto;padding:20px 24px;background:var(--bg)}
+.pm-list-header{padding:10px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;background:#f8fafc;position:sticky;top:0;z-index:10}
+.pm-item{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;cursor:pointer;border-bottom:1px solid #f3f4f6;transition:background .12s;font-size:13px;color:var(--text2);border-left:3px solid transparent}
+.pm-item:hover{background:var(--green-lt);color:var(--text)}
+.pm-item.active{background:var(--green-lt);color:var(--green-dk);font-weight:600;border-left-color:var(--green)}
+.pm-item .pm-cnt{font-size:11px;font-family:var(--mono);color:var(--text3)}
+.pm-item.active .pm-cnt{color:var(--green)}
+/* 인원 카드 */
+.person-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);transition:box-shadow .15s}
+.person-card:hover{box-shadow:var(--shadow-md)}
+.person-card.is-leave{background:#fffde7;border-color:#fcd34d}
+.person-card.is-unmatched{border-left:3px solid var(--red)}
+.pc-name{font-weight:700;font-size:14px;min-width:120px}
+.pc-pos{font-size:12px;color:var(--text3);min-width:80px}
+.pc-div{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg);color:var(--text2);white-space:nowrap}
+.pc-input{border:1px solid var(--border2);border-radius:6px;padding:5px 9px;font-size:12px;font-family:var(--sans);background:var(--white);color:var(--text);width:180px;outline:none;transition:border-color .15s}
+.pc-input:focus{border-color:var(--green)}
+.pc-input.has-val{border-color:var(--green);background:var(--green-lt)}
+.pc-leave-wrap{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);white-space:nowrap}
 /* 보고자료 */
 .rpt-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
 .rpt-hdr{background:linear-gradient(135deg,#c9960a,#ffcd4a);border-radius:8px;padding:14px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
@@ -125,7 +143,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .rpt-tbl td{padding:7px 10px;border-bottom:1px solid var(--border);border-right:1px solid #f0f4f8;text-align:center;vertical-align:middle}
 .rpt-tbl td:last-child{border-right:none}
 .rpt-tbl td:first-child{text-align:left;font-weight:600}
-.rpt-tbl tr:nth-child(even) td{background:#fef8e1}
+.rpt-tbl tr:nth-child(even) td{background:#f8fafc}
 .rpt-tbl tr:last-child td{border-bottom:none}
 #copy-preview{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:16px 20px;font-size:13px;line-height:1.9;white-space:pre-wrap;min-height:140px}
 .hist-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:8px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)}
@@ -149,9 +167,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
     <div class="sb-item" data-tab="history" onclick="switchTab('history')"><span class="sb-icon">💾</span>월별 기록</div>
   </div>
   <div style="margin-top:auto;padding:12px 10px;border-top:1px solid rgba(0,0,0,.08);">
-    <div id="sb-nickname" style="font-size:12px;font-weight:700;color:#8a6a00;margin-bottom:2px"></div>
-    <div id="sb-user-id" style="font-size:10px;color:var(--text3);margin-bottom:2px;word-break:break-all"></div>
-    <div id="sb-role-badge" style="font-size:10px;color:var(--text3);margin-bottom:10px"></div>
+    <div id="sb-nickname" style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px"></div>
+    <div id="sb-user-id" style="font-size:10px;color:var(--text2);margin-bottom:2px;word-break:break-all"></div>
+    <div id="sb-role-badge" style="font-size:10px;color:var(--text2);margin-bottom:10px"></div>
     <button class="sb-bottom-btn" onclick="window.location.href='landing.html'">🏠 메인으로</button>
     <button class="sb-bottom-btn sb-logout" onclick="handleSignOut()">🚪 로그아웃</button>
   </div>
@@ -218,33 +236,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 </div>
 
 <!-- ══ 인원 관리 ══ -->
-<div class="panel" id="panel-persons">
-  <div class="card">
-    <div class="card-title">👥 캠퍼스별 인원 관리</div>
-    <div class="info-box">
-      급여대장과 출퇴근 파일의 <strong>이름 매칭</strong>, <strong>휴직 여부</strong>, <strong>구분 수정</strong>을 관리합니다.<br>
-      매칭이 안 된 인원(🔴)은 직접 선택해주세요.
-    </div>
-    <div class="fbar">
-      <select id="person-campus-filter" onchange="renderPersonTable()">
-        <option value="">전체 캠퍼스</option>
-      </select>
-      <select id="person-status-filter" onchange="renderPersonTable()">
-        <option value="">전체</option>
-        <option value="none">미매칭만</option>
-        <option value="leave">휴직자만</option>
-      </select>
-      <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="person-count"></span>
-    </div>
-    <div class="twrap">
-      <table class="person-table">
-        <thead><tr>
-          <th>캠퍼스</th><th>급여대장 이름</th><th>직급</th><th>구분</th>
-          <th>출퇴근 파일 매칭</th><th>휴직</th><th>비고</th>
-        </tr></thead>
-        <tbody id="person-tbody"></tbody>
-      </table>
-      <div class="pagination" id="person-pg"></div>
+<div class="panel" id="panel-persons" style="padding:0!important;display:none;flex-direction:row;height:calc(100vh - 52px)">
+  <!-- 캠퍼스 목록 -->
+  <div id="pm-list">
+    <div class="pm-list-header">캠퍼스</div>
+    <div id="pm-campus-items"><div class="empty" style="padding:20px;font-size:12px">급여대장을 업로드하세요</div></div>
+  </div>
+  <!-- 인원 상세 -->
+  <div id="pm-detail">
+    <div id="pm-detail-content">
+      <div class="empty"><div class="icon">👈</div><h3>캠퍼스를 선택하세요</h3></div>
     </div>
   </div>
 </div>
@@ -439,13 +440,10 @@ window.addEventListener('DOMContentLoaded',()=>{
     window._role=role;
     // 닉네임·이메일·권한 표시
     const ROLE_LABELS={owner:'👑 Owner',admin:'🔧 관리자',report:'📊 리포트'};
-    const nickname=(user.email||'').split('@')[0];
-    const nicknameEl=document.getElementById('sb-nickname');
-    const userIdEl=document.getElementById('sb-user-id');
-    const roleBadge=document.getElementById('sb-role-badge');
-    if(nicknameEl) nicknameEl.textContent=nickname;
-    if(userIdEl) userIdEl.textContent=user.email;
-    if(roleBadge) roleBadge.textContent=ROLE_LABELS[role]||'📊 리포트';
+    const nickname=(user.displayName||(user.email||'').split('@')[0]||'');
+    document.getElementById('sb-nickname').textContent=nickname;
+    document.getElementById('sb-user-id').textContent=user.email||'';
+    document.getElementById('sb-role-badge').textContent=ROLE_LABELS[role]||'📊 리포트';
     if(role==='owner') document.getElementById('save-btn').style.display='inline-flex';
     document.body.style.opacity='1';
     loadHistory();
@@ -479,8 +477,14 @@ function showToast(msg,type='ok'){
 // ══════════════════════════════════════
 function switchTab(tab){
   document.querySelectorAll('.sb-item').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+tab));
-  if(tab==='persons') renderPersonTable();
+  document.querySelectorAll('.panel').forEach(p=>{
+    if(p.id==='panel-persons'){
+      p.style.display = tab==='persons' ? 'flex' : 'none';
+    } else {
+      p.classList.toggle('active', p.id==='panel-'+tab);
+    }
+  });
+  if(tab==='persons') renderPersonCampusList();
   if(tab==='result')  renderAllResults();
   if(tab==='report')  renderReport();
   if(tab==='email')   populateEmailCampuses();
@@ -640,7 +644,7 @@ function buildPersonsFromPayroll(){
   });
   // 출퇴근 파일 있으면 자동 매칭
   autoMatchAll();
-  updatePersonCampusFilter();
+  renderPersonCampusList();
 }
 
 // ══════════════════════════════════════
@@ -742,7 +746,7 @@ function autoMatchAll(){
     if(!PERSONS[campus]) PERSONS[campus]=[];
     const attendNames=(ATTEND[campus]||[]).map(p=>p.name);
     PERSONS[campus].forEach(person=>{
-      if(person.matchType==='manual') return; // 수동 매칭 보존
+      if(person.matchType==='manual') return;
       const{name,type}=autoMatch(person.payName,attendNames);
       person.attendName=name;
       person.matchType=type;
@@ -760,76 +764,112 @@ function updateUnmatchedBadge(){
 // ══════════════════════════════════════
 // PERSON TABLE
 // ══════════════════════════════════════
-function updatePersonCampusFilter(){
-  const el=document.getElementById('person-campus-filter');
-  const campuses=Object.keys(PERSONS).sort();
-  el.innerHTML='<option value="">전체 캠퍼스</option>'+
-    campuses.map(c=>`<option value="${c}">${c}</option>`).join('');
-}
+let selectedPersonCampus = null;
 
-function renderPersonTable(pg){
-  if(pg) personPage=pg;
-  const campusF=document.getElementById('person-campus-filter').value;
-  const statusF=document.getElementById('person-status-filter').value;
-  let rows=[];
-  Object.keys(PERSONS).sort().forEach(campus=>{
-    if(campusF&&campus!==campusF) return;
-    PERSONS[campus].forEach(p=>{
-      if(statusF==='none'&&p.matchType!=='none') return;
-      if(statusF==='leave'&&!p.isLeave) return;
-      const pay=PAYROLL[campus]?.find(x=>x.name===p.payName);
-      rows.push({...p,campus,position:pay?.position||'',div:pay?.div||'',hireDate:pay?.hireDate||''});
-    });
-  });
-  document.getElementById('person-count').textContent=`총 ${rows.length}명`;
-  const sl=paginate(rows,personPage);
-  const attendOpts=(campus,cur)=>{
-    const names=(ATTEND[campus]||[]).map(a=>a.name);
-    return`<option value="">— 선택 —</option>`+
-      names.map(n=>`<option value="${esc(n)}"${n===cur?' selected':''}>${n}</option>`).join('');
-  };
-  document.getElementById('person-tbody').innerHTML=sl.map((r,ri)=>{
-    const globalIdx=(personPage-1)*PAGE+ri;
-    const badgeCls=r.matchType==='auto'?'badge-auto':r.matchType==='manual'?'badge-manual':'badge-none';
-    const badgeTxt=r.matchType==='auto'?'자동':r.matchType==='manual'?'수동':'미매칭';
-    return`<tr style="${r.matchType==='none'?'background:#fff8f8':''}">
-      <td>${r.campus}</td>
-      <td style="font-weight:600">${r.payName} <span class="${badgeCls}">${badgeTxt}</span></td>
-      <td style="font-size:12px;color:var(--text2)">${r.position}</td>
-      <td style="font-size:12px">${r.divOverride||r.div}</td>
-      <td>
-        <select class="match-sel${r.attendName?' ok':''}" style="width:200px"
-          onchange="setPersonMatch('${esc(r.campus)}','${esc(r.payName)}',this.value)">
-          ${attendOpts(r.campus,r.attendName)}
-        </select>
-      </td>
-      <td style="text-align:center">
-        <input type="checkbox" ${r.isLeave?'checked':''} style="accent-color:var(--green)"
-          onchange="setPersonLeave('${esc(r.campus)}','${esc(r.payName)}',this.checked)">
-      </td>
-      <td><input type="text" value="${r.note||''}" placeholder="메모" style="width:120px;font-size:12px"
-        onchange="setPersonNote('${esc(r.campus)}','${esc(r.payName)}',this.value)"></td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">데이터가 없습니다</td></tr>';
-  renderPg('person-pg',rows.length,personPage,'window.renderPersonTable');
+function renderPersonCampusList() {
+  const el = document.getElementById('pm-campus-items');
+  if (!el) return;
+  const campuses = Object.keys(PAYROLL).sort((a,b)=>a.localeCompare(b,'ko'));
+  if (!campuses.length) {
+    el.innerHTML = '<div class="empty" style="padding:20px;font-size:12px">급여대장을 업로드하세요</div>';
+    return;
+  }
+  el.innerHTML = campuses.map(campus => {
+    const persons = PERSONS[campus] || [];
+    const unmatched = persons.filter(p => !p.attendName && !p.isLeave).length;
+    const active = campus === selectedPersonCampus;
+    return `<div class="pm-item${active?' active':''}" onclick="selectPersonCampus('${campus}')">
+      <span>${campus}</span>
+      <span class="pm-cnt">${unmatched > 0 ? '<span style="color:var(--red)">'+unmatched+'미매칭</span>' : persons.length+'명'}</span>
+    </div>`;
+  }).join('');
   updateUnmatchedBadge();
 }
-window.renderPersonTable=renderPersonTable;
 
-window.setPersonMatch=function(campus,payName,attendName){
-  const p=PERSONS[campus]?.find(x=>x.payName===payName);
-  if(!p) return;
-  p.attendName=attendName||null;
-  p.matchType=attendName?'manual':'none';
-  renderPersonTable();
+window.selectPersonCampus = function(campus) {
+  selectedPersonCampus = campus;
+  renderPersonCampusList();
+  renderPersonDetail(campus);
 };
-window.setPersonLeave=function(campus,payName,val){
-  const p=PERSONS[campus]?.find(x=>x.payName===payName);
-  if(p) p.isLeave=val;
+
+function renderPersonDetail(campus) {
+  const detail = document.getElementById('pm-detail-content');
+  if (!detail) return;
+  const persons = PERSONS[campus] || [];
+  const payroll = PAYROLL[campus] || [];
+
+  if (!persons.length) {
+    detail.innerHTML = '<div class="empty"><h3>해당 캠퍼스 인원이 없습니다</h3></div>';
+    return;
+  }
+
+  detail.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <span style="font-size:15px;font-weight:700;color:var(--text)">${campus}</span>
+      <span style="font-size:12px;color:var(--text3)">${persons.length}명</span>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="pm-show-leave" onchange="renderPersonDetail('${campus}')" style="accent-color:var(--green)"> 휴직자 포함
+        </label>
+      </div>
+    </div>
+    <div id="pm-cards"></div>`;
+
+  const showLeave = document.getElementById('pm-show-leave')?.checked;
+  const filtered = showLeave ? persons : persons.filter(p => !p.isLeave);
+  const cards = document.getElementById('pm-cards');
+  if (!cards) return;
+
+  cards.innerHTML = filtered.map(p => {
+    const pay = payroll.find(x => x.name === p.payName);
+    const hasMatch = !!p.attendName;
+    const leaveClass = p.isLeave ? 'is-leave' : '';
+    const unmatchClass = !hasMatch && !p.isLeave ? 'is-unmatched' : '';
+    return `<div class="person-card ${leaveClass} ${unmatchClass}">
+      <div>
+        <div class="pc-name">${p.payName}</div>
+        ${p.isLeave ? '<div style="font-size:11px;color:#d97706;font-weight:600;margin-top:2px">🟡 휴직</div>' : ''}
+      </div>
+      <div class="pc-pos">${pay?.position || '-'}</div>
+      <div class="pc-div">${p.divOverride || pay?.div || '-'}</div>
+      <div style="flex:1;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:var(--text3);white-space:nowrap">데이터 이름</span>
+        <input class="pc-input${p.attendName?' has-val':''}" type="text"
+          value="${p.attendName||''}"
+          placeholder="출퇴근 파일 내 이름 수기 입력"
+          onchange="setPersonAttendName('${esc(campus)}','${esc(p.payName)}',this.value)"
+          oninput="this.className='pc-input'+(this.value?' has-val':'')">
+      </div>
+      <div class="pc-leave-wrap">
+        <input type="checkbox" ${p.isLeave?'checked':''} style="accent-color:var(--green)"
+          onchange="setPersonLeave('${esc(campus)}','${esc(p.payName)}',this.checked)">
+        휴직
+      </div>
+      <div>
+        <input class="pc-input" type="text" value="${p.note||''}" placeholder="메모"
+          style="width:100px"
+          onchange="setPersonNote('${esc(campus)}','${esc(p.payName)}',this.value)">
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.setPersonAttendName = function(campus, payName, val) {
+  const p = PERSONS[campus]?.find(x => x.payName === payName);
+  if (!p) return;
+  p.attendName = val.trim() || null;
+  p.matchType = val.trim() ? 'manual' : 'none';
+  renderPersonCampusList();
 };
-window.setPersonNote=function(campus,payName,val){
-  const p=PERSONS[campus]?.find(x=>x.payName===payName);
-  if(p) p.note=val;
+
+window.setPersonLeave = function(campus, payName, val) {
+  const p = PERSONS[campus]?.find(x => x.payName === payName);
+  if (p) { p.isLeave = val; renderPersonCampusList(); }
+};
+
+window.setPersonNote = function(campus, payName, val) {
+  const p = PERSONS[campus]?.find(x => x.payName === payName);
+  if (p) p.note = val;
 };
 
 // ══════════════════════════════════════
