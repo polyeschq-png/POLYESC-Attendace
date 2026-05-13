@@ -434,16 +434,27 @@ window.addEventListener('DOMContentLoaded',()=>{
   onAuthStateChanged(auth,async user=>{
     if(!user){window.location.href='index.html';return;}
     currentUser=user;
-    const{db,doc,getDoc}=window._fb;
-    const snap=await getDoc(doc(db,'Users',user.email));
-    const role=snap.exists()?snap.data().role:'report';
-    window._role=role;
-    // 닉네임·이메일·권한 표시
+
+    // 닉네임·이메일 즉시 표시
+    const nickname=user.email?.split('@')[0]||'';
+    const nicknameEl=document.getElementById('sb-nickname');
+    const userIdEl=document.getElementById('sb-user-id');
+    const roleBadge=document.getElementById('sb-role-badge');
+    if(nicknameEl) nicknameEl.textContent=nickname;
+    if(userIdEl) userIdEl.textContent=user.email;
+
+    // Firestore에서 role 읽기
     const ROLE_LABELS={owner:'👑 Owner',admin:'🔧 관리자',report:'📊 리포트'};
-    const nickname=(user.displayName||(user.email||'').split('@')[0]||'');
-    document.getElementById('sb-nickname').textContent=nickname;
-    document.getElementById('sb-user-id').textContent=user.email||'';
-    document.getElementById('sb-role-badge').textContent=ROLE_LABELS[role]||'📊 리포트';
+    let role='report';
+    try{
+      const{db,doc,getDoc}=window._fb;
+      const snap=await getDoc(doc(db,'Users',user.email));
+      role=snap.exists()?snap.data().role||'report':'report';
+      if(roleBadge) roleBadge.textContent=ROLE_LABELS[role]||'📊 리포트';
+    }catch(e){
+      if(roleBadge) roleBadge.textContent='📊 리포트';
+    }
+    window._role=role;
     if(role==='owner') document.getElementById('save-btn').style.display='inline-flex';
     document.body.style.opacity='1';
     loadHistory();
