@@ -128,6 +128,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .pc-input:focus{border-color:var(--green)}
 .pc-input.has-val{border-color:var(--green);background:var(--green-lt)}
 .pc-leave-wrap{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);white-space:nowrap}
+/* 인원 이너탭 */
+.pm-itabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:16px}
+.pm-itab{padding:7px 16px;font-size:13px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.pm-itab:hover{color:var(--text)}.pm-itab.active{color:var(--green);border-bottom-color:var(--green);font-weight:600}
+/* 카드 좌우 레이아웃 */
+.pc-left{min-width:130px;flex-shrink:0;border-right:1px solid var(--border);padding-right:16px}
+.pc-right{flex:1;display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:center}
+.pc-field{display:flex;flex-direction:column;gap:3px}
+.pc-field-label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.pc-select{border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-size:12px;font-family:var(--sans);background:var(--white);color:var(--text);outline:none;width:100%}
+.pc-select:focus{border-color:var(--green)}
 /* 보고자료 */
 .rpt-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
 .rpt-hdr{background:linear-gradient(135deg,#c9960a,#ffcd4a);border-radius:8px;padding:14px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
@@ -428,7 +439,18 @@ window.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('sel-quarter').value = String(q);
   document.getElementById('sel-year').value = new Date().getFullYear();
   updateBadge();
-  setTimeout(initApp, 500);
+  // Firebase module이 준비될 때까지 폴링 (최대 5초)
+  let attempts = 0;
+  const waitForFb = setInterval(() => {
+    attempts++;
+    if(window._fbReady) {
+      clearInterval(waitForFb);
+      initApp();
+    } else if(attempts > 50) {
+      clearInterval(waitForFb);
+      document.body.style.opacity='1';
+    }
+  }, 100);
 });
 
 function initApp() {
@@ -802,71 +824,111 @@ function renderPersonCampusList() {
 
 window.selectPersonCampus = function(campus) {
   selectedPersonCampus = campus;
+  window._pmTab = 'unmatched'; // 캠퍼스 전환 시 미매칭 탭으로 초기화
   renderPersonCampusList();
   renderPersonDetail(campus);
 };
 
-function renderPersonDetail(campus) {
+function renderPersonDetail(campus, tab) {
   const detail = document.getElementById('pm-detail-content');
   if (!detail) return;
   const persons = PERSONS[campus] || [];
   const payroll = PAYROLL[campus] || [];
-
   if (!persons.length) {
     detail.innerHTML = '<div class="empty"><h3>해당 캠퍼스 인원이 없습니다</h3></div>';
     return;
   }
 
+  // 현재 탭 기억
+  const currentTab = tab || window._pmTab || 'unmatched';
+  window._pmTab = currentTab;
+  window._pmCampus = campus;
+
+  const matched   = persons.filter(p => p.attendName);
+  const unmatched = persons.filter(p => !p.attendName);
+
   detail.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
       <span style="font-size:15px;font-weight:700;color:var(--text)">${campus}</span>
       <span style="font-size:12px;color:var(--text3)">${persons.length}명</span>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-          <input type="checkbox" id="pm-show-leave" onchange="renderPersonDetail('${campus}')" style="accent-color:var(--green)"> 휴직자 포함
-        </label>
+    </div>
+    <div class="pm-itabs">
+      <div class="pm-itab${currentTab==='unmatched'?' active':''}" onclick="renderPersonDetail('${campus}','unmatched')">
+        🔴 미매칭 <span style="font-size:11px;font-family:var(--mono);margin-left:4px">${unmatched.length}</span>
+      </div>
+      <div class="pm-itab${currentTab==='matched'?' active':''}" onclick="renderPersonDetail('${campus}','matched')">
+        ✅ 매칭 완료 <span style="font-size:11px;font-family:var(--mono);margin-left:4px">${matched.length}</span>
       </div>
     </div>
     <div id="pm-cards"></div>`;
 
-  const showLeave = document.getElementById('pm-show-leave')?.checked;
-  const filtered = showLeave ? persons : persons.filter(p => !p.isLeave);
   const cards = document.getElementById('pm-cards');
   if (!cards) return;
 
-  cards.innerHTML = filtered.map(p => {
+  const list = currentTab === 'matched' ? matched : unmatched;
+
+  if (!list.length) {
+    cards.innerHTML = '<div class="empty" style="padding:30px"><div class="icon">✅</div><p>' +
+      (currentTab==='matched' ? '매칭된 인원이 없습니다' : '미매칭 인원이 없습니다') + '</p></div>';
+    return;
+  }
+
+  cards.innerHTML = list.map(p => {
     const pay = payroll.find(x => x.name === p.payName);
-    const hasMatch = !!p.attendName;
+    const curPos = p.posOverride || pay?.position || '';
+    const curDiv = p.divOverride || pay?.div || '';
     const leaveClass = p.isLeave ? 'is-leave' : '';
-    const unmatchClass = !hasMatch && !p.isLeave ? 'is-unmatched' : '';
+    const unmatchClass = !p.attendName && !p.isLeave ? 'is-unmatched' : '';
+
+    const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
+    const divOpts = `<option value="정규직">정규직</option><option value="계약직">계약직</option><option value="단기근로">단기근로</option>`.replace(`value="${curDiv}"`,`value="${curDiv}" selected`);
+
     return `<div class="person-card ${leaveClass} ${unmatchClass}">
-      <div>
+      <div class="pc-left">
         <div class="pc-name">${p.payName}</div>
-        ${p.isLeave ? '<div style="font-size:11px;color:#d97706;font-weight:600;margin-top:2px">🟡 휴직</div>' : ''}
+        ${p.isLeave ? '<div style="font-size:11px;color:#d97706;font-weight:600;margin-top:3px">🟡 휴직</div>' : ''}
       </div>
-      <div class="pc-pos">${pay?.position || '-'}</div>
-      <div class="pc-div">${p.divOverride || pay?.div || '-'}</div>
-      <div style="flex:1;display:flex;align-items:center;gap:8px;">
-        <span style="font-size:11px;color:var(--text3);white-space:nowrap">데이터 이름</span>
-        <input class="pc-input${p.attendName?' has-val':''}" type="text"
-          value="${p.attendName||''}"
-          placeholder="출퇴근 파일 내 이름 수기 입력"
-          onchange="setPersonAttendName('${esc(campus)}','${esc(p.payName)}',this.value)"
-          oninput="this.className='pc-input'+(this.value?' has-val':'')">
-      </div>
-      <div class="pc-leave-wrap">
-        <input type="checkbox" ${p.isLeave?'checked':''} style="accent-color:var(--green)"
-          onchange="setPersonLeave('${esc(campus)}','${esc(p.payName)}',this.checked)">
-        휴직
-      </div>
-      <div>
-        <input class="pc-input" type="text" value="${p.note||''}" placeholder="메모"
-          style="width:100px"
-          onchange="setPersonNote('${esc(campus)}','${esc(p.payName)}',this.value)">
+      <div class="pc-right">
+        <div class="pc-field">
+          <div class="pc-field-label">직책</div>
+          <select class="pc-select" onchange="setPersonPos('${esc(campus)}','${esc(p.payName)}',this.value)">
+            <option value="">선택</option>${posOpts}
+          </select>
+        </div>
+        <div class="pc-field">
+          <div class="pc-field-label">구분</div>
+          <select class="pc-select" onchange="setPersonDiv('${esc(campus)}','${esc(p.payName)}',this.value)">
+            <option value="">선택</option>${divOpts}
+          </select>
+        </div>
+        <div class="pc-field">
+          <div class="pc-field-label">데이터 이름</div>
+          <input class="pc-input${p.attendName?' has-val':''}" type="text"
+            value="${p.attendName||''}"
+            placeholder="수기 입력"
+            style="width:160px"
+            onchange="setPersonAttendName('${esc(campus)}','${esc(p.payName)}',this.value)"
+            oninput="this.className='pc-input'+(this.value?' has-val':'')">
+        </div>
+        <div class="pc-field" style="align-items:center;gap:8px;flex-direction:row;padding-top:16px">
+          <input type="checkbox" ${p.isLeave?'checked':''} style="accent-color:var(--green);width:15px;height:15px"
+            onchange="setPersonLeave('${esc(campus)}','${esc(p.payName)}',this.checked)">
+          <span style="font-size:12px;color:var(--text2)">휴직</span>
+        </div>
       </div>
     </div>`;
   }).join('');
 }
+
+window.setPersonPos = function(campus, payName, val) {
+  const p = PERSONS[campus]?.find(x => x.payName === payName);
+  if (p) p.posOverride = val;
+};
+
+window.setPersonDiv = function(campus, payName, val) {
+  const p = PERSONS[campus]?.find(x => x.payName === payName);
+  if (p) p.divOverride = val;
+};
 
 window.setPersonAttendName = function(campus, payName, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
