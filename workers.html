@@ -684,26 +684,55 @@ window.loadPayroll=function(input){
 
 // ══════════════════════════════════════
 // PERSONS MASTER (Firestore 영구 저장)
+// 캠퍼스별로 문서를 나눠 저장 → 용량 한계 회피
+// collection: workers_persons / doc: {campus}
 // ══════════════════════════════════════
-async function savePersonsMaster(){
+async function savePersonsMaster(campusList){
   if(!window._fbReady||!currentUser) return;
-  try{
-    const{db,doc,setDoc}=window._fb;
-    await setDoc(doc(db,'workers_master','persons'),{data:PERSONS,updatedAt:new Date().toISOString()});
-  }catch(e){console.warn('마스터 저장 실패',e);}
+  // campusList 미지정이면 PERSONS 전체 저장
+  const targets = campusList || Object.keys(PERSONS);
+  if(!targets.length) return;
+  const{db,doc,setDoc}=window._fb;
+  let ok=0,fail=0;
+  for(const campus of targets){
+    const list = PERSONS[campus];
+    if(!list) continue;
+    try{
+      await setDoc(doc(db,'workers_persons',campus),{
+        campus,
+        persons: list,
+        updatedAt: new Date().toISOString()
+      });
+      ok++;
+    }catch(e){
+      console.error(`[마스터 저장 실패] ${campus}:`, e);
+      fail++;
+    }
+  }
+  if(fail>0) showToast(`⚠️ 마스터 저장 실패 캠퍼스 ${fail}개`,'err');
+  // 성공 토스트는 조용히 (매번 뜨면 피로감)
 }
 
 async function loadPersonsMaster(){
   if(!window._fbReady||!currentUser) return;
+  const{db,collection,getDocs}=window._fb;
   try{
-    const{db,doc,getDoc}=window._fb;
-    const snap=await getDoc(doc(db,'workers_master','persons'));
-    if(snap.exists()&&snap.data().data){
-      PERSONS=snap.data().data;
-      renderPersonCampusList();
-      updateUnmatchedBadge();
-    }
-  }catch(e){console.warn('마스터 불러오기 실패',e);}
+    const snap = await getDocs(collection(db,'workers_persons'));
+    if(snap.empty){ console.log('[마스터] 저장된 인원 없음'); return; }
+    PERSONS={};
+    snap.forEach(d=>{
+      const data=d.data();
+      if(data.campus && Array.isArray(data.persons)){
+        PERSONS[data.campus]=data.persons;
+      }
+    });
+    console.log('[마스터] 불러옴 캠퍼스:', Object.keys(PERSONS));
+    renderPersonCampusList();
+    updateUnmatchedBadge();
+  }catch(e){
+    console.error('[마스터 불러오기 실패]', e);
+    showToast('인원 마스터 불러오기 실패: '+e.message,'err');
+  }
 }
 
 // 급여대장 업로드 후: 마스터와 병합하고 신규 인원 감지
@@ -748,6 +777,7 @@ function showNewPersonsBanner(list){
 }
 
 window.confirmAddNewPersons=function(){
+  const affectedCampuses=new Set();
   _pendingNewPersons.forEach((p,i)=>{
     const chk=document.getElementById('np-'+i);
     if(!chk||!chk.checked) return;
@@ -759,11 +789,12 @@ window.confirmAddNewPersons=function(){
         divOverride:p.div,note:'',matchType:'none',campus:p.campus,
         _isNew:true
       });
+      affectedCampuses.add(p.campus);
     }
   });
   autoMatchAll();
   renderPersonCampusList();
-  savePersonsMaster();
+  savePersonsMaster([...affectedCampuses]);
   document.getElementById('new-persons-banner').classList.remove('show');
   _pendingNewPersons=[];
   showToast('✅ 선택한 신규 인원이 마스터에 추가됐습니다','ok');
@@ -1015,12 +1046,12 @@ function renderPersonDetail(campus, tab) {
 
 window.setPersonPos = function(campus, payName, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
-  if (p) { p.posOverride = val; savePersonsMaster(); }
+  if (p) { p.posOverride = val; savePersonsMaster([campus]); }
 };
 
 window.setPersonDiv = function(campus, payName, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
-  if (p) { p.divOverride = val; savePersonsMaster(); }
+  if (p) { p.divOverride = val; savePersonsMaster([campus]); }
 };
 
 window.setPersonAttendName = function(campus, payName, val) {
@@ -1028,13 +1059,13 @@ window.setPersonAttendName = function(campus, payName, val) {
   if (!p) return;
   p.attendName = val.trim() || null;
   p.matchType = val.trim() ? 'manual' : 'none';
-  savePersonsMaster();
+  savePersonsMaster([campus]);
   renderPersonCampusList();
 };
 
 window.setPersonLeave = function(campus, payName, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
-  if (p) { p.isLeave = val; savePersonsMaster(); renderPersonCampusList(); }
+  if (p) { p.isLeave = val; savePersonsMaster([campus]); renderPersonCampusList(); }
 };
 
 window.setPersonNote = function(campus, payName, val) {
