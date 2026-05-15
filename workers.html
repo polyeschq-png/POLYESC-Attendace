@@ -727,7 +727,13 @@ async function loadPersonsMaster(){
       }
     });
     console.log('[마스터] 불러옴 캠퍼스:', Object.keys(PERSONS));
+    // 첫 캠퍼스 자동 선택
+    const campuses = Object.keys(PERSONS).sort((a,b)=>a.localeCompare(b,'ko'));
+    if(campuses.length && !selectedPersonCampus){
+      selectedPersonCampus = campuses[0];
+    }
     renderPersonCampusList();
+    if(selectedPersonCampus) renderPersonDetail(selectedPersonCampus);
     updateUnmatchedBadge();
   }catch(e){
     console.error('[마스터 불러오기 실패]', e);
@@ -927,9 +933,11 @@ let selectedPersonCampus = null;
 function renderPersonCampusList() {
   const el = document.getElementById('pm-campus-items');
   if (!el) return;
-  const campuses = Object.keys(PAYROLL).sort((a,b)=>a.localeCompare(b,'ko'));
+  // PAYROLL이 없어도 PERSONS 마스터가 있으면 표시
+  const allKeys = new Set([...Object.keys(PAYROLL), ...Object.keys(PERSONS)]);
+  const campuses = [...allKeys].sort((a,b)=>a.localeCompare(b,'ko'));
   if (!campuses.length) {
-    el.innerHTML = '<div class="empty" style="padding:20px;font-size:12px">급여대장을 업로드하세요</div>';
+    el.innerHTML = '<div class="empty" style="padding:20px;font-size:12px">저장된 인원이 없습니다</div>';
     return;
   }
   el.innerHTML = campuses.map(campus => {
