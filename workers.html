@@ -267,8 +267,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 <div class="panel" id="panel-persons" style="padding:0!important;display:none;flex-direction:row;height:calc(100vh - 52px)">
   <!-- 캠퍼스 목록 -->
   <div id="pm-list">
-    <div class="pm-list-header">캠퍼스</div>
-    <div id="pm-campus-items"><div class="empty" style="padding:20px;font-size:12px">급여대장을 업로드하세요</div></div>
+    <div class="pm-list-header" style="display:flex;flex-direction:column;gap:6px;padding:10px 10px 8px">
+      <span style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px">캠퍼스</span>
+      <button class="btn btn-ghost btn-sm" style="font-size:11px;width:100%;justify-content:center" onclick="document.getElementById('excel-match-input').click()">
+        📥 엑셀로 일괄 업로드
+      </button>
+      <input type="file" id="excel-match-input" accept=".xlsx" style="display:none" onchange="importMatchingExcel(this)">
+      <button class="btn btn-ghost btn-sm" style="font-size:11px;width:100%;justify-content:center" onclick="downloadMatchingTemplate()">
+        📋 양식 다운로드
+      </button>
+    </div>
+    <div id="pm-campus-items"><div class="empty" style="padding:20px;font-size:12px">저장된 인원이 없습니다</div></div>
   </div>
   <!-- 인원 상세 -->
   <div id="pm-detail">
@@ -683,6 +692,95 @@ window.loadPayroll=function(input){
 };
 
 // ══════════════════════════════════════
+// 엑셀 일괄 매칭 업로드
+// ══════════════════════════════════════
+window.importMatchingExcel = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+
+      // 1행=헤더, 2행=안내, 3행부터 데이터
+      const dataRows = rows.slice(2).filter(r => String(r[0]||'').trim() && String(r[1]||'').trim());
+      if (!dataRows.length) { showToast('데이터가 없습니다 (3행부터 입력)','err'); return; }
+
+      let added=0, updated=0, skipped=0;
+      const affectedCampuses = new Set();
+
+      dataRows.forEach(r => {
+        const campus    = String(r[0]||'').trim();
+        const payName   = String(r[1]||'').trim();
+        const attendName= String(r[2]||'').trim();
+        const position  = String(r[3]||'').trim();
+        const div       = String(r[4]||'').trim();
+        const isLeave   = String(r[5]||'').trim().toUpperCase() === 'Y';
+        const hireDate  = String(r[6]||'').trim();
+        const leaveDate = String(r[7]||'').trim();
+
+        if (!campus || !payName || !attendName) { skipped++; return; }
+
+        if (!PERSONS[campus]) PERSONS[campus] = [];
+        const existing = PERSONS[campus].find(x => x.payName === payName);
+
+        if (existing) {
+          existing.attendName  = attendName;
+          existing.matchType   = 'manual';
+          if (position) existing.posOverride = position;
+          if (div)      existing.divOverride = div;
+          existing.isLeave = isLeave;
+          if (hireDate)  existing.hireDate  = hireDate;
+          if (leaveDate) existing.leaveDate = leaveDate;
+          updated++;
+        } else {
+          PERSONS[campus].push({
+            payName, attendName, matchType:'manual',
+            posOverride: position, divOverride: div,
+            isLeave, hireDate, leaveDate, note:'', campus
+          });
+          added++;
+        }
+        affectedCampuses.add(campus);
+      });
+
+      // 첫 캠퍼스 자동 선택
+      if (!selectedPersonCampus && affectedCampuses.size) {
+        selectedPersonCampus = [...affectedCampuses].sort((a,b)=>a.localeCompare(b,'ko'))[0];
+      }
+
+      renderPersonCampusList();
+      if (selectedPersonCampus) renderPersonDetail(selectedPersonCampus);
+      updateUnmatchedBadge();
+      savePersonsMaster([...affectedCampuses]);
+
+      showToast(`✅ 신규 ${added}명 추가 / ${updated}명 업데이트 / ${skipped}건 건너뜀`, 'ok');
+    } catch(err) {
+      showToast('엑셀 파싱 실패: ' + err.message, 'err');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+};
+
+window.downloadMatchingTemplate = function() {
+  const wb = XLSX.utils.book_new();
+  const data = [
+    ['캠퍼스','급여대장 이름','출퇴근 데이터 이름','직책','구분','휴직여부','입사일','퇴사일'],
+    ['예) 강남캠퍼스','파일 상 이름과 정확히','출퇴근 파일 상 이름과 정확히','예) 원어민강사','정규직/계약직/단기근로','Y 또는 공백','YYYY-MM-DD','YYYY-MM-DD (퇴사자만)'],
+    ['강남캠퍼스','홍길동','홍길동','원어민강사','정규직','','2023-03-02',''],
+    ['강남캠퍼스','김영희','Kim Young Hee','한국인교사','계약직','','2022-09-01',''],
+    ['분당캠퍼스','이철수','이철수','원장','정규직','Y','2019-01-15',''],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:18},{wch:20},{wch:22},{wch:14},{wch:12},{wch:10},{wch:13},{wch:13}];
+  XLSX.utils.book_append_sheet(wb, ws, '인원매칭');
+  XLSX.writeFile(wb, '인원매칭_업로드양식.xlsx');
+};
+
+// ══════════════════════════════════════
 // PERSONS MASTER (Firestore 영구 저장)
 // 캠퍼스별로 문서를 나눠 저장 → 용량 한계 회피
 // collection: workers_persons / doc: {campus}
@@ -741,27 +839,111 @@ async function loadPersonsMaster(){
   }
 }
 
-// 급여대장 업로드 후: 마스터와 병합하고 신규 인원 감지
+// 급여대장 업로드 후: 마스터와 병합하고 신규/변동 인원 감지
 function buildPersonsFromPayroll(){
-  let newPersons=[]; // {campus, name, position, div, hireDate}
+  let newPersons=[];      // 마스터에 아예 없는 신규
+  let changedPersons=[];  // 입퇴사일·휴직 상태가 변경된 기존 인원
+  const affectedCampuses=new Set();
 
   Object.keys(PAYROLL).forEach(campus=>{
     if(!PERSONS[campus]) PERSONS[campus]=[];
+
     PAYROLL[campus].forEach(p=>{
       const ex=PERSONS[campus].find(x=>x.payName===p.name);
+
       if(!ex){
-        // 마스터에 없는 신규 인원 → 목록에 추가하되 즉시 PERSONS에 넣지 않음
-        newPersons.push({campus,name:p.name,position:p.position,div:p.div,hireDate:p.hireDate});
+        // 마스터에 없는 완전 신규 → 배너로 확인 후 추가
+        newPersons.push({campus,name:p.name,position:p.position,div:p.div,
+          hireDate:p.hireDate,leaveDate:p.leaveDate,isLeave:p.isLeave});
+      } else {
+        // 기존 인원 — 급여대장에서 변경된 항목 자동 반영
+        const changes=[];
+
+        // 입사일: 마스터에 없거나 다를 때
+        if(p.hireDate && ex.hireDate !== p.hireDate){
+          changes.push(`입사일 ${ex.hireDate||'없음'} → ${p.hireDate}`);
+          ex.hireDate = p.hireDate;
+        } else if(p.hireDate && !ex.hireDate){
+          ex.hireDate = p.hireDate;
+        }
+
+        // 퇴사일: 새로 생겼거나 변경됐을 때
+        if(p.leaveDate && ex.leaveDate !== p.leaveDate){
+          changes.push(`퇴사일 ${ex.leaveDate||'없음'} → ${p.leaveDate}`);
+          ex.leaveDate = p.leaveDate;
+        }
+
+        // 휴직여부: 급여대장 기준으로 갱신 (단, 사용자가 수동으로 Y 처리한 경우는 유지)
+        if(p.isLeave && !ex.isLeave){
+          changes.push('휴직 상태로 변경');
+          ex.isLeave = true;
+        }
+
+        if(changes.length){
+          changedPersons.push({campus,name:p.name,changes});
+          affectedCampuses.add(campus);
+        }
+      }
+    });
+
+    // 급여대장에서 사라진 인원 감지 (퇴사일 없이 사라진 경우)
+    PERSONS[campus].forEach(per=>{
+      if(per.leaveDate) return; // 이미 퇴사 처리된 인원은 무시
+      const inPayroll=PAYROLL[campus].find(p=>p.name===per.payName);
+      if(!inPayroll){
+        // 급여대장에서 사라졌는데 퇴사일 없음 → 변경 목록에 추가
+        changedPersons.push({campus, name:per.payName,
+          changes:['⚠️ 이번 급여대장에서 사라짐 (퇴사일 미기재 확인 필요)']});
       }
     });
   });
 
-  // 출퇴근 파일 있으면 기존 인원 자동 매칭
+  // 변경 사항이 있으면 자동 저장
+  if(affectedCampuses.size){
+    savePersonsMaster([...affectedCampuses]);
+  }
+
   autoMatchAll();
   renderPersonCampusList();
+  if(selectedPersonCampus) renderPersonDetail(selectedPersonCampus);
 
-  // 신규 인원 배너 표시
+  // 변경 인원 토스트/배너
+  if(changedPersons.length){
+    showChangedPersonsBanner(changedPersons);
+  }
+
+  // 신규 인원 배너
   showNewPersonsBanner(newPersons);
+}
+
+// 변경 인원 배너
+function showChangedPersonsBanner(list){
+  // 기존 배너가 있으면 재활용, 없으면 생성
+  let banner=document.getElementById('changed-persons-banner');
+  if(!banner){
+    banner=document.createElement('div');
+    banner.id='changed-persons-banner';
+    banner.className='new-persons-banner';
+    banner.style.background='#fffbeb';
+    banner.style.borderColor='#fcd34d';
+    // 신규 배너 위에 삽입
+    const ref=document.getElementById('new-persons-banner');
+    ref.parentNode.insertBefore(banner,ref);
+  }
+  banner.innerHTML=`
+    <div class="new-persons-banner-title" style="color:var(--orange)">
+      🔄 급여대장에서 변경된 인원이 자동 반영됐습니다
+    </div>
+    ${list.map(p=>`
+      <div class="new-person-row">
+        <span style="font-weight:600;min-width:90px">${p.name}</span>
+        <span style="font-size:12px;color:var(--text3)">${p.campus}</span>
+        <span style="font-size:12px;color:var(--orange)">${p.changes.join(' / ')}</span>
+      </div>`).join('')}
+    <div style="margin-top:10px">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('changed-persons-banner').classList.remove('show')">확인</button>
+    </div>`;
+  banner.classList.add('show');
 }
 
 // 신규 인원 배너
@@ -791,8 +973,9 @@ window.confirmAddNewPersons=function(){
     const ex=PERSONS[p.campus].find(x=>x.payName===p.name);
     if(!ex){
       PERSONS[p.campus].push({
-        payName:p.name,attendName:null,isLeave:false,
-        divOverride:p.div,note:'',matchType:'none',campus:p.campus,
+        payName:p.name, attendName:null, isLeave:p.isLeave||false,
+        divOverride:p.div, note:'', matchType:'none', campus:p.campus,
+        hireDate:p.hireDate||'', leaveDate:p.leaveDate||'',
         _isNew:true
       });
       affectedCampuses.add(p.campus);
@@ -1047,6 +1230,22 @@ function renderPersonDetail(campus, tab) {
             onchange="setPersonLeave('${esc(campus)}','${esc(p.payName)}',this.checked)">
           <span style="font-size:12px;color:var(--text2)">휴직</span>
         </div>
+        <div class="pc-field">
+          <div class="pc-field-label">입사일</div>
+          <input class="pc-input${p.hireDate?' has-val':''}" type="text"
+            value="${p.hireDate||''}"
+            placeholder="YYYY-MM-DD"
+            style="width:120px;font-family:var(--mono);font-size:12px"
+            onchange="setPersonDate('${esc(campus)}','${esc(p.payName)}','hireDate',this.value)">
+        </div>
+        <div class="pc-field">
+          <div class="pc-field-label">퇴사일</div>
+          <input class="pc-input${p.leaveDate?' has-val':''}" type="text"
+            value="${p.leaveDate||''}"
+            placeholder="YYYY-MM-DD"
+            style="width:120px;font-family:var(--mono);font-size:12px;${p.leaveDate?'border-color:var(--orange);':''}"
+            onchange="setPersonDate('${esc(campus)}','${esc(p.payName)}','leaveDate',this.value)">
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -1074,6 +1273,18 @@ window.setPersonAttendName = function(campus, payName, val) {
 window.setPersonLeave = function(campus, payName, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
   if (p) { p.isLeave = val; savePersonsMaster([campus]); renderPersonCampusList(); }
+};
+
+window.setPersonDate = function(campus, payName, field, val) {
+  const p = PERSONS[campus]?.find(x => x.payName === payName);
+  if (!p) return;
+  // YYYY-MM-DD 형식 검증
+  const clean = val.trim();
+  if (clean && !/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    showToast('날짜 형식은 YYYY-MM-DD 로 입력하세요','err'); return;
+  }
+  p[field] = clean;
+  savePersonsMaster([campus]);
 };
 
 window.setPersonNote = function(campus, payName, val) {
@@ -1112,11 +1323,14 @@ window.runAnalysis=function(){
     // 1. 추가 필요: 급여대장에 있는데 출퇴근에 없는 인원 (휴직자·퇴사자 제외)
     payroll.forEach(p=>{
       const per=persons.find(x=>x.payName===p.name);
+      // 휴직·퇴사일: 마스터 우선, 없으면 급여대장
       const isLeave=per?.isLeave||p.isLeave;
-      if(isLeave) return; // 휴직자 제외
-      if(p.leaveDate&&p.leaveDate.trim()&&p.leaveDate<=`${y}-${String(baseMonth).padStart(2,'0')}-01`) return; // 퇴사자 제외
+      if(isLeave) return;
+      const leaveDate=per?.leaveDate||p.leaveDate||'';
+      if(leaveDate.trim()&&leaveDate<=`${y}-${String(baseMonth).padStart(2,'0')}-01`) return;
       const hasAttend=per?.attendName;
-      if(!hasAttend) RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate:p.hireDate,note:per?.note||''});
+      const hireDate=per?.hireDate||p.hireDate||'';
+      if(!hasAttend) RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
     });
 
     // 2. 삭제 필요: 출퇴근에 있는데 급여대장에 없거나, 퇴사일이 지난 인원
@@ -1124,16 +1338,16 @@ window.runAnalysis=function(){
       if(a.isDup) return;
       const per=matchedAttend.get(a.name);
       if(!per){
-        // 급여대장에 없음
         RESULTS.del.push({campus,name:a.name,reason:'급여대장 미등록',leaveDate:''});
         return;
       }
       const pay=payroll.find(p=>p.name===per.payName);
-      if(pay?.leaveDate&&pay.leaveDate.trim()){
-        const ld=pay.leaveDate;
+      // 퇴사일: 마스터 우선, 없으면 급여대장
+      const leaveDate=per.leaveDate||(pay?.leaveDate)||'';
+      if(leaveDate.trim()){
         const baseEnd=`${y}-${String(baseMonth).padStart(2,'0')}-${String(new Date(y,baseMonth,0).getDate()).padStart(2,'0')}`;
-        if(ld<=baseEnd){
-          RESULTS.del.push({campus,name:a.name,reason:'퇴사자 미삭제',leaveDate:ld});
+        if(leaveDate<=baseEnd){
+          RESULTS.del.push({campus,name:a.name,reason:'퇴사자 미삭제',leaveDate});
         }
       }
     });
@@ -1142,34 +1356,34 @@ window.runAnalysis=function(){
     attend.forEach(a=>{
       if(a.isDup) return;
       const per=matchedAttend.get(a.name);
-      if(!per) return; // 급여대장 없는 인원은 제외
-      if(per.isLeave) return; // 휴직자
+      if(!per) return;
+      if(per.isLeave) return;
       const pay=payroll.find(p=>p.name===per.payName);
-      if(!pay) return;
-      if(pay.leaveDate&&pay.leaveDate.trim()) return; // 퇴사자 제외
+      // 퇴사일: 마스터 우선
+      const leaveDate=per.leaveDate||(pay?.leaveDate)||'';
+      if(leaveDate.trim()) return;
 
-      // 입사일 기준 영업일 조정
+      // 입사일: 마스터 우선, 없으면 급여대장
+      const hireDate=per.hireDate||(pay?.hireDate)||'';
       let workdays=allWorkdays;
-      if(pay.hireDate){
-        const hd=pay.hireDate; // YYYY-MM-DD
-        const hYear=parseInt(hd.slice(0,4));
-        const hMonth=parseInt(hd.slice(5,7));
-        const hDay=parseInt(hd.slice(8,10));
+      if(hireDate){
+        const hYear=parseInt(hireDate.slice(0,4));
+        const hMonth=parseInt(hireDate.slice(5,7));
+        const hDay=parseInt(hireDate.slice(8,10));
         if(hYear===y&&hMonth===baseMonth&&hDay>1){
           workdays=getWorkdays(y,baseMonth,hDay);
         }
       }
       if(!workdays.length) return;
 
-      // 출근/퇴근 횟수 계산 (영업일 기준)
       const ciCount=workdays.filter(d=>a.ciDays[d]).length;
       const coCount=workdays.filter(d=>a.coDays[d]).length;
-      const total=workdays.length*2; // 출근+퇴근 합산 최대
+      const total=workdays.length*2;
       const rate=Math.round((ciCount+coCount)/total*100);
 
       if(rate<60){
         RESULTS.abs.push({
-          campus,name:a.name,position:pay.position,
+          campus,name:a.name,position:pay?.position||per.posOverride||'',
           ciCount,coCount,total,rate,
           workdays:workdays.length,note:per.note||''
         });
