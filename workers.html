@@ -158,6 +158,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .rpt-tbl tr:last-child td{border-bottom:none}
 #copy-preview{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:16px 20px;font-size:13px;line-height:1.9;white-space:pre-wrap;min-height:140px}
 .hist-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:8px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)}
+/* 신규 인원 알림 배너 */
+.new-persons-banner{background:#fff0f0;border:1px solid #fecaca;border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;display:none}
+.new-persons-banner.show{display:block}
+.new-persons-banner-title{font-size:13px;font-weight:700;color:var(--red);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.new-person-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #fecaca;font-size:13px}
+.new-person-row:last-child{border-bottom:none}
+.person-card.is-new{border-left:3px solid var(--blue);background:#ebf8ff}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
 </head>
@@ -216,6 +223,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
         </select>
       </div>
       <button class="btn btn-primary" onclick="runAnalysis()">🔍 분석 실행</button>
+    </div>
+  </div>
+
+  <!-- 신규 인원 알림 배너 -->
+  <div class="new-persons-banner" id="new-persons-banner">
+    <div class="new-persons-banner-title">🆕 마스터에 없는 신규 인원이 발견됐습니다 — 확인 후 추가하세요</div>
+    <div id="new-persons-list"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="confirmAddNewPersons()">✅ 전체 추가</button>
+      <button class="btn btn-ghost btn-sm" onclick="dismissNewPersons()">✖ 닫기</button>
     </div>
   </div>
 
@@ -482,6 +499,7 @@ function initApp() {
     window._role=role;
     if(role==='owner') document.getElementById('save-btn').style.display='inline-flex';
     document.body.style.opacity='1';
+    await loadPersonsMaster(); // 인원 마스터 먼저 로드
     loadHistory();
   });
 }
@@ -664,24 +682,97 @@ window.loadPayroll=function(input){
   input.value='';
 };
 
+// ══════════════════════════════════════
+// PERSONS MASTER (Firestore 영구 저장)
+// ══════════════════════════════════════
+async function savePersonsMaster(){
+  if(!window._fbReady||!currentUser) return;
+  try{
+    const{db,doc,setDoc}=window._fb;
+    await setDoc(doc(db,'workers_master','persons'),{data:PERSONS,updatedAt:new Date().toISOString()});
+  }catch(e){console.warn('마스터 저장 실패',e);}
+}
+
+async function loadPersonsMaster(){
+  if(!window._fbReady||!currentUser) return;
+  try{
+    const{db,doc,getDoc}=window._fb;
+    const snap=await getDoc(doc(db,'workers_master','persons'));
+    if(snap.exists()&&snap.data().data){
+      PERSONS=snap.data().data;
+      renderPersonCampusList();
+      updateUnmatchedBadge();
+    }
+  }catch(e){console.warn('마스터 불러오기 실패',e);}
+}
+
+// 급여대장 업로드 후: 마스터와 병합하고 신규 인원 감지
 function buildPersonsFromPayroll(){
-  // PAYROLL 기준으로 PERSONS 초기화 (기존 매칭 보존)
+  let newPersons=[]; // {campus, name, position, div, hireDate}
+
   Object.keys(PAYROLL).forEach(campus=>{
     if(!PERSONS[campus]) PERSONS[campus]=[];
     PAYROLL[campus].forEach(p=>{
       const ex=PERSONS[campus].find(x=>x.payName===p.name);
       if(!ex){
-        PERSONS[campus].push({
-          payName:p.name,attendName:null,isLeave:p.isLeave,
-          divOverride:p.div,note:'',matchType:'none',campus
-        });
+        // 마스터에 없는 신규 인원 → 목록에 추가하되 즉시 PERSONS에 넣지 않음
+        newPersons.push({campus,name:p.name,position:p.position,div:p.div,hireDate:p.hireDate});
       }
     });
   });
-  // 출퇴근 파일 있으면 자동 매칭
+
+  // 출퇴근 파일 있으면 기존 인원 자동 매칭
   autoMatchAll();
   renderPersonCampusList();
+
+  // 신규 인원 배너 표시
+  showNewPersonsBanner(newPersons);
 }
+
+// 신규 인원 배너
+let _pendingNewPersons=[];
+function showNewPersonsBanner(list){
+  const banner=document.getElementById('new-persons-banner');
+  const listEl=document.getElementById('new-persons-list');
+  _pendingNewPersons=list;
+  if(!list.length){banner.classList.remove('show');return;}
+  listEl.innerHTML=list.map((p,i)=>`
+    <div class="new-person-row">
+      <input type="checkbox" id="np-${i}" checked style="accent-color:var(--green);width:15px;height:15px">
+      <span style="font-weight:600;min-width:90px">${p.name}</span>
+      <span style="font-size:12px;color:var(--text3)">${p.campus}</span>
+      <span style="font-size:12px;color:var(--text2)">${p.position||''}</span>
+      <span class="chip chip-gray" style="font-size:11px">${p.div||''}</span>
+    </div>`).join('');
+  banner.classList.add('show');
+}
+
+window.confirmAddNewPersons=function(){
+  _pendingNewPersons.forEach((p,i)=>{
+    const chk=document.getElementById('np-'+i);
+    if(!chk||!chk.checked) return;
+    if(!PERSONS[p.campus]) PERSONS[p.campus]=[];
+    const ex=PERSONS[p.campus].find(x=>x.payName===p.name);
+    if(!ex){
+      PERSONS[p.campus].push({
+        payName:p.name,attendName:null,isLeave:false,
+        divOverride:p.div,note:'',matchType:'none',campus:p.campus,
+        _isNew:true
+      });
+    }
+  });
+  autoMatchAll();
+  renderPersonCampusList();
+  savePersonsMaster();
+  document.getElementById('new-persons-banner').classList.remove('show');
+  _pendingNewPersons=[];
+  showToast('✅ 선택한 신규 인원이 마스터에 추가됐습니다','ok');
+};
+
+window.dismissNewPersons=function(){
+  document.getElementById('new-persons-banner').classList.remove('show');
+  _pendingNewPersons=[];
+};
 
 // ══════════════════════════════════════
 // LOAD ATTENDANCE
@@ -879,14 +970,16 @@ function renderPersonDetail(campus, tab) {
     const curDiv = p.divOverride || pay?.div || '';
     const leaveClass = p.isLeave ? 'is-leave' : '';
     const unmatchClass = !p.attendName && !p.isLeave ? 'is-unmatched' : '';
+    const newClass = p._isNew ? 'is-new' : '';
 
     const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
     const divOpts = `<option value="정규직">정규직</option><option value="계약직">계약직</option><option value="단기근로">단기근로</option>`.replace(`value="${curDiv}"`,`value="${curDiv}" selected`);
 
-    return `<div class="person-card ${leaveClass} ${unmatchClass}">
+    return `<div class="person-card ${leaveClass} ${unmatchClass} ${newClass}">
       <div class="pc-left">
         <div class="pc-name">${p.payName}</div>
         ${p.isLeave ? '<div style="font-size:11px;color:#d97706;font-weight:600;margin-top:3px">🟡 휴직</div>' : ''}
+        ${p._isNew ? '<div style="font-size:11px;color:var(--blue);font-weight:600;margin-top:3px">🆕 신규추가</div>' : ''}
       </div>
       <div class="pc-right">
         <div class="pc-field">
@@ -922,12 +1015,12 @@ function renderPersonDetail(campus, tab) {
 
 window.setPersonPos = function(campus, payName, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
-  if (p) p.posOverride = val;
+  if (p) { p.posOverride = val; savePersonsMaster(); }
 };
 
 window.setPersonDiv = function(campus, payName, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
-  if (p) p.divOverride = val;
+  if (p) { p.divOverride = val; savePersonsMaster(); }
 };
 
 window.setPersonAttendName = function(campus, payName, val) {
@@ -935,12 +1028,13 @@ window.setPersonAttendName = function(campus, payName, val) {
   if (!p) return;
   p.attendName = val.trim() || null;
   p.matchType = val.trim() ? 'manual' : 'none';
+  savePersonsMaster();
   renderPersonCampusList();
 };
 
 window.setPersonLeave = function(campus, payName, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
-  if (p) { p.isLeave = val; renderPersonCampusList(); }
+  if (p) { p.isLeave = val; savePersonsMaster(); renderPersonCampusList(); }
 };
 
 window.setPersonNote = function(campus, payName, val) {
@@ -1297,7 +1391,7 @@ window.saveHistory=async function(){
   const y=document.getElementById('sel-year').value;
   const key=`${y}-Q${q}`;
   const record={key,year:y,quarter:q,savedAt:new Date().toLocaleString('ko-KR'),
-    results:RESULTS,dups:DUPS,persons:PERSONS,completed:false};
+    results:RESULTS,dups:DUPS,completed:false}; // PERSONS는 마스터에 별도 저장
   try{
     const{db,doc,setDoc}=window._fb;
     await setDoc(doc(db,'workers_history',key),record);
@@ -1345,10 +1439,10 @@ window.loadRecord=function(key){
   if(!h) return;
   RESULTS=h.results||{add:[],del:[],abs:[],dup:[]};
   DUPS=h.dups||[];
-  if(h.persons) PERSONS=h.persons;
+  // ⚠️ PERSONS(인원 마스터)는 복원하지 않음 — Firestore 마스터가 항상 기준
   updateSummaryCards();renderCampusFilters();
   switchTab('result');
-  showToast(`📂 ${h.year}년 ${h.quarter}분기 불러옴`,'ok');
+  showToast(`📂 ${h.year}년 ${h.quarter}분기 결과 불러옴 (인원 마스터는 유지)`,'ok');
 };
 
 window.toggleComplete=async function(key){
