@@ -165,6 +165,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .new-person-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #fecaca;font-size:13px}
 .new-person-row:last-child{border-bottom:none}
 .person-card.is-new{border-left:3px solid var(--blue);background:#ebf8ff}
+.person-card.is-resigned{opacity:.55;background:#f8f8f8;border-color:#ddd}
+.person-card.is-resigned .pc-name::after{content:' (퇴사)';font-size:11px;color:var(--red);font-weight:400}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
 </head>
@@ -718,8 +720,10 @@ window.importMatchingExcel = function(input) {
         const position  = String(r[3]||'').trim();
         const div       = String(r[4]||'').trim();
         const isLeave   = String(r[5]||'').trim().toUpperCase() === 'Y';
-        const hireDate  = String(r[6]||'').trim();
-        const leaveDate = String(r[7]||'').trim();
+        const hireRaw   = r[6];
+        const leaveRaw  = r[7];
+        const hireDate  = typeof hireRaw==='number' ? excelDateToYMD(hireRaw) : String(hireRaw||'').trim();
+        const leaveDate = typeof leaveRaw==='number' ? excelDateToYMD(leaveRaw) : String(leaveRaw||'').trim();
 
         if (!campus || !payName || !attendName) { skipped++; return; }
 
@@ -1112,11 +1116,18 @@ function updateUnmatchedBadge(){
 // PERSON TABLE
 // ══════════════════════════════════════
 let selectedPersonCampus = null;
+let showResigned = false; // 퇴사자 숨김 상태 (기본: 숨김)
+
+// 오늘 기준 퇴사자 판별
+function isResigned(p) {
+  if (!p.leaveDate) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return p.leaveDate < today;
+}
 
 function renderPersonCampusList() {
   const el = document.getElementById('pm-campus-items');
   if (!el) return;
-  // PAYROLL이 없어도 PERSONS 마스터가 있으면 표시
   const allKeys = new Set([...Object.keys(PAYROLL), ...Object.keys(PERSONS)]);
   const campuses = [...allKeys].sort((a,b)=>a.localeCompare(b,'ko'));
   if (!campuses.length) {
@@ -1125,11 +1136,12 @@ function renderPersonCampusList() {
   }
   el.innerHTML = campuses.map(campus => {
     const persons = PERSONS[campus] || [];
-    const unmatched = persons.filter(p => !p.attendName && !p.isLeave).length;
+    const visible = showResigned ? persons : persons.filter(p => !isResigned(p));
+    const unmatched = visible.filter(p => !p.attendName && !p.isLeave).length;
     const active = campus === selectedPersonCampus;
     return `<div class="pm-item${active?' active':''}" onclick="selectPersonCampus('${campus}')">
       <span>${campus}</span>
-      <span class="pm-cnt">${unmatched > 0 ? '<span style="color:var(--red)">'+unmatched+'미매칭</span>' : persons.length+'명'}</span>
+      <span class="pm-cnt">${unmatched > 0 ? '<span style="color:var(--red)">'+unmatched+'미매칭</span>' : visible.length+'명'}</span>
     </div>`;
   }).join('');
   updateUnmatchedBadge();
@@ -1157,13 +1169,23 @@ function renderPersonDetail(campus, tab) {
   window._pmTab = currentTab;
   window._pmCampus = campus;
 
-  const matched   = persons.filter(p => p.attendName);
-  const unmatched = persons.filter(p => !p.attendName);
+  // 퇴사자 분리 (화면 숨김용, 데이터는 유지)
+  const resigned  = persons.filter(p => isResigned(p));
+  const active    = persons.filter(p => !isResigned(p));
+  const viewList  = showResigned ? persons : active;
+
+  const matched   = viewList.filter(p => p.attendName);
+  const unmatched = viewList.filter(p => !p.attendName);
 
   detail.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
       <span style="font-size:15px;font-weight:700;color:var(--text)">${campus}</span>
-      <span style="font-size:12px;color:var(--text3)">${persons.length}명</span>
+      <span style="font-size:12px;color:var(--text3)">${active.length}명 재직</span>
+      ${resigned.length ? `<span style="font-size:12px;color:var(--text3)">/ 퇴사 ${resigned.length}명</span>` : ''}
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:11px"
+        onclick="showResigned=!showResigned;renderPersonDetail('${campus}')">
+        ${showResigned ? '🙈 퇴사자 숨기기' : '👁 퇴사자 보기 ('+resigned.length+')'}
+      </button>
     </div>
     <div class="pm-itabs">
       <div class="pm-itab${currentTab==='unmatched'?' active':''}" onclick="renderPersonDetail('${campus}','unmatched')">
@@ -1190,14 +1212,16 @@ function renderPersonDetail(campus, tab) {
     const pay = payroll.find(x => x.name === p.payName);
     const curPos = p.posOverride || pay?.position || '';
     const curDiv = p.divOverride || pay?.div || '';
+    const resigned = isResigned(p);
     const leaveClass = p.isLeave ? 'is-leave' : '';
+    const resignedClass = resigned ? 'is-resigned' : '';
     const unmatchClass = !p.attendName && !p.isLeave ? 'is-unmatched' : '';
     const newClass = p._isNew ? 'is-new' : '';
 
     const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
     const divOpts = `<option value="정규직">정규직</option><option value="계약직">계약직</option><option value="단기근로">단기근로</option>`.replace(`value="${curDiv}"`,`value="${curDiv}" selected`);
 
-    return `<div class="person-card ${leaveClass} ${unmatchClass} ${newClass}">
+    return `<div class="person-card ${leaveClass} ${resignedClass} ${unmatchClass} ${newClass}">
       <div class="pc-left">
         <div class="pc-name">${p.payName}</div>
         ${p.isLeave ? '<div style="font-size:11px;color:#d97706;font-weight:600;margin-top:3px">🟡 휴직</div>' : ''}
@@ -1246,6 +1270,10 @@ function renderPersonDetail(campus, tab) {
             style="width:120px;font-family:var(--mono);font-size:12px;${p.leaveDate?'border-color:var(--orange);':''}"
             onchange="setPersonDate('${esc(campus)}','${esc(p.payName)}','leaveDate',this.value)">
         </div>
+        <div class="pc-field" style="padding-top:16px">
+          <button class="btn btn-ghost btn-sm" style="color:var(--red);font-size:11px;padding:4px 8px"
+            onclick="deletePerson('${esc(campus)}','${esc(p.payName)}')">🗑 삭제</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -1268,6 +1296,36 @@ window.setPersonAttendName = function(campus, payName, val) {
   p.matchType = val.trim() ? 'manual' : 'none';
   savePersonsMaster([campus]);
   renderPersonCampusList();
+};
+
+window.deletePerson = function(campus, payName) {
+  if (!confirm(`"${payName}" 을(를) 인원 마스터에서 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+  if (!PERSONS[campus]) return;
+  PERSONS[campus] = PERSONS[campus].filter(x => x.payName !== payName);
+
+  // 캠퍼스 인원이 0명이면 캠퍼스 키 자체 제거
+  if (PERSONS[campus].length === 0) {
+    delete PERSONS[campus];
+    // Firestore에서도 해당 캠퍼스 문서 삭제
+    if (window._fbReady && currentUser) {
+      const {db, doc, deleteDoc} = window._fb;
+      deleteDoc(doc(db, 'workers_persons', campus))
+        .then(() => console.log(`[마스터] ${campus} 캠퍼스 문서 삭제`))
+        .catch(e => console.warn(`[마스터] ${campus} 삭제 실패`, e));
+    }
+    // 캠퍼스 선택 초기화
+    const remaining = Object.keys(PERSONS).sort((a,b) => a.localeCompare(b,'ko'));
+    selectedPersonCampus = remaining[0] || null;
+  } else {
+    savePersonsMaster([campus]);
+  }
+
+  renderPersonCampusList();
+  if (selectedPersonCampus) renderPersonDetail(selectedPersonCampus);
+  else document.getElementById('pm-detail-content').innerHTML =
+    '<div class="empty"><div class="icon">👈</div><h3>캠퍼스를 선택하세요</h3></div>';
+  updateUnmatchedBadge();
+  showToast(`🗑 ${payName} 삭제 완료`, 'ok');
 };
 
 window.setPersonLeave = function(campus, payName, val) {
