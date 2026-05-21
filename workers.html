@@ -330,7 +330,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
           <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="add-count"></span>
         </div>
         <div class="twrap">
-          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>구분</th><th>입사일</th><th>비고</th></tr></thead>
+          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>구분</th><th>입사일</th><th>퇴사일 입력</th><th></th></tr></thead>
           <tbody id="add-tbody"></tbody></table>
           <div class="pagination" id="add-pg"></div>
         </div>
@@ -343,7 +343,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
           <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="del-count"></span>
         </div>
         <div class="twrap">
-          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>사유</th><th>퇴사일</th></tr></thead>
+          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>사유</th><th>퇴사일</th><th></th></tr></thead>
           <tbody id="del-tbody"></tbody></table>
           <div class="pagination" id="del-pg"></div>
         </div>
@@ -1463,8 +1463,82 @@ window.setPersonNote = function(campus, payName, val) {
   if (p) p.note = val;
 };
 
-// ══════════════════════════════════════
-// ANALYSIS
+// 추가필요 → 인원관리에 즉시 추가
+window.addPersonFromResult = function(campus, payName, leaveDate) {
+  if(!PERSONS[campus]) PERSONS[campus]=[];
+  const existing = PERSONS[campus].find(x=>x.payName===payName||baseNameOf(x.payName)===baseNameOf(payName));
+  if(existing){
+    // 이미 있으면 퇴사일만 업데이트
+    if(leaveDate){ existing.leaveDate=leaveDate; }
+    savePersonsMaster([campus]);
+    // RESULTS.add에서 제거
+    RESULTS.add = RESULTS.add.filter(r=>!(r.campus===campus&&r.name===payName));
+    renderAllResults();
+    showToast(`✅ ${payName} 퇴사일 반영됨`, 'ok');
+    return;
+  }
+  // 신규 추가
+  const payrollPerson = (PAYROLL[campus]||[]).find(p=>p.name===payName);
+  PERSONS[campus].push({
+    payName, attendName:null, matchType:'none',
+    posOverride: payrollPerson?.position||'',
+    divOverride: payrollPerson?.div||'',
+    isLeave: false,
+    hireDate: payrollPerson?.hireDate||'',
+    leaveDate: leaveDate||'',
+    note:'', campus
+  });
+  savePersonsMaster([campus]);
+  // RESULTS.add에서 제거
+  RESULTS.add = RESULTS.add.filter(r=>!(r.campus===campus&&r.name===payName));
+  renderAllResults();
+  showToast(`✅ ${payName} 인원관리에 추가됨`, 'ok');
+};
+
+// 삭제필요 → 입사자 처리 (인원관리에 미매칭 상태로 추가)
+window.addNewHireFromResult = function(campus, attendName) {
+  if(!PERSONS[campus]) PERSONS[campus]=[];
+  const existing = PERSONS[campus].find(x=>x.attendName===attendName||x.payName===attendName);
+  if(existing){
+    showToast(`${attendName} 은(는) 이미 인원관리에 있습니다`, 'err');
+    return;
+  }
+  // attendName만 있고 payName 미매칭 상태로 추가
+  PERSONS[campus].push({
+    payName: attendName,   // 일단 출퇴근 이름을 payName으로
+    attendName: attendName,
+    matchType: 'none',     // 미매칭 — 인원관리에서 급여대장 이름 직접 연결 필요
+    ignored: false,
+    isLeave: false,
+    posOverride:'', divOverride:'', hireDate:'', leaveDate:'', note:'신규입사자(급여대장 미반영)', campus,
+    _isNew: true
+  });
+  savePersonsMaster([campus]);
+  // RESULTS.del에서 제거
+  RESULTS.del = RESULTS.del.filter(r=>!(r.campus===campus&&r.name===attendName));
+  renderAllResults();
+  showToast(`🆕 ${attendName} 입사자로 인원관리에 추가됨 — 급여대장 이름 매핑 필요`, 'ok');
+};
+window.ignoreFromResult = function(campus, attendName) {
+  if(!PERSONS[campus]) PERSONS[campus]=[];
+  const existing = PERSONS[campus].find(x=>x.attendName===attendName);
+  if(existing){
+    existing.ignored = true;
+    savePersonsMaster([campus]);
+  } else {
+    // 인원관리에 없는 경우(확인불가) → ignored 항목으로 추가
+    PERSONS[campus].push({
+      payName: attendName, attendName, matchType:'ignored',
+      ignored: true, note:'삭제필요 무시처리', campus,
+      posOverride:'', divOverride:'', isLeave:false, hireDate:'', leaveDate:''
+    });
+    savePersonsMaster([campus]);
+  }
+  // RESULTS.del에서 제거
+  RESULTS.del = RESULTS.del.filter(r=>!(r.campus===campus&&r.name===attendName));
+  renderAllResults();
+  showToast(`🙈 ${attendName} 무시 처리됨 (이후 분석에서 제외)`, 'ok');
+};
 // ══════════════════════════════════════
 window.runAnalysis=function(){
   if(!Object.keys(PAYROLL).length){showToast('급여대장을 먼저 업로드하세요','err');return;}
@@ -1495,35 +1569,58 @@ window.runAnalysis=function(){
     const SKIP_POSITIONS = ['본부장','본사'];
     const skipPos = p => SKIP_POSITIONS.includes(p.posOverride || p.position || '');
 
-    // 1. 추가 필요: 급여대장에 있는데 출퇴근에 없는 인원 (휴직자·퇴사자·제외직책 제외)
+    // 1. 추가 필요: 급여대장에 있는데 출퇴근 파일에 없는 인원 (휴직자·퇴사자·제외직책 제외)
+    // 출퇴근 이름 목록 (정규화 포함)
+    const attendNameSet = new Set(attend.map(a => a.name));
+    const attendNameNorm = new Set(attend.map(a => normName(a.name)));
+
     payroll.forEach(p=>{
-      const per=persons.find(x=>x.payName===p.name);
-      if(skipPos(per||p)) return; // 본부장 제외
+      const pBase=baseNameOf(p.name);
+      const per=persons.find(x=>x.payName===p.name||baseNameOf(x.payName)===pBase);
+      if(skipPos(per||p)) return;
+      // 휴직자 제외
       const isLeave=per?.isLeave||p.isLeave;
       if(isLeave) return;
+      // 퇴사일 있으면 제외
       const leaveDate=per?.leaveDate||p.leaveDate||'';
-      if(leaveDate.trim()&&leaveDate<=`${y}-${String(baseMonth).padStart(2,'0')}-01`) return;
-      const hasAttend=per?.attendName;
-      const hireDate=per?.hireDate||p.hireDate||'';
-      if(!hasAttend) RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
+      if(leaveDate.trim()) return;
+
+      // 출퇴근 파일에서 직접 이름 찾기
+      // 1순위: 인원관리에 attendName이 지정돼 있으면 그 이름으로 확인
+      // 2순위: 급여대장 이름(괄호 제거) 기준으로 출퇴근 파일에서 직접 검색
+      const mappedAttendName = per?.attendName;
+      let foundInAttend = false;
+      if(mappedAttendName){
+        foundInAttend = attendNameSet.has(mappedAttendName);
+      } else {
+        // 매핑 없으면 이름 정규화로 직접 비교
+        foundInAttend = attendNameNorm.has(normName(pBase));
+      }
+
+      if(!foundInAttend){
+        const hireDate=per?.hireDate||p.hireDate||'';
+        RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
+      }
     });
 
-    // 2. 삭제 필요: 출퇴근에 있는데 급여대장에 없거나, 퇴사일이 지난 인원
+    // 2. 삭제 필요: 출퇴근에 있는데 급여대장에 없거나, 퇴사일이 있는 인원
     attend.forEach(a=>{
       if(a.isDup) return;
       const per=matchedAttend.get(a.name);
+      // ignored 처리된 인원은 분석에서 제외
+      if(per?.ignored) return;
+      // 인원관리에 없어도 ignored 항목으로 등록된 경우 제외
+      const ignoredEntry=persons.find(x=>x.ignored&&(x.attendName===a.name||x.payName===a.name));
+      if(ignoredEntry) return;
       if(!per){
-        RESULTS.del.push({campus,name:a.name,reason:'급여대장 미등록',leaveDate:''});
+        RESULTS.del.push({campus,name:a.name,reason:'확인 불가 근로자',leaveDate:''});
         return;
       }
-      if(skipPos(per)) return; // 본부장 제외
+      if(skipPos(per)) return;
       const pay=payroll.find(p=>p.name===per.payName);
       const leaveDate=per.leaveDate||(pay?.leaveDate)||'';
       if(leaveDate.trim()){
-        const baseEnd=`${y}-${String(baseMonth).padStart(2,'0')}-${String(new Date(y,baseMonth,0).getDate()).padStart(2,'0')}`;
-        if(leaveDate<=baseEnd){
-          RESULTS.del.push({campus,name:a.name,reason:'퇴사자 미삭제',leaveDate});
-        }
+        RESULTS.del.push({campus,name:a.name,reason:'퇴사자 미삭제',leaveDate});
       }
     });
 
@@ -1636,13 +1733,35 @@ window.renderAddTable=function(pg){
   const rows=RESULTS.add.filter(r=>(!c||r.campus===c)&&(!s||r.name.toLowerCase().includes(s)));
   document.getElementById('add-count').textContent=`총 ${rows.length}명`;
   const sl=paginate(rows,addPage);
-  document.getElementById('add-tbody').innerHTML=sl.map(r=>`<tr>
-    <td>${r.campus}</td><td style="font-weight:600">${r.name}</td>
+  const tbody=document.getElementById('add-tbody');
+  tbody.innerHTML=sl.map((r,i)=>`<tr data-idx="${i}">
+    <td>${r.campus}</td>
+    <td style="font-weight:600">${r.name}</td>
     <td style="font-size:12px">${r.position||'-'}</td>
     <td><span class="chip chip-gray">${r.div||'-'}</span></td>
     <td class="mono" style="font-size:12px">${r.hireDate||'-'}</td>
-    <td style="font-size:12px;color:var(--text3)">${r.note||''}</td>
-  </tr>`).join('')||noData(6);
+    <td>
+      <input class="pc-input" type="text" placeholder="퇴사일 (있으면 입력)"
+        style="width:120px;font-size:11px;font-family:var(--mono)"
+        data-campus="${esc(r.campus)}" data-name="${esc(r.name)}">
+    </td>
+    <td>
+      <button class="btn btn-ghost btn-sm" style="font-size:11px;white-space:nowrap"
+        data-campus="${esc(r.campus)}" data-name="${esc(r.name)}">👤 인원관리에 추가</button>
+    </td>
+  </tr>`).join('')||noData(7);
+
+  // 이벤트 — data 속성으로 이름 특수문자 안전 처리
+  tbody.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const campus = btn.dataset.campus;
+      const name   = btn.dataset.name;
+      const row    = btn.closest('tr');
+      const input  = row.querySelector('input');
+      const leaveDate = normalizeDate(input?.value||'') || '';
+      addPersonFromResult(campus, name, leaveDate);
+    });
+  });
   renderPg('add-pg',rows.length,addPage,'window.renderAddTable');
 };
 
@@ -1653,11 +1772,26 @@ window.renderDelTable=function(pg){
   const rows=RESULTS.del.filter(r=>(!c||r.campus===c)&&(!s||r.name.toLowerCase().includes(s)));
   document.getElementById('del-count').textContent=`총 ${rows.length}명`;
   const sl=paginate(rows,delPage);
-  document.getElementById('del-tbody').innerHTML=sl.map(r=>`<tr>
-    <td>${r.campus}</td><td style="font-weight:600">${r.name}</td>
+  const tbody=document.getElementById('del-tbody');
+  tbody.innerHTML=sl.map(r=>`<tr>
+    <td>${r.campus}</td>
+    <td style="font-weight:600">${r.name}</td>
     <td><span class="chip ${r.reason.includes('퇴사')?'chip-orange':'chip-red'}">${r.reason}</span></td>
     <td class="mono" style="font-size:12px">${r.leaveDate||'-'}</td>
-  </tr>`).join('')||noData(4);
+    <td style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm btn-ignore" style="font-size:11px;color:var(--text3)"
+        data-campus="${esc(r.campus)}" data-name="${esc(r.name)}">🙈 무시</button>
+      <button class="btn btn-ghost btn-sm btn-newhire" style="font-size:11px;color:var(--blue)"
+        data-campus="${esc(r.campus)}" data-name="${esc(r.name)}">🆕 입사자</button>
+    </td>
+  </tr>`).join('')||noData(5);
+
+  tbody.querySelectorAll('.btn-ignore').forEach(btn=>{
+    btn.addEventListener('click', ()=>ignoreFromResult(btn.dataset.campus, btn.dataset.name));
+  });
+  tbody.querySelectorAll('.btn-newhire').forEach(btn=>{
+    btn.addEventListener('click', ()=>addNewHireFromResult(btn.dataset.campus, btn.dataset.name));
+  });
   renderPg('del-pg',rows.length,delPage,'window.renderDelTable');
 };
 
