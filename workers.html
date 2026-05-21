@@ -356,7 +356,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
           <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="abs-count"></span>
         </div>
         <div class="twrap">
-          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>출근</th><th>퇴근</th><th>합산률</th><th>기준일수</th></tr></thead>
+          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>출근률</th><th>퇴근률</th><th>합산률</th><th>기준일수</th></tr></thead>
           <tbody id="abs-tbody"></tbody></table>
           <div class="pagination" id="abs-pg"></div>
         </div>
@@ -1149,13 +1149,13 @@ window.removeCampus=function(campus){
 // ══════════════════════════════════════
 function autoMatch(payName,attendNames){
   const pn=normName(payName);
+  // 1순위: 정확히 일치
   let m=attendNames.find(a=>normName(a)===pn);
   if(m) return{name:m,type:'auto'};
-  m=attendNames.find(a=>{const an=normName(a);return an.length>2&&(an.includes(pn)||pn.includes(an));});
-  if(m) return{name:m,type:'auto'};
-  const pFirst=pn.split(' ')[0];
-  if(pFirst.length>2){
-    m=attendNames.find(a=>normName(a).split(' ')[0]===pFirst);
+  // 2순위: 한국인 이름(공백 없는 2~4자)만 포함 매칭 허용
+  // 영문 이름은 절대 부분 매칭 하지 않음 (Ashley Bennett ≠ Ashley Nicholson)
+  if(!pn.includes(' ')){
+    m=attendNames.find(a=>{const an=normName(a);return an.length>1&&(an===pn);});
     if(m) return{name:m,type:'auto'};
   }
   return{name:null,type:'none'};
@@ -1650,13 +1650,16 @@ window.runAnalysis=function(){
       const ciCount=workdays.filter(d=>a.ciDays[d]).length;
       const coCount=workdays.filter(d=>a.coDays[d]).length;
       const total=workdays.length*2;
-      const rate=Math.round((ciCount+coCount)/total*100);
+      // 출근률 + 퇴근률 각각 계산 후 합산 (최대 200%)
+      const ciRate=workdays.length>0 ? ciCount/workdays.length*100 : 0;
+      const coRate=workdays.length>0 ? coCount/workdays.length*100 : 0;
+      const rate=Math.round(ciRate+coRate);
 
       if(rate<60){
         RESULTS.abs.push({
           campus,name:a.name,position:pay?.position||per.posOverride||'',
-          ciCount,coCount,total,rate,
-          workdays:workdays.length,note:per.note||''
+          ciCount,coCount,ciRate:Math.round(ciRate),coRate:Math.round(coRate),
+          total,rate,workdays:workdays.length,note:per.note||''
         });
       }
     });
@@ -1805,8 +1808,8 @@ window.renderAbsTable=function(pg){
   document.getElementById('abs-tbody').innerHTML=sl.map(r=>`<tr>
     <td>${r.campus}</td><td style="font-weight:600">${r.name}</td>
     <td style="font-size:12px">${r.position||'-'}</td>
-    <td class="mono">${r.ciCount}회</td>
-    <td class="mono">${r.coCount}회</td>
+    <td class="mono">${r.ciRate}%</td>
+    <td class="mono">${r.coRate}%</td>
     <td class="mono" style="font-weight:700;color:var(--red)">${r.rate}%</td>
     <td class="mono" style="font-size:12px;color:var(--text3)">${r.workdays}일 기준</td>
   </tr>`).join('')||noData(7);
