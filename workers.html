@@ -1208,7 +1208,7 @@ function renderPersonDetail(campus, tab) {
     return;
   }
 
-  cards.innerHTML = list.map(p => {
+  cards.innerHTML = list.map((p, idx) => {
     const pay = payroll.find(x => x.name === p.payName);
     const curPos = p.posOverride || pay?.position || '';
     const curDiv = p.divOverride || pay?.div || '';
@@ -1218,65 +1218,91 @@ function renderPersonDetail(campus, tab) {
     const unmatchClass = !p.attendName && !p.isLeave ? 'is-unmatched' : '';
     const newClass = p._isNew ? 'is-new' : '';
 
-    const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="POLY안전선생님">POLY안전선생님</option><option value="사서">사서</option><option value="미화">미화</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
+    const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="본부장">본부장</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="POLY안전선생님">POLY안전선생님</option><option value="사서">사서</option><option value="미화">미화</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
     const divOpts = `<option value="정규직">정규직</option><option value="계약직">계약직</option><option value="단기근로">단기근로</option>`.replace(`value="${curDiv}"`,`value="${curDiv}" selected`);
 
-    return `<div class="person-card ${leaveClass} ${resignedClass} ${unmatchClass} ${newClass}">
+    // data-campus, data-payname 으로 이름 전달 → 특수문자 안전
+    return `<div class="person-card ${leaveClass} ${resignedClass} ${unmatchClass} ${newClass}"
+        data-campus="${esc(campus)}" data-payname="${esc(p.payName)}">
       <div class="pc-left">
-        <div class="pc-name">${p.payName}</div>
+        <div class="pc-name">${esc(p.payName)}</div>
         ${p.isLeave ? '<div style="font-size:11px;color:#d97706;font-weight:600;margin-top:3px">🟡 휴직</div>' : ''}
         ${p._isNew ? '<div style="font-size:11px;color:var(--blue);font-weight:600;margin-top:3px">🆕 신규추가</div>' : ''}
       </div>
       <div class="pc-right">
         <div class="pc-field">
           <div class="pc-field-label">직책</div>
-          <select class="pc-select" onchange="setPersonPos('${esc(campus)}','${esc(p.payName)}',this.value)">
+          <select class="pc-select pc-pos">
             <option value="">선택</option>${posOpts}
           </select>
         </div>
         <div class="pc-field">
           <div class="pc-field-label">구분</div>
-          <select class="pc-select" onchange="setPersonDiv('${esc(campus)}','${esc(p.payName)}',this.value)">
+          <select class="pc-select pc-div">
             <option value="">선택</option>${divOpts}
           </select>
         </div>
         <div class="pc-field">
           <div class="pc-field-label">데이터 이름</div>
-          <input class="pc-input${p.attendName?' has-val':''}" type="text"
-            value="${p.attendName||''}"
+          <input class="pc-input pc-attend${p.attendName?' has-val':''}" type="text"
+            value="${esc(p.attendName||'')}"
             placeholder="수기 입력"
-            style="width:160px"
-            onchange="setPersonAttendName('${esc(campus)}','${esc(p.payName)}',this.value)"
-            oninput="this.className='pc-input'+(this.value?' has-val':'')">
+            style="width:160px">
         </div>
         <div class="pc-field" style="align-items:center;gap:8px;flex-direction:row;padding-top:16px">
-          <input type="checkbox" ${p.isLeave?'checked':''} style="accent-color:var(--green);width:15px;height:15px"
-            onchange="setPersonLeave('${esc(campus)}','${esc(p.payName)}',this.checked)">
+          <input type="checkbox" class="pc-leave" ${p.isLeave?'checked':''} style="accent-color:var(--green);width:15px;height:15px">
           <span style="font-size:12px;color:var(--text2)">휴직</span>
         </div>
         <div class="pc-field">
           <div class="pc-field-label">입사일</div>
-          <input class="pc-input${p.hireDate?' has-val':''}" type="text"
+          <input class="pc-input pc-hiredate${p.hireDate?' has-val':''}" type="text"
             value="${p.hireDate||''}"
             placeholder="YYYY-MM-DD"
-            style="width:120px;font-family:var(--mono);font-size:12px"
-            onchange="setPersonDate('${esc(campus)}','${esc(p.payName)}','hireDate',this.value)">
+            style="width:120px;font-family:var(--mono);font-size:12px">
         </div>
         <div class="pc-field">
           <div class="pc-field-label">퇴사일</div>
-          <input class="pc-input${p.leaveDate?' has-val':''}" type="text"
+          <input class="pc-input pc-leavedate${p.leaveDate?' has-val':''}" type="text"
             value="${p.leaveDate||''}"
             placeholder="YYYY-MM-DD"
-            style="width:120px;font-family:var(--mono);font-size:12px;${p.leaveDate?'border-color:var(--orange);':''}"
-            onchange="setPersonDate('${esc(campus)}','${esc(p.payName)}','leaveDate',this.value)">
+            style="width:120px;font-family:var(--mono);font-size:12px;${p.leaveDate?'border-color:var(--orange);':''}">
         </div>
         <div class="pc-field" style="padding-top:16px">
-          <button class="btn btn-ghost btn-sm" style="color:var(--red);font-size:11px;padding:4px 8px"
-            onclick="deletePerson('${esc(campus)}','${esc(p.payName)}')">🗑 삭제</button>
+          <button class="btn btn-ghost btn-sm pc-delete" style="color:var(--red);font-size:11px;padding:4px 8px">🗑 삭제</button>
         </div>
       </div>
     </div>`;
   }).join('');
+
+  // 이벤트 위임 — data-campus / data-payname 으로 특수문자 안전하게 처리
+  cards.querySelectorAll('.person-card').forEach(card => {
+    const campus  = card.dataset.campus;
+    const payName = card.dataset.payname;
+
+    card.querySelector('.pc-pos')?.addEventListener('change', e =>
+      setPersonPos(campus, payName, e.target.value));
+
+    card.querySelector('.pc-div')?.addEventListener('change', e =>
+      setPersonDiv(campus, payName, e.target.value));
+
+    const attendEl = card.querySelector('.pc-attend');
+    if (attendEl) {
+      attendEl.addEventListener('input',  e => { e.target.className = 'pc-input pc-attend' + (e.target.value ? ' has-val' : ''); });
+      attendEl.addEventListener('change', e => setPersonAttendName(campus, payName, e.target.value));
+    }
+
+    card.querySelector('.pc-leave')?.addEventListener('change', e =>
+      setPersonLeave(campus, payName, e.target.checked));
+
+    card.querySelector('.pc-hiredate')?.addEventListener('change', e =>
+      setPersonDate(campus, payName, 'hireDate', e.target.value));
+
+    card.querySelector('.pc-leavedate')?.addEventListener('change', e =>
+      setPersonDate(campus, payName, 'leaveDate', e.target.value));
+
+    card.querySelector('.pc-delete')?.addEventListener('click', () =>
+      deletePerson(campus, payName));
+  });
 }
 
 window.setPersonPos = function(campus, payName, val) {
@@ -1396,10 +1422,14 @@ window.runAnalysis=function(){
       if(p.attendName) matchedAttend.set(p.attendName,p);
     });
 
-    // 1. 추가 필요: 급여대장에 있는데 출퇴근에 없는 인원 (휴직자·퇴사자 제외)
+    // 분석 제외 직책
+    const SKIP_POSITIONS = ['본부장'];
+    const skipPos = p => SKIP_POSITIONS.includes(p.posOverride || p.position || '');
+
+    // 1. 추가 필요: 급여대장에 있는데 출퇴근에 없는 인원 (휴직자·퇴사자·제외직책 제외)
     payroll.forEach(p=>{
       const per=persons.find(x=>x.payName===p.name);
-      // 휴직·퇴사일: 마스터 우선, 없으면 급여대장
+      if(skipPos(per||p)) return; // 본부장 제외
       const isLeave=per?.isLeave||p.isLeave;
       if(isLeave) return;
       const leaveDate=per?.leaveDate||p.leaveDate||'';
@@ -1417,8 +1447,8 @@ window.runAnalysis=function(){
         RESULTS.del.push({campus,name:a.name,reason:'급여대장 미등록',leaveDate:''});
         return;
       }
+      if(skipPos(per)) return; // 본부장 제외
       const pay=payroll.find(p=>p.name===per.payName);
-      // 퇴사일: 마스터 우선, 없으면 급여대장
       const leaveDate=per.leaveDate||(pay?.leaveDate)||'';
       if(leaveDate.trim()){
         const baseEnd=`${y}-${String(baseMonth).padStart(2,'0')}-${String(new Date(y,baseMonth,0).getDate()).padStart(2,'0')}`;
@@ -1434,12 +1464,11 @@ window.runAnalysis=function(){
       const per=matchedAttend.get(a.name);
       if(!per) return;
       if(per.isLeave) return;
+      if(skipPos(per)) return; // 본부장 제외
       const pay=payroll.find(p=>p.name===per.payName);
-      // 퇴사일: 마스터 우선
       const leaveDate=per.leaveDate||(pay?.leaveDate)||'';
       if(leaveDate.trim()) return;
 
-      // 입사일: 마스터 우선, 없으면 급여대장
       const hireDate=per.hireDate||(pay?.hireDate)||'';
       let workdays=allWorkdays;
       if(hireDate){
