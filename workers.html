@@ -722,8 +722,8 @@ window.importMatchingExcel = function(input) {
         const isLeave   = String(r[5]||'').trim().toUpperCase() === 'Y';
         const hireRaw   = r[6];
         const leaveRaw  = r[7];
-        const hireDate  = typeof hireRaw==='number' ? excelDateToYMD(hireRaw) : String(hireRaw||'').trim();
-        const leaveDate = typeof leaveRaw==='number' ? excelDateToYMD(leaveRaw) : String(leaveRaw||'').trim();
+        const hireDate  = typeof hireRaw==='number' ? excelDateToYMD(hireRaw) : (normalizeDate(hireRaw)||'');
+        const leaveDate = typeof leaveRaw==='number' ? excelDateToYMD(leaveRaw) : (normalizeDate(leaveRaw)||'');
 
         if (!campus || !payName || !attendName) { skipped++; return; }
 
@@ -1218,7 +1218,7 @@ function renderPersonDetail(campus, tab) {
     const unmatchClass = !p.attendName && !p.isLeave ? 'is-unmatched' : '';
     const newClass = p._isNew ? 'is-new' : '';
 
-    const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
+    const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="POLY안전선생님">POLY안전선생님</option><option value="사서">사서</option><option value="미화">미화</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
     const divOpts = `<option value="정규직">정규직</option><option value="계약직">계약직</option><option value="단기근로">단기근로</option>`.replace(`value="${curDiv}"`,`value="${curDiv}" selected`);
 
     return `<div class="person-card ${leaveClass} ${resignedClass} ${unmatchClass} ${newClass}">
@@ -1333,15 +1333,33 @@ window.setPersonLeave = function(campus, payName, val) {
   if (p) { p.isLeave = val; savePersonsMaster([campus]); renderPersonCampusList(); }
 };
 
+// 날짜 입력 정규화: YYYYMMDD / YYYY/MM/DD / YYYY-MM-DD 모두 → YYYY-MM-DD
+function normalizeDate(val) {
+  const s = String(val||'').trim().replace(/\s/g,'');
+  if (!s) return '';
+  // YYYYMMDD (숫자 8자리)
+  if (/^\d{8}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  // YYYY/MM/DD 또는 YYYY.MM.DD
+  const slash = s.match(/^(\d{4})[\/\.](\d{1,2})[\/\.](\d{1,2})$/);
+  if (slash) return `${slash[1]}-${slash[2].padStart(2,'0')}-${slash[3].padStart(2,'0')}`;
+  // 이미 YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return null; // 인식 불가
+}
+
 window.setPersonDate = function(campus, payName, field, val) {
   const p = PERSONS[campus]?.find(x => x.payName === payName);
   if (!p) return;
-  // YYYY-MM-DD 형식 검증
-  const clean = val.trim();
-  if (clean && !/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
-    showToast('날짜 형식은 YYYY-MM-DD 로 입력하세요','err'); return;
+  const raw = val.trim();
+  if (!raw) { p[field] = ''; savePersonsMaster([campus]); return; }
+  const clean = normalizeDate(raw);
+  if (!clean) {
+    showToast('날짜 형식을 인식할 수 없습니다 (예: 20240301, 2024/03/01, 2024-03-01)', 'err');
+    return;
   }
   p[field] = clean;
+  // 입력 필드 값도 정규화된 값으로 업데이트
+  event?.target && (event.target.value = clean);
   savePersonsMaster([campus]);
 };
 
