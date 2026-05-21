@@ -844,6 +844,12 @@ async function loadPersonsMaster(){
 }
 
 // 급여대장 업로드 후: 마스터와 병합하고 신규/변동 인원 감지
+// 이름 비교용 정규화: 괄호 내용 제거 후 공백 정리
+// 예) "이희은 (육휴_'25/12/21-'26/12/20)" → "이희은"
+function baseNameOf(name){
+  return String(name||'').trim().replace(/\s*[\(\（(][^)\）)]*[\)\）)]/g,'').replace(/\s+/g,' ').trim();
+}
+
 function buildPersonsFromPayroll(){
   let newPersons=[];      // 마스터에 아예 없는 신규
   let changedPersons=[];  // 입퇴사일·휴직 상태가 변경된 기존 인원
@@ -853,7 +859,11 @@ function buildPersonsFromPayroll(){
     if(!PERSONS[campus]) PERSONS[campus]=[];
 
     PAYROLL[campus].forEach(p=>{
-      const ex=PERSONS[campus].find(x=>x.payName===p.name);
+      const pBase=baseNameOf(p.name);
+      // 마스터 매칭: 정확한 이름 또는 괄호 제거 기준으로 비교
+      const ex=PERSONS[campus].find(x=>
+        x.payName===p.name || baseNameOf(x.payName)===pBase
+      );
 
       if(!ex){
         // 마스터에 없는 완전 신규 → 배너로 확인 후 추가
@@ -878,7 +888,9 @@ function buildPersonsFromPayroll(){
         }
 
         // 휴직여부: 급여대장 기준으로 갱신 (단, 사용자가 수동으로 Y 처리한 경우는 유지)
-        if(p.isLeave && !ex.isLeave){
+        // 급여대장 이름에 육휴·휴직 표기가 있으면 자동으로 휴직 처리
+        const hasLeaveNote=/육휴|육아휴직|휴직|휴가/.test(p.name);
+        if((p.isLeave||hasLeaveNote) && !ex.isLeave){
           changes.push('휴직 상태로 변경');
           ex.isLeave = true;
         }
@@ -891,9 +903,14 @@ function buildPersonsFromPayroll(){
     });
 
     // 급여대장에서 사라진 인원 감지 (퇴사일 없이 사라진 경우)
+    // 괄호 표기 변형도 동일인으로 처리
     PERSONS[campus].forEach(per=>{
       if(per.leaveDate) return; // 이미 퇴사 처리된 인원은 무시
-      const inPayroll=PAYROLL[campus].find(p=>p.name===per.payName);
+      if(per.isLeave) return;   // 휴직자는 급여대장에서 사라져도 정상
+      const perBase=baseNameOf(per.payName);
+      const inPayroll=PAYROLL[campus].find(p=>
+        p.name===per.payName || baseNameOf(p.name)===perBase
+      );
       if(!inPayroll){
         // 급여대장에서 사라졌는데 퇴사일 없음 → 변경 목록에 추가
         changedPersons.push({campus, name:per.payName,
@@ -1022,32 +1039,59 @@ window.loadAttendance=function(input){
 
 function parseAttendSheet(campus,rows){
   if(!rows.length) return;
-  // 1행: 헤더 (부서,직급,이름,사원번호,구분,1,2,...,31,총합)
-  const hdr=rows[0];
+
+  // 헤더 행 자동 탐지: '이름' 또는 '성명' 셀이 있는 행 (최대 5행 탐색)
+  let hdrRowIdx=0;
+  for(let i=0;i<Math.min(5,rows.length);i++){
+    if(rows[i].some(c=>['이름','성명'].includes(String(c||'').trim()))){
+      hdrRowIdx=i; break;
+    }
+  }
+  const hdr=rows[hdrRowIdx];
+
+  // 컬럼 인덱스 자동 탐지
+  let nameIdx=-1,empIdIdx=-1,divIdx=-1;
+  hdr.forEach((h,i)=>{
+    const s=String(h||'').trim();
+    if(['이름','성명'].includes(s)) nameIdx=i;
+    else if(['사원번호','사번','번호'].includes(s)) empIdIdx=i;
+    else if(s==='구분') divIdx=i;
+  });
+  // 폴백: 위치 기반 (이름=2, 사번=3, 구분=4)
+  if(nameIdx<0)  nameIdx=2;
+  if(empIdIdx<0) empIdIdx=3;
+  if(divIdx<0)   divIdx=4;
+
   // 날짜 컬럼 인덱스 찾기 (숫자 1~31)
   const dayIndices={};
   hdr.forEach((h,i)=>{
     const n=parseInt(h);
     if(n>=1&&n<=31) dayIndices[n]=i;
   });
+
+  if(!Object.keys(dayIndices).length){
+    console.warn(`[${campus}] 날짜 컬럼(1~31) 없음. 헤더:`,JSON.stringify(hdr));
+    showToast(`${campus}: 파일 형식 인식 실패 — 날짜 컬럼 없음`,'err');
+    return;
+  }
+
   const persons=[];
   const nameCount={};
-  let i=1;
+  let i=hdrRowIdx+1;
+
   while(i<rows.length){
     const r=rows[i];
-    const name=String(r[2]||'').trim().replace(/\s+/g,' ');
-    const div=String(r[4]||'').trim();
+    const name=String(r[nameIdx]||'').trim().replace(/\s+/g,' ');
+    const div=String(r[divIdx]||'').trim();
     if(!name||div!=='출근'){i++;continue;}
-    const empId=String(r[3]||'').trim();
-    // 출근행
+    const empId=String(r[empIdIdx]||'').trim();
     const ciDays={};
     Object.entries(dayIndices).forEach(([d,idx])=>{
       const val=String(r[idx]||'').trim();
       if(val&&val!=='0') ciDays[parseInt(d)]=val;
     });
-    // 다음행 = 퇴근
     const coDays={};
-    if(i+1<rows.length&&String(rows[i+1][4]||'').trim()==='퇴근'){
+    if(i+1<rows.length&&String(rows[i+1][divIdx]||'').trim()==='퇴근'){
       const r2=rows[i+1];
       Object.entries(dayIndices).forEach(([d,idx])=>{
         const val=String(r2[idx]||'').trim();
@@ -1058,10 +1102,18 @@ function parseAttendSheet(campus,rows){
     nameCount[name]=(nameCount[name]||0)+1;
     persons.push({name,empId,ciDays,coDays,campus});
   }
+
+  if(!persons.length){
+    console.warn(`[${campus}] 파싱 결과 0명. nameIdx=${nameIdx}, divIdx=${divIdx}, hdrRow=${hdrRowIdx}, 헤더:`,JSON.stringify(hdr));
+    showToast(`${campus}: 인원 0명 — 콘솔(F12)에서 파일 구조 확인 가능`,'err');
+    return;
+  }
+
   persons.forEach(p=>p.isDup=nameCount[p.name]>1);
   ATTEND[campus]=persons;
   DUPS=DUPS.filter(d=>d.campus!==campus);
   Object.entries(nameCount).forEach(([n,c])=>{if(c>1) DUPS.push({campus,name:n,count:c});});
+  console.log(`[${campus}] 파싱 완료: ${persons.length}명 (nameIdx=${nameIdx}, divIdx=${divIdx}, hdrRow=${hdrRowIdx})`);
 }
 
 function updateCampusChips(){
