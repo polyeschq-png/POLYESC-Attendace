@@ -278,7 +278,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
   <!-- 캠퍼스 목록 -->
   <div id="pm-list">
     <div class="pm-list-header" style="display:flex;flex-direction:column;gap:6px;padding:10px 10px 8px">
-      <span style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px">캠퍼스</span>
+      <!-- 캠퍼스/휴직자 탭 -->
+      <div style="display:flex;gap:4px;margin-bottom:2px">
+        <button id="pm-tab-campus" class="btn btn-primary btn-sm" style="flex:1;font-size:11px;justify-content:center" onclick="switchPersonsTab('campus')">캠퍼스</button>
+        <button id="pm-tab-leave" class="btn btn-ghost btn-sm" style="flex:1;font-size:11px;justify-content:center" onclick="switchPersonsTab('leave')">🟡 휴직자</button>
+      </div>
       <button class="btn btn-ghost btn-sm" style="font-size:11px;width:100%;justify-content:center" onclick="document.getElementById('excel-match-input').click()">
         📥 엑셀로 일괄 업로드
       </button>
@@ -1185,7 +1189,73 @@ function updateUnmatchedBadge(){
 // ══════════════════════════════════════
 // PERSON TABLE
 // ══════════════════════════════════════
-let selectedPersonCampus = null;
+let personsTab = 'campus'; // 'campus' | 'leave'
+
+window.switchPersonsTab = function(tab) {
+  personsTab = tab;
+  document.getElementById('pm-tab-campus').className = 'btn btn-sm ' + (tab==='campus' ? 'btn-primary' : 'btn-ghost') + ' ' + 'btn-sm';
+  document.getElementById('pm-tab-leave').className  = 'btn btn-sm ' + (tab==='leave'  ? 'btn-primary' : 'btn-ghost') + ' ' + 'btn-sm';
+  document.getElementById('pm-tab-campus').style.flex='1';
+  document.getElementById('pm-tab-leave').style.flex='1';
+  document.getElementById('pm-tab-campus').style.fontSize='11px';
+  document.getElementById('pm-tab-leave').style.fontSize='11px';
+  document.getElementById('pm-tab-campus').style.justifyContent='center';
+  document.getElementById('pm-tab-leave').style.justifyContent='center';
+  if(tab==='campus'){
+    renderPersonCampusList();
+    if(selectedPersonCampus) renderPersonDetail(selectedPersonCampus);
+    else document.getElementById('pm-detail-content').innerHTML =
+      '<div class="empty"><div class="icon">👈</div><h3>캠퍼스를 선택하세요</h3></div>';
+  } else {
+    renderLeaveList();
+  }
+};
+
+function renderLeaveList(){
+  // 전체 캠퍼스에서 휴직자 수집
+  const leavePersons = [];
+  Object.keys(PERSONS).sort((a,b)=>a.localeCompare(b,'ko')).forEach(campus=>{
+    (PERSONS[campus]||[]).forEach(p=>{
+      if(p.isLeave) leavePersons.push({...p, campus});
+    });
+  });
+
+  const listEl = document.getElementById('pm-campus-items');
+  const cnt = leavePersons.length;
+  listEl.innerHTML = `<div style="padding:10px 14px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border)">
+    총 ${cnt}명
+  </div>` + (cnt ? '' : '<div class="empty" style="padding:20px;font-size:12px">휴직자가 없습니다</div>');
+
+  // 상세 패널에 전체 휴직자 카드 렌더링
+  const detail = document.getElementById('pm-detail-content');
+  if(!cnt){ detail.innerHTML='<div class="empty"><div class="icon">🟡</div><h3>휴직자가 없습니다</h3></div>'; return; }
+
+  detail.innerHTML = `
+    <div style="margin-bottom:16px;font-size:14px;font-weight:700;color:var(--text)">🟡 휴직자 명단 <span style="font-size:12px;font-weight:400;color:var(--text3);margin-left:8px">${cnt}명</span></div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)">
+      <thead>
+        <tr style="background:var(--bg)">
+          <th style="padding:10px 14px;text-align:left;font-size:11px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border)">캠퍼스</th>
+          <th style="padding:10px 14px;text-align:left;font-size:11px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border)">이름</th>
+          <th style="padding:10px 14px;text-align:left;font-size:11px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border)">직책</th>
+          <th style="padding:10px 14px;text-align:left;font-size:11px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border)">구분</th>
+          <th style="padding:10px 14px;text-align:left;font-size:11px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border)">입사일</th>
+          <th style="padding:10px 14px;text-align:left;font-size:11px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border)">퇴사일</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${leavePersons.map(p=>`
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:10px 14px"><span class="chip chip-gray" style="font-size:11px">${p.campus}</span></td>
+            <td style="padding:10px 14px;font-weight:600">${esc(p.payName)}</td>
+            <td style="padding:10px 14px;font-size:12px;color:var(--text2)">${p.posOverride||'-'}</td>
+            <td style="padding:10px 14px;font-size:12px;color:var(--text2)">${p.divOverride||'-'}</td>
+            <td style="padding:10px 14px;font-size:12px;font-family:var(--mono)">${p.hireDate||'-'}</td>
+            <td style="padding:10px 14px;font-size:12px;font-family:var(--mono);color:${p.leaveDate?'var(--orange)':'var(--text3)'}">${p.leaveDate||'-'}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
 let showResigned = false; // 퇴사자 숨김 상태 (기본: 숨김)
 
 // 오늘 기준 퇴사자 판별
@@ -1636,7 +1706,11 @@ window.runAnalysis=function(){
       const per=matchedAttend.get(a.name);
       if(!per) return;
       if(per.isLeave) return;
-      if(skipPos(per)) return; // 본부장 제외
+      if(per.ignored) return; // 무시 처리된 인원 제외
+      // ignored 항목으로 등록된 경우도 제외
+      const ignoredEntry=persons.find(x=>x.ignored&&(x.attendName===a.name||x.payName===a.name));
+      if(ignoredEntry) return;
+      if(skipPos(per)) return;
       const pay=payroll.find(p=>p.name===per.payName);
       const leaveDate=per.leaveDate||(pay?.leaveDate)||'';
       if(leaveDate.trim()) return;
