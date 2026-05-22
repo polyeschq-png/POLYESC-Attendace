@@ -924,6 +924,7 @@ function buildPersonsFromPayroll(){
     PERSONS[campus].forEach(per=>{
       if(per.leaveDate) return; // 이미 퇴사 처리된 인원은 무시
       if(per.isLeave) return;   // 휴직자는 급여대장에서 사라져도 정상
+      if(per.ignored) return;   // 무시 처리된 인원은 감지 제외
       const perBase=baseNameOf(per.payName);
       const inPayroll=PAYROLL[campus].find(p=>
         p.name===per.payName || baseNameOf(p.name)===perBase
@@ -1577,6 +1578,11 @@ window.runAnalysis=function(){
     payroll.forEach(p=>{
       const pBase=baseNameOf(p.name);
       const per=persons.find(x=>x.payName===p.name||baseNameOf(x.payName)===pBase);
+
+      // 디버그: leaveDate 있는데 추가필요에 뜨는 인원 추적
+      if(per?.leaveDate) console.log(`[추가필요 제외] ${p.name} leaveDate=${per.leaveDate}`);
+      if(!per && p.name.toLowerCase().includes('sesethu')) console.log(`[PERSONS 미발견] ${p.name} — PERSONS[${campus}]:`, JSON.stringify(persons.map(x=>x.payName)));
+
       if(skipPos(per||p)) return;
       // 휴직자 제외
       const isLeave=per?.isLeave||p.isLeave;
