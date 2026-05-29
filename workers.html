@@ -2060,12 +2060,15 @@ function renderReport(){
   const baseMonth=[3,6,9,12][parseInt(q)-1];
   const today=new Date().toLocaleDateString('ko-KR');
 
-  if(!Object.keys(PAYROLL).length){
+  if(!Object.keys(PAYROLL).length && !RESULTS.add.length && !RESULTS.del.length && !RESULTS.abs.length){
     area.innerHTML='<div class="empty"><div class="icon">📋</div><h3>분석 실행 후 보고자료가 표시됩니다</h3></div>';
     return;
   }
 
-  const campuses=Object.keys(PAYROLL).sort((a,b)=>a.localeCompare(b,'ko'));
+  // PAYROLL 있으면 그 캠퍼스 기준, 없으면 RESULTS에서 캠퍼스 수집
+  const campuses = Object.keys(PAYROLL).length
+    ? Object.keys(PAYROLL).sort((a,b)=>a.localeCompare(b,'ko'))
+    : [...new Set([...RESULTS.add,...RESULTS.del,...RESULTS.abs].map(r=>r.campus))].sort((a,b)=>a.localeCompare(b,'ko'));
 
   const rows=campuses.map((campus,i)=>{
     const payroll=PAYROLL[campus]||[];
@@ -2073,7 +2076,6 @@ function renderReport(){
     const posCnt={};
     POS_ORDER.forEach(k=>posCnt[k]=0);
     payroll.forEach(p=>{
-      // posOverride(인원관리) 우선, 없으면 급여대장 position
       const per=persons.find(x=>x.payName===p.name||baseNameOf(x.payName)===baseNameOf(p.name));
       const pos=per?.posOverride||p.position||'';
       const div=per?.divOverride||p.div||'';
@@ -2287,15 +2289,14 @@ window.loadRecord=function(key){
   if(!h) return;
   RESULTS=h.results||{add:[],del:[],abs:[],dup:[]};
   DUPS=h.dups||[];
-  // ⚠️ PERSONS(인원 마스터)는 복원하지 않음
-  // 상단 분기/연도 셀렉트를 불러온 기록에 맞게 동기화
+  // 상단 분기/연도 셀렉트 동기화
   const qEl=document.getElementById('sel-quarter');
   const yEl=document.getElementById('sel-year');
   if(qEl&&h.quarter) qEl.value=String(h.quarter);
   if(yEl&&h.year)    yEl.value=String(h.year);
+  updateBadge(); // 상단바 분기 텍스트 갱신
   updateSummaryCards();
   renderCampusFilters();
-  // 분석결과 + 보고자료 + 이메일 모두 갱신
   renderAllResults();
   renderReport();
   populateEmailCampuses();
