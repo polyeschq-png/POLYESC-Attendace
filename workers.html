@@ -2141,7 +2141,6 @@ function renderReport(){
     // 이름들을 직책별로 그룹핑 후 태그 렌더링
     function groupByPos(list, rateKey){
       const groups={};
-      // 직책 순서 유지
       list.forEach(r=>{
         const key = shortPos(r.position||'?');
         if(!groups[key]) groups[key]=[];
@@ -2152,8 +2151,9 @@ function renderReport(){
           const rate = rateKey ? ' <span style="color:#dc2626;font-size:10px;font-weight:600">'+r.rate+'%</span>' : '';
           return '<span style="color:#1e293b;font-size:12px">'+eh(r.name)+'</span>'+rate;
         }).join('<span style="color:#cbd5e1;margin:0 3px">/</span>');
-        return '<div style="display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:1px dashed #f1f5f9">'
-          +'<span style="font-size:10px;font-weight:700;color:#fff;background:#64748b;border-radius:4px;padding:1px 6px;white-space:nowrap;flex-shrink:0">'+pos+'</span>'
+        return '<div style="display:flex;align-items:baseline;padding:3px 0;border-bottom:1px dashed #f1f5f9">'
+          +'<span style="font-size:10px;font-weight:700;color:#fff;background:#64748b;border-radius:4px;padding:1px 6px;'
+          +'white-space:nowrap;flex-shrink:0;width:52px;text-align:center;box-sizing:border-box;margin-right:8px">'+pos+'</span>'
           +'<span style="line-height:1.6">'+names+'</span>'
           +'</div>';
       }).join('');
@@ -2168,11 +2168,11 @@ function renderReport(){
       : '<span style="color:#cbd5e1;font-size:13px">—</span>';
 
     return '<tr style="background:'+rowBg+';vertical-align:top;border-bottom:1px solid #e2e8f0">'
-      +'<td style="padding:8px 12px;white-space:nowrap;min-width:90px">'
-        +'<span style="display:inline-block;background:'+campusBg+';color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px">'+badge+' '+eh(campus)+'</span>'
+      +'<td style="padding:10px 16px;width:130px;min-width:130px;border-right:1px solid #e2e8f0">'
+        +'<span style="font-weight:700;font-size:13px;color:'+(allGood?'#16a34a':tooMany?'#dc2626':'#1e293b')+'">'+badge+' '+eh(campus)+'</span>'
       +'</td>'
-      +'<td style="padding:8px 12px">'+addCell+'</td>'
-      +'<td style="padding:8px 12px">'+absCell+'</td>'
+      +'<td style="padding:8px 12px;width:50%;border-right:1px solid #f1f5f9">'+addCell+'</td>'
+      +'<td style="padding:8px 12px;width:50%">'+absCell+'</td>'
       +'</tr>';
   }).join('');
 
@@ -2244,9 +2244,9 @@ function renderReport(){
     +'</span></div>'
     +'<div style="overflow-x:auto"><table style="'+tblStyle+'">'
     +'<thead><tr>'
-    +'<th style="'+thStyle+';text-align:left">캠퍼스</th>'
-    +'<th style="'+thStyle+';text-align:left;min-width:160px">➕ 추가 필요</th>'
-    +'<th style="'+thStyle+';text-align:left;min-width:160px">📉 출근률 미달</th>'
+    +'<th style="'+thStyle+';text-align:left;width:130px">캠퍼스</th>'
+    +'<th style="'+thStyle+';text-align:left;width:50%">➕ 추가 필요</th>'
+    +'<th style="'+thStyle+';text-align:left;width:50%">📉 출근률 미달</th>'
     +'</tr></thead>'
     +'<tbody>'+table2Rows+'</tbody>'
     +'</table></div>'
