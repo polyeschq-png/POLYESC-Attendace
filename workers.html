@@ -2114,14 +2114,14 @@ function renderReport(){
   // ── 표 2: 조치 필요 인원 (전체 캠퍼스, 이슈 없으면 초록, 많으면 빨강) ──
   const ISSUE_MANY = 5; // 이 수 이상이면 "많음" 표시
 
-  const table2Rows = campuses.map(campus=>{
+  const table2Rows = campuses.map((campus,i)=>{
     const addList=RESULTS.add.filter(r=>r.campus===campus);
     const absList=RESULTS.abs.filter(r=>r.campus===campus);
     const total = addList.length + absList.length;
     const allGood = total === 0;
     const tooMany = addList.length >= ISSUE_MANY || absList.length >= ISSUE_MANY;
 
-    const rowBg    = allGood ? '#f0fdf4' : '#fff';
+    const rowBg    = allGood ? '#f0fdf4' : i%2===0 ? '#fff' : '#f9fafb';
     const campusBg = allGood ? '#16a34a' : tooMany ? '#dc2626' : '#475569';
     const badge    = allGood ? '✅' : tooMany ? '⚠️' : '';
 
@@ -2168,7 +2168,7 @@ function renderReport(){
       : '<span style="color:#cbd5e1;font-size:13px">—</span>';
 
     return '<tr style="background:'+rowBg+';vertical-align:top;border-bottom:1px solid #e2e8f0">'
-      +'<td style="padding:10px 16px;width:130px;min-width:130px;border-right:1px solid #e2e8f0">'
+      +'<td style="padding:10px 16px;width:170px;min-width:170px;border-right:1px solid #e2e8f0;white-space:nowrap;text-align:center;vertical-align:middle">'
         +'<span style="font-weight:700;font-size:13px;color:'+(allGood?'#16a34a':tooMany?'#dc2626':'#1e293b')+'">'+badge+' '+eh(campus)+'</span>'
       +'</td>'
       +'<td style="padding:8px 12px;width:50%;border-right:1px solid #f1f5f9">'+addCell+'</td>'
@@ -2244,7 +2244,7 @@ function renderReport(){
     +'</span></div>'
     +'<div style="overflow-x:auto"><table style="'+tblStyle+'">'
     +'<thead><tr>'
-    +'<th style="'+thStyle+';text-align:left;width:130px">캠퍼스</th>'
+    +'<th style="'+thStyle+';text-align:left;width:170px">캠퍼스</th>'
     +'<th style="'+thStyle+';text-align:left;width:50%">➕ 추가 필요</th>'
     +'<th style="'+thStyle+';text-align:left;width:50%">📉 출근률 미달</th>'
     +'</tr></thead>'
