@@ -1687,27 +1687,25 @@ window.toggleCampusDetail = function(btn) {
   const label  = document.getElementById('campus-detail-label');
   const cards  = document.getElementById('campus-detail-cards');
   const campus = btn.dataset.campus;
-  const detail = btn.dataset.detail;
+  const detail = (window._campusDetailMap||{})[campus] || '<span style="color:#94a3b8;font-size:12px">정보 없음</span>';
   const arrow  = btn.querySelector('.cc-arrow');
 
-  // 이미 열린 캠퍼스 다시 클릭 → 닫기
   if(panel.dataset.open === campus){
     panel.style.display='none';
     panel.dataset.open='';
     document.querySelectorAll('.cc-btn').forEach(b=>{
       b.style.background='#f8fafc';
-      b.querySelector('.cc-arrow').textContent='▼';
+      const a=b.querySelector('.cc-arrow'); if(a) a.textContent='▼';
     });
     return;
   }
 
-  // 다른 캠퍼스 선택
   document.querySelectorAll('.cc-btn').forEach(b=>{
     b.style.background='#f8fafc';
-    b.querySelector('.cc-arrow').textContent='▼';
+    const a=b.querySelector('.cc-arrow'); if(a) a.textContent='▼';
   });
   btn.style.background='#eff6ff';
-  arrow.textContent='▲';
+  if(arrow) arrow.textContent='▲';
 
   label.textContent=campus+' 직책별 인원';
   cards.innerHTML=detail;
@@ -2229,48 +2227,54 @@ function renderReport(){
     +'<div style="font-size:13px;font-weight:700;color:#1e293b;margin:28px 0 8px">📊 캠퍼스별 인원 현황'
     +'<span style="margin-left:8px;font-size:11px;font-weight:400;color:#94a3b8">클릭 시 직책별 상세 보기</span></div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px" id="campus-cards">'
-    +campuses.map((campus,i)=>{
-      const payroll=PAYROLL[campus]||[];
-      const persons=PERSONS[campus]||[];
-      const total=payroll.length||persons.filter(p=>!p.leaveDate&&!isResigned(p)).length;
-      const posCnt={};
-      POS_ORDER.forEach(k=>posCnt[k]=0);
-      if(payroll.length){
-        payroll.forEach(p=>{
-          const per=persons.find(x=>x.payName===p.name||baseNameOf(x.payName)===baseNameOf(p.name));
-          const pos=per?.posOverride||p.position||'';
-          if(SKIP_POSITIONS.includes(pos)) return;
-          const div=per?.divOverride||p.div||'';
-          const cls=classifyPos(pos,div);
-          if(posCnt[cls]!==undefined) posCnt[cls]++; else posCnt['기타']=(posCnt['기타']||0)+1;
-        });
-      } else {
-        persons.filter(p=>!p.leaveDate&&!isResigned(p)).forEach(p=>{
-          const pos=p.posOverride||'';
-          if(SKIP_POSITIONS.includes(pos)) return;
-          const cls=classifyPos(pos,p.divOverride||'');
-          if(posCnt[cls]!==undefined) posCnt[cls]++; else posCnt['기타']=(posCnt['기타']||0)+1;
-        });
-      }
-      const detailHtml=POS_ORDER.filter(k=>posCnt[k]>0).map(k=>
-        '<div style="display:flex;flex-direction:column;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;min-width:60px">'
-        +'<span style="font-size:11px;color:#64748b;margin-bottom:2px">'+k+'</span>'
-        +'<span style="font-size:15px;font-weight:700;color:#1e293b">'+posCnt[k]+'</span>'
-        +'</div>'
-      ).join('') || '<span style="color:#94a3b8;font-size:12px">직책 정보 없음</span>';
+    +(()=>{
+      window._campusDetailMap={};
+      return campuses.map((campus,i)=>{
+        const payroll=PAYROLL[campus]||[];
+        const persons=PERSONS[campus]||[];
+        const total=payroll.length||persons.filter(p=>!p.leaveDate&&!isResigned(p)).length;
+        const posCnt={};
+        POS_ORDER.forEach(k=>posCnt[k]=0);
+        if(payroll.length){
+          payroll.forEach(p=>{
+            const per=persons.find(x=>x.payName===p.name||baseNameOf(x.payName)===baseNameOf(p.name));
+            const pos=per?.posOverride||p.position||'';
+            if(SKIP_POSITIONS.includes(pos)) return;
+            const div=per?.divOverride||p.div||'';
+            const cls=classifyPos(pos,div);
+            if(posCnt[cls]!==undefined) posCnt[cls]++; else posCnt['기타']=(posCnt['기타']||0)+1;
+          });
+        } else {
+          persons.filter(p=>!p.leaveDate&&!isResigned(p)).forEach(p=>{
+            const pos=p.posOverride||'';
+            if(SKIP_POSITIONS.includes(pos)) return;
+            const cls=classifyPos(pos,p.divOverride||'');
+            if(posCnt[cls]!==undefined) posCnt[cls]++; else posCnt['기타']=(posCnt['기타']||0)+1;
+          });
+        }
+        // 상세 HTML을 JS 맵에 저장 (data 속성 인코딩 문제 회피)
+        const detailHtml = POS_ORDER.filter(k=>posCnt[k]>0).map(k=>
+          '<div style="display:flex;flex-direction:column;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 14px;min-width:60px">'
+          +'<span style="font-size:11px;color:#64748b;margin-bottom:2px">'+k+'</span>'
+          +'<span style="font-size:15px;font-weight:700;color:#1e293b">'+posCnt[k]+'</span>'
+          +'</div>'
+        ).join('') || '<span style="color:#94a3b8;font-size:12px">직책 정보 없음</span>';
+        window._campusDetailMap[campus] = detailHtml;
 
-      // data 속성에 detail HTML 저장, onclick으로 패널에 표시
-      return '<div class="cc-btn" data-campus="'+eh(campus)+'" data-detail="'+eh(detailHtml)+'" '
-        +'onclick="toggleCampusDetail(this)" '
-        +'style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 14px;cursor:pointer;background:#f8fafc;'
-        +'display:flex;align-items:center;gap:6px;white-space:nowrap;user-select:none;transition:background .15s">'
-        +'<span style="font-weight:700;font-size:13px;color:#1e293b">'+eh(campus)+'</span>'
-        +'<span style="font-size:13px;color:#3b82f6;font-weight:700">'+total+'명</span>'
-        +'<span class="cc-arrow" style="font-size:10px;color:#94a3b8">▼</span>'
-        +'</div>';
-    }).join('')
+        return '<div class="cc-btn" data-campus="'+eh(campus)+'" '
+          +'onclick="toggleCampusDetail(this)" '
+          +'style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 14px;cursor:pointer;background:#f8fafc;'
+          +'display:flex;align-items:center;justify-content:space-between;gap:6px;'
+          +'width:168px;box-sizing:border-box;user-select:none">'
+          +'<span style="font-weight:700;font-size:13px;color:#1e293b">'+eh(campus)+'</span>'
+          +'<span style="display:flex;align-items:center;gap:4px;flex-shrink:0">'
+          +'<span style="font-size:13px;color:#3b82f6;font-weight:700">'+total+'명</span>'
+          +'<span class="cc-arrow" style="font-size:10px;color:#94a3b8">▼</span>'
+          +'</span>'
+          +'</div>';
+      }).join('');
+    })()
     +'</div>'
-    // 상세 패널 (기본 숨김, 클릭 시 표시)
     +'<div id="campus-detail-panel" style="display:none;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:8px">'
     +'<div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:10px" id="campus-detail-label"></div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:8px" id="campus-detail-cards"></div>'
