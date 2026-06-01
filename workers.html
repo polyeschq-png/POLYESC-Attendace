@@ -2111,9 +2111,6 @@ function renderReport(){
 
   function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-  // ── 표 1: 캠퍼스별 총인원 + 직책별 카운트 ──────────────────
-  function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
   // ── 표 2: 조치 필요 인원 (전체 캠퍼스, 이슈 없으면 초록, 많으면 빨강) ──
   const ISSUE_MANY = 5; // 이 수 이상이면 "많음" 표시
 
@@ -2128,16 +2125,47 @@ function renderReport(){
     const campusBg = allGood ? '#16a34a' : tooMany ? '#dc2626' : '#475569';
     const badge    = allGood ? '✅' : tooMany ? '⚠️' : '';
 
+    // 직책 약어 맵
+    const POS_SHORT = {
+      '원장':'원장','부원장':'부원장','본부장':'본부장',
+      '교수부장':'AC/EC/KC','상담실장':'CT','유치부주임':'KT',
+      'KT':'KT','CT':'CT','FT':'FT',
+      '원어민강사':'FT','원어민교사':'FT','원어민HT':'FT',
+      '한국인강사':'KT','한국인교사':'KT','한국인HT':'KT',
+      '유치부교사':'KT','상담교사':'CT',
+      '단시간':'단시간','기타':'기타',
+      'POLY안전선생님':'안전','사서':'사서','미화':'미화',
+    };
+    function shortPos(pos){return POS_SHORT[pos]||pos||'?';}
+
+    // 이름들을 직책별로 그룹핑 후 태그 렌더링
+    function groupByPos(list, rateKey){
+      const groups={};
+      // 직책 순서 유지
+      list.forEach(r=>{
+        const key = shortPos(r.position||'?');
+        if(!groups[key]) groups[key]=[];
+        groups[key].push(r);
+      });
+      return Object.entries(groups).map(([pos,items])=>{
+        const names = items.map(r=>{
+          const rate = rateKey ? ' <span style="color:#dc2626;font-size:10px;font-weight:600">'+r.rate+'%</span>' : '';
+          return '<span style="color:#1e293b;font-size:12px">'+eh(r.name)+'</span>'+rate;
+        }).join('<span style="color:#cbd5e1;margin:0 3px">/</span>');
+        return '<div style="display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:1px dashed #f1f5f9">'
+          +'<span style="font-size:10px;font-weight:700;color:#fff;background:#64748b;border-radius:4px;padding:1px 6px;white-space:nowrap;flex-shrink:0">'+pos+'</span>'
+          +'<span style="line-height:1.6">'+names+'</span>'
+          +'</div>';
+      }).join('');
+    }
+
     const addCell = addList.length
-      ? addList.map(r=>'<div style="font-size:12px;padding:1px 0;color:#1e293b">'+eh(r.name)
-          +(r.position?' <span style="color:#94a3b8;font-size:11px">('+eh(r.position)+')</span>':'')+'</div>').join('')
-      : '<span style="color:#94a3b8;font-size:12px">—</span>';
+      ? '<div style="display:flex;flex-direction:column;gap:1px">'+groupByPos(addList,false)+'</div>'
+      : '<span style="color:#cbd5e1;font-size:13px">—</span>';
 
     const absCell = absList.length
-      ? absList.map(r=>'<div style="font-size:12px;padding:1px 0;color:#1e293b">'+eh(r.name)
-          +(r.position?' <span style="color:#94a3b8;font-size:11px">('+eh(r.position)+')</span>':'')
-          +' <span style="color:#dc2626;font-size:11px;font-weight:600">'+r.rate+'%</span></div>').join('')
-      : '<span style="color:#94a3b8;font-size:12px">—</span>';
+      ? '<div style="display:flex;flex-direction:column;gap:1px">'+groupByPos(absList,true)+'</div>'
+      : '<span style="color:#cbd5e1;font-size:13px">—</span>';
 
     return '<tr style="background:'+rowBg+';vertical-align:top;border-bottom:1px solid #e2e8f0">'
       +'<td style="padding:8px 12px;white-space:nowrap;min-width:90px">'
