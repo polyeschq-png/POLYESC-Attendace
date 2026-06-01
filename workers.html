@@ -2081,70 +2081,85 @@ function renderReport(){
   function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
   // ── 표 1: 캠퍼스별 총인원 + 직책별 카운트 ──────────────────
+  function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  // ── 표 2: 조치 필요 인원 (전체 캠퍼스, 이슈 없으면 초록, 많으면 빨강) ──
+  const ISSUE_MANY = 3; // 이 수 이상이면 "많음" 표시
+
+  const table2Rows = campuses.map(campus=>{
+    const addList=RESULTS.add.filter(r=>r.campus===campus);
+    const absList=RESULTS.abs.filter(r=>r.campus===campus);
+    const total = addList.length + absList.length;
+    const allGood = total === 0;
+    const tooMany = addList.length >= ISSUE_MANY || absList.length >= ISSUE_MANY;
+
+    // 행 배경 & 캠퍼스 셀 스타일
+    const rowBg   = allGood ? '#f0fdf4' : tooMany ? '#fff5f5' : '#fff';
+    const campusBg= allGood ? '#16a34a' : tooMany ? '#dc2626' : '#475569';
+    const badge   = allGood ? '✅' : tooMany ? '⚠️' : '';
+
+    const addCell = addList.length
+      ? addList.map(r=>'<div style="font-size:12px;padding:1px 0;color:#1e293b">'+eh(r.name)
+          +(r.position?' <span style="color:#94a3b8;font-size:11px">('+eh(r.position)+')</span>':'')+'</div>').join('')
+      : '<span style="color:#94a3b8;font-size:12px">—</span>';
+
+    const absCell = absList.length
+      ? absList.map(r=>'<div style="font-size:12px;padding:1px 0;color:#1e293b">'+eh(r.name)
+          +(r.position?' <span style="color:#94a3b8;font-size:11px">('+eh(r.position)+')</span>':'')
+          +' <span style="color:#dc2626;font-size:11px;font-weight:600">'+r.rate+'%</span></div>').join('')
+      : '<span style="color:#94a3b8;font-size:12px">—</span>';
+
+    return '<tr style="background:'+rowBg+';vertical-align:top;border-bottom:1px solid #e2e8f0">'
+      +'<td style="padding:8px 12px;white-space:nowrap;min-width:90px">'
+        +'<span style="display:inline-block;background:'+campusBg+';color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:12px">'+badge+' '+eh(campus)+'</span>'
+      +'</td>'
+      +'<td style="padding:8px 12px">'+addCell+'</td>'
+      +'<td style="padding:8px 12px">'+absCell+'</td>'
+      +'</tr>';
+  }).join('');
+
+  // ── 표 1: 캠퍼스 총인원 (아코디언) ──
   const table1Rows = campuses.map((campus,i)=>{
     const payroll = PAYROLL[campus]||[];
     const persons = PERSONS[campus]||[];
-
-    // 총인원: PAYROLL 있으면 그 수, 없으면 PERSONS 재직자 수
     const total = payroll.length || persons.filter(p=>!p.leaveDate&&!isResigned(p)).length;
-
     const posCnt={};
     POS_ORDER.forEach(k=>posCnt[k]=0);
-
     if(payroll.length){
       payroll.forEach(p=>{
         const per=persons.find(x=>x.payName===p.name||baseNameOf(x.payName)===baseNameOf(p.name));
         const pos=per?.posOverride||p.position||'';
+        if(SKIP_POSITIONS.includes(pos)) return;
         const div=per?.divOverride||p.div||'';
         const cls=classifyPos(pos,div);
-        if(SKIP_POSITIONS.includes(pos)) return;
         posCnt[cls]!==undefined ? posCnt[cls]++ : (posCnt['기타']=(posCnt['기타']||0)+1);
       });
     } else {
-      // PAYROLL 없으면 PERSONS posOverride로 집계
       persons.filter(p=>!p.leaveDate&&!isResigned(p)).forEach(p=>{
         const pos=p.posOverride||'';
         if(SKIP_POSITIONS.includes(pos)) return;
-        const cls=classifyPos(pos, p.divOverride||'');
+        const cls=classifyPos(pos,p.divOverride||'');
         posCnt[cls]!==undefined ? posCnt[cls]++ : (posCnt['기타']=(posCnt['기타']||0)+1);
       });
     }
+    const detailCards = POS_ORDER.filter(k=>posCnt[k]>0).map(k=>
+      '<div style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:8px;padding:4px 10px;font-size:12px;margin:2px">'
+      +'<span style="color:#64748b">'+k+'</span>'
+      +'<span style="font-weight:700;color:#1e293b">'+posCnt[k]+'</span>'
+      +'</div>').join('');
 
-    const bg=i%2===0?'#fff':'#f8fbf5';
-    const posCells=POS_ORDER.map(k=>'<td style="text-align:center;font-size:12px">'+(posCnt[k]||'-')+'</td>').join('');
-    return '<tr style="background:'+bg+'">'
-      +'<td style="font-weight:600;white-space:nowrap">'+eh(campus)+'</td>'
-      +'<td style="text-align:center;font-weight:700">'+total+'</td>'
-      +posCells+'</tr>';
+    return '<tr style="border-bottom:1px solid #e2e8f0;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'table-row\':\'none\'">'
+      +'<td style="padding:10px 12px;font-weight:600;color:#1e293b">'+eh(campus)+' <span style="color:#94a3b8;font-size:11px;font-weight:400">▼</span></td>'
+      +'<td style="padding:10px 12px;text-align:center;font-weight:700;font-size:15px;color:#1e293b">'+total+'</td>'
+      +'</tr>'
+      +'<tr style="display:none;background:#f8fafc">'
+      +'<td colspan="2" style="padding:8px 14px 12px">'
+      +(detailCards||'<span style="color:#94a3b8;font-size:12px">직책 정보 없음</span>')
+      +'</td></tr>';
   }).join('');
-
-  const posHeaders=POS_ORDER.map(k=>'<th style="white-space:nowrap">'+k+'</th>').join('');
-
-  // ── 표 2: 캠퍼스별 추가필요 + 출근미달 대상자 ──────────────
-  const table2Rows = campuses.map((campus,i)=>{
-    const addList=RESULTS.add.filter(r=>r.campus===campus);
-    const absList=RESULTS.abs.filter(r=>r.campus===campus);
-    if(!addList.length && !absList.length) return '';
-    const bg=i%2===0?'#fff':'#f8fbf5';
-
-    const addCell = addList.length
-      ? addList.map(r=>'<div style="font-size:12px;padding:1px 0">'+eh(r.name)+(r.position?' <span style="color:#94a3b8;font-size:11px">('+eh(r.position)+')</span>':'')+'</div>').join('')
-      : '<span style="color:#94a3b8;font-size:12px">없음</span>';
-
-    const absCell = absList.length
-      ? absList.map(r=>'<div style="font-size:12px;padding:1px 0">'+eh(r.name)+(r.position?' <span style="color:#94a3b8;font-size:11px">('+eh(r.position)+')</span>':'')+' <span style="color:var(--red);font-size:11px">'+r.rate+'%</span></div>').join('')
-      : '<span style="color:#94a3b8;font-size:12px">없음</span>';
-
-    return '<tr style="background:'+bg+';vertical-align:top">'
-      +'<td style="font-weight:600;white-space:nowrap;padding:8px 12px">'+eh(campus)+'</td>'
-      +'<td style="padding:8px 12px">'+addCell+'</td>'
-      +'<td style="padding:8px 12px">'+absCell+'</td>'
-      +'</tr>';
-  }).filter(Boolean).join('');
 
   const tblStyle='width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)';
   const thStyle='padding:10px 12px;background:#f1f5f9;font-size:11px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;white-space:nowrap';
-  const tdBase='border-bottom:1px solid #f1f5f9';
 
   area.innerHTML='<div class="rpt-wrap" id="report-content">'
     +'<div class="rpt-hdr">'
@@ -2154,38 +2169,40 @@ function renderReport(){
 
     // 요약 카드
     +'<div class="rpt-sum">'
-    +[['추가 필요',RESULTS.add.length,'var(--red)','#fff0f0'],
-      ['출근률 미달',RESULTS.abs.length,'var(--yellow)','#fffbeb'],
-      ['삭제 필요',RESULTS.del.length,'var(--orange)','#fff4ed'],
-      ['중복 계정',DUPS.length,'var(--purple)','#f5f0ff'],
+    +[['추가 필요',RESULTS.add.length,'#dc2626','#fff5f5'],
+      ['출근률 미달',RESULTS.abs.length,'#d97706','#fffbeb'],
+      ['삭제 필요',RESULTS.del.length,'#ea580c','#fff4ed'],
+      ['중복 계정',DUPS.length,'#7c3aed','#f5f0ff'],
     ].map(([l,n,c,bg])=>'<div class="rpt-sc" style="background:'+bg+'">'
       +'<div class="val" style="color:'+c+'">'+n+'명</div>'
       +'<div class="lbl">'+l+'</div></div>').join('')
     +'</div>'
 
-    // 표 1: 인원 현황
-    +'<div style="font-size:13px;font-weight:700;color:#1e293b;margin:20px 0 8px">📊 캠퍼스별 인원 현황</div>'
+    // 표 1: 조치 필요 인원 (먼저)
+    +'<div style="font-size:13px;font-weight:700;color:#1e293b;margin:20px 0 8px">📋 조치 필요 인원'
+    +'<span style="margin-left:12px;font-size:11px;font-weight:400;color:#64748b">'
+    +'<span style="color:#16a34a">✅ 이상없음</span>&nbsp;&nbsp;'
+    +'<span style="color:#dc2626">⚠️ '+ISSUE_MANY+'명 이상</span>'
+    +'</span></div>'
     +'<div style="overflow-x:auto"><table style="'+tblStyle+'">'
     +'<thead><tr>'
     +'<th style="'+thStyle+';text-align:left">캠퍼스</th>'
+    +'<th style="'+thStyle+';text-align:left;min-width:160px">➕ 추가 필요</th>'
+    +'<th style="'+thStyle+';text-align:left;min-width:160px">📉 출근률 미달</th>'
+    +'</tr></thead>'
+    +'<tbody>'+table2Rows+'</tbody>'
+    +'</table></div>'
+
+    // 표 2: 캠퍼스 인원 현황 아코디언 (나중에)
+    +'<div style="font-size:13px;font-weight:700;color:#1e293b;margin:28px 0 8px">📊 캠퍼스별 인원 현황'
+    +'<span style="margin-left:8px;font-size:11px;font-weight:400;color:#94a3b8">캠퍼스명 클릭 시 직책별 상세 보기</span></div>'
+    +'<div style="overflow-x:auto"><table style="'+tblStyle+'">'
+    +'<thead><tr>'
+    +'<th style="'+thStyle+';text-align:left">캠퍼스 ▼</th>'
     +'<th style="'+thStyle+'">총인원</th>'
-    +POS_ORDER.map(k=>'<th style="'+thStyle+'">'+k+'</th>').join('')
     +'</tr></thead>'
     +'<tbody>'+table1Rows+'</tbody>'
     +'</table></div>'
-
-    // 표 2: 조치 필요 인원
-    +'<div style="font-size:13px;font-weight:700;color:#1e293b;margin:24px 0 8px">📋 조치 필요 인원</div>'
-    +(table2Rows
-      ? '<div style="overflow-x:auto"><table style="'+tblStyle+'">'
-        +'<thead><tr>'
-        +'<th style="'+thStyle+';text-align:left">캠퍼스</th>'
-        +'<th style="'+thStyle+';text-align:left;min-width:180px">➕ 추가 필요</th>'
-        +'<th style="'+thStyle+';text-align:left;min-width:180px">📉 출근률 미달</th>'
-        +'</tr></thead>'
-        +'<tbody>'+table2Rows+'</tbody>'
-        +'</table></div>'
-      : '<div style="padding:16px;color:#94a3b8;font-size:13px">조치 필요 인원 없음</div>')
 
     +'<div style="margin-top:12px;font-size:10px;color:#94a3b8;font-style:italic">'
     +'※ 출근률 미달: 출근+퇴근 합산 60% 미만 (영업일 기준, 입사일 조정) / 직책 분류: 인원관리 직책 우선'
