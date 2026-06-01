@@ -2084,7 +2084,7 @@ function renderReport(){
   function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
   // ── 표 2: 조치 필요 인원 (전체 캠퍼스, 이슈 없으면 초록, 많으면 빨강) ──
-  const ISSUE_MANY = 3; // 이 수 이상이면 "많음" 표시
+  const ISSUE_MANY = 5; // 이 수 이상이면 "많음" 표시
 
   const table2Rows = campuses.map(campus=>{
     const addList=RESULTS.add.filter(r=>r.campus===campus);
@@ -2093,10 +2093,9 @@ function renderReport(){
     const allGood = total === 0;
     const tooMany = addList.length >= ISSUE_MANY || absList.length >= ISSUE_MANY;
 
-    // 행 배경 & 캠퍼스 셀 스타일
-    const rowBg   = allGood ? '#f0fdf4' : tooMany ? '#fff5f5' : '#fff';
-    const campusBg= allGood ? '#16a34a' : tooMany ? '#dc2626' : '#475569';
-    const badge   = allGood ? '✅' : tooMany ? '⚠️' : '';
+    const rowBg    = allGood ? '#f0fdf4' : '#fff';
+    const campusBg = allGood ? '#16a34a' : tooMany ? '#dc2626' : '#475569';
+    const badge    = allGood ? '✅' : tooMany ? '⚠️' : '';
 
     const addCell = addList.length
       ? addList.map(r=>'<div style="font-size:12px;padding:1px 0;color:#1e293b">'+eh(r.name)
@@ -2193,16 +2192,50 @@ function renderReport(){
     +'<tbody>'+table2Rows+'</tbody>'
     +'</table></div>'
 
-    // 표 2: 캠퍼스 인원 현황 아코디언 (나중에)
+    // 표 2: 캠퍼스 인원 현황 카드 그리드 (아코디언)
     +'<div style="font-size:13px;font-weight:700;color:#1e293b;margin:28px 0 8px">📊 캠퍼스별 인원 현황'
-    +'<span style="margin-left:8px;font-size:11px;font-weight:400;color:#94a3b8">캠퍼스명 클릭 시 직책별 상세 보기</span></div>'
-    +'<div style="overflow-x:auto"><table style="'+tblStyle+'">'
-    +'<thead><tr>'
-    +'<th style="'+thStyle+';text-align:left">캠퍼스 ▼</th>'
-    +'<th style="'+thStyle+'">총인원</th>'
-    +'</tr></thead>'
-    +'<tbody>'+table1Rows+'</tbody>'
-    +'</table></div>'
+    +'<span style="margin-left:8px;font-size:11px;font-weight:400;color:#94a3b8">클릭 시 직책별 상세 보기</span></div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px" id="campus-cards">'
+    +campuses.map((campus,i)=>{
+      const payroll=PAYROLL[campus]||[];
+      const persons=PERSONS[campus]||[];
+      const total=payroll.length||persons.filter(p=>!p.leaveDate&&!isResigned(p)).length;
+      const posCnt={};
+      POS_ORDER.forEach(k=>posCnt[k]=0);
+      if(payroll.length){
+        payroll.forEach(p=>{
+          const per=persons.find(x=>x.payName===p.name||baseNameOf(x.payName)===baseNameOf(p.name));
+          const pos=per?.posOverride||p.position||'';
+          if(SKIP_POSITIONS.includes(pos)) return;
+          const div=per?.divOverride||p.div||'';
+          const cls=classifyPos(pos,div);
+          if(posCnt[cls]!==undefined) posCnt[cls]++; else posCnt['기타']=(posCnt['기타']||0)+1;
+        });
+      } else {
+        persons.filter(p=>!p.leaveDate&&!isResigned(p)).forEach(p=>{
+          const pos=p.posOverride||'';
+          if(SKIP_POSITIONS.includes(pos)) return;
+          const cls=classifyPos(pos,p.divOverride||'');
+          if(posCnt[cls]!==undefined) posCnt[cls]++; else posCnt['기타']=(posCnt['기타']||0)+1;
+        });
+      }
+      const detail=POS_ORDER.filter(k=>posCnt[k]>0).map(k=>
+        '<span style="display:inline-flex;align-items:center;gap:3px;background:#f1f5f9;border-radius:6px;padding:3px 8px;font-size:11px;margin:2px">'
+        +'<span style="color:#64748b">'+k+'</span> <span style="font-weight:700;color:#1e293b">'+posCnt[k]+'</span></span>'
+      ).join('');
+      const id='cc-'+i;
+      return '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;min-width:120px">'
+        +'<div onclick="var d=document.getElementById(\''+id+'\');d.style.display=d.style.display===\'none\'?\'block\':\'none\'" '
+        +'style="padding:8px 14px;cursor:pointer;background:#f8fafc;display:flex;align-items:center;gap:6px;white-space:nowrap;user-select:none">'
+        +'<span style="font-weight:700;font-size:13px;color:#1e293b">'+eh(campus)+'</span>'
+        +'<span style="font-size:13px;color:#3b82f6;font-weight:700">'+total+'명</span>'
+        +'<span style="font-size:10px;color:#94a3b8;margin-left:2px">▼</span>'
+        +'</div>'
+        +'<div id="'+id+'" style="display:none;padding:8px 10px;background:#fff;border-top:1px solid #e2e8f0;min-width:160px">'
+        +(detail||'<span style="color:#94a3b8;font-size:11px">직책 정보 없음</span>')
+        +'</div></div>';
+    }).join('')
+    +'</div>'
 
     +'<div style="margin-top:12px;font-size:10px;color:#94a3b8;font-style:italic">'
     +'※ 출근률 미달: 출근+퇴근 합산 60% 미만 (영업일 기준, 입사일 조정) / 직책 분류: 인원관리 직책 우선'
