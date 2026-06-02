@@ -278,9 +278,9 @@
     // 이미지 경로 설정 (파일이 없으면 배경색으로 fallback)
     var BG_IMAGES = {
       'card-hq':     'HQ프로그램용.png',
-      'card-campus': 'images/campus_bg.jpg',
-      'card-all':    'images/workers_bg.jpg',
-      'card-perm':   'images/perm_bg.jpg'
+      'card-campus': '캠퍼스프로그램용.png',
+      'card-all':    '전체근로자용.png',
+      'card-perm':   '권한관리용.png'
     };
     document.querySelectorAll('.slide-card').forEach(function(card) {
       var key = Array.from(card.classList).find(function(c) { return BG_IMAGES[c]; });
