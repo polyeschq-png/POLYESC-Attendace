@@ -2427,18 +2427,18 @@ window.renderEmailPreview=function(){
   }
   if(inclDel&&del.length){
     bodyHtml+='<span style="color:#8a6a00;font-weight:bold">【 삭제 필요 인원 】</span><br>';
-    del.forEach(r=>{bodyHtml+='&nbsp;&nbsp;'+eh(r.name)+' — '+eh(r.reason)+(r.leaveDate?' ('+r.leaveDate+')':'')+'<br>';});
+    del.forEach(r=>{bodyHtml+='&nbsp;&nbsp;'+eh(r.name)+(r.position?' ('+eh(r.position)+')<br>':'<br>');});
     bodyHtml+='<br>';
     bodyTxt+='【 삭제 필요 인원 】\n';
-    del.forEach(r=>{bodyTxt+='  '+r.name+' — '+r.reason+(r.leaveDate?' ('+r.leaveDate+')':'')+'\n';});
+    del.forEach(r=>{bodyTxt+='  '+r.name+(r.position?' ('+r.position+')':'')+'\n';});
     bodyTxt+='\n';
   }
   if(inclAbs&&abs.length){
     bodyHtml+='<span style="color:#8a6a00;font-weight:bold">【 출근률 미달 인원 】</span><br>';
-    abs.forEach(r=>{bodyHtml+='&nbsp;&nbsp;'+eh(r.name)+' ('+eh(r.position||'-')+') — 합산 '+r.rate+'% (출근 '+r.ciRate+'% / 퇴근 '+r.coRate+'%)<br>';});
+    abs.forEach(r=>{bodyHtml+='&nbsp;&nbsp;'+eh(r.name)+(r.position?' ('+eh(r.position)+')<br>':'<br>');});
     bodyHtml+='<br>';
     bodyTxt+='【 출근률 미달 인원 】\n';
-    abs.forEach(r=>{bodyTxt+='  '+r.name+' ('+( r.position||'-')+') — 합산 '+r.rate+'% (출근 '+r.ciRate+'% / 퇴근 '+r.coRate+'%)\n';});
+    abs.forEach(r=>{bodyTxt+='  '+r.name+(r.position?' ('+r.position+')':'')+'\n';});
     bodyTxt+='\n';
   }
 
