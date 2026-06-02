@@ -294,6 +294,7 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
 .rec-label{font-size:13px;font-weight:700;flex:1;color:var(--tx)}.rec-meta{font-size:11px;color:var(--tx2)}
 .hol-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
 .hol-row input{background:#fff;border:1px solid #e5e7eb;color:var(--tx);border-radius:5px;padding:5px 8px;font-size:12px;font-family:'IBM Plex Mono',monospace;outline:none;width:130px}
+#report-memo:focus{border-color:var(--acc);background:#fff}
 .hol-tag{display:inline-flex;align-items:center;gap:5px;background:#fee2e2;border:1px solid #fecaca;border-radius:4px;padding:2px 8px;font-size:11px;color:#dc2626;margin:2px}
 .hol-tag button{background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;padding:0 1px}
 </style>
@@ -565,6 +566,15 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
     <button class="btn btn-s" onclick="openReportPopup()">🖨 팝업으로 보기/인쇄</button>
     <button id="img-save-btn" class="btn btn-p" onclick="saveReportAsImage()">🖼️ 이미지 저장</button>
   </div>
+  <!-- 특이사항 메모 -->
+  <div style="background:#fff;border:1px solid var(--bdr);border-radius:10px;padding:16px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:14px">📝</span>
+      <span style="font-size:13px;font-weight:700;color:var(--tx)">특이사항 메모</span>
+      <span style="font-size:11px;color:var(--tx3);margin-left:4px">— 보고자료 하단에 포함됩니다. 💾 저장 시 함께 보존됩니다.</span>
+    </div>
+    <textarea id="report-memo" rows="4" placeholder="이번 달 특이사항, 참고사항 등을 자유롭게 입력하세요." oninput="onReportMemoInput()" style="width:100%;background:var(--sur2);border:1px solid var(--bdr);color:var(--tx);border-radius:7px;padding:10px 13px;font-size:13px;font-family:'Noto Sans KR',sans-serif;line-height:1.7;resize:vertical;outline:none;transition:border-color .2s"></textarea>
+  </div>
   <div id="report-preview" style="background:#fff;border:1px solid var(--bdr);border-radius:10px;padding:24px;min-height:400px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#1e2132">
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--tx3);gap:8px">
       <span style="font-size:32px">📋</span>
@@ -775,6 +785,7 @@ async function saveRecord(){
     key,year:CY,month:CM,
     savedAt:new Date().toLocaleString('ko-KR'),
     gw:{},
+    reportMemo:document.getElementById('report-memo')?.value||'',
     staff:HQ.map(s=>({name:s.name,rank:s.rank,dept:s.dept||'',fixedOut:!!s.fixedOut,noData:!!s.noData,resigned:!!s.resigned,hidden:!!s.hidden,resignDate:s.resignDate||'',joinDate:s.joinDate||''})),
   };
   HQ.filter(s=>!s.noData).forEach(s=>{
@@ -841,6 +852,10 @@ async function loadRecord(key){
 
   if(rawRows.length) doAnalyse();
   else document.getElementById('sum-sec').style.display='none';
+
+  // 특이사항 메모 복원
+  const memoEl=document.getElementById('report-memo');
+  if(memoEl) memoEl.value=rec.reportMemo||'';
 
   renderStaff();
   await renderRecordList();
@@ -2104,14 +2119,22 @@ async function renderReportPreview(){
     el.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--tx3);gap:8px"><span style="font-size:32px">📋</span><span>파일을 업로드하면 보고자료가 여기에 표시됩니다</span></div>';
     return;
   }
-  const html=await buildReportHTML('');
+  const memo=document.getElementById('report-memo')?.value||'';
+  const html=await buildReportHTML(memo);
   el.innerHTML='<iframe id="report-iframe" style="width:100%;height:calc(100vh - 200px);border:none;border-radius:8px" srcdoc=""></iframe>';
   document.getElementById('report-iframe').srcdoc=html;
 }
 
+// 메모 입력 시 프리뷰 갱신 (debounce)
+let _memoDebounce=null;
+function onReportMemoInput(){
+  clearTimeout(_memoDebounce);
+  _memoDebounce=setTimeout(()=>renderReportPreview(),600);
+}
+
 async function openReportPopup(){
   if(!analysed){alert('먼저 파일을 업로드하세요.');return;}
-  const memo=prompt('보고자료 하단에 추가할 설명을 입력하세요.\n(없으면 빈칸으로 확인)','')??'';
+  const memo=document.getElementById('report-memo')?.value||'';
   const html=await buildReportHTML(memo);
   const win=window.open('','_blank');
   if(!win){alert('팝업이 차단되었습니다. 팝업을 허용해주세요.');return;}
@@ -2133,7 +2156,8 @@ async function saveReportAsImage(){
 
   try{
     // 보고자료 HTML을 새 창에 렌더링 후 html2canvas로 캡처
-    const html=await buildReportHTML('');
+    const memo=document.getElementById('report-memo')?.value||'';
+    const html=await buildReportHTML(memo);
     const win=window.open('','_blank','width=1200,height=900');
     win.document.write(html);
     win.document.close();
