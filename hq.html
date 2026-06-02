@@ -2119,8 +2119,7 @@ async function renderReportPreview(){
     el.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--tx3);gap:8px"><span style="font-size:32px">📋</span><span>파일을 업로드하면 보고자료가 여기에 표시됩니다</span></div>';
     return;
   }
-  const memo=document.getElementById('report-memo')?.value||'';
-  const html=await buildReportHTML(memo);
+  const html=await buildReportHTML('');
   el.innerHTML='<iframe id="report-iframe" style="width:100%;height:calc(100vh - 200px);border:none;border-radius:8px" srcdoc=""></iframe>';
   document.getElementById('report-iframe').srcdoc=html;
 }
@@ -2134,8 +2133,7 @@ function onReportMemoInput(){
 
 async function openReportPopup(){
   if(!analysed){alert('먼저 파일을 업로드하세요.');return;}
-  const memo=document.getElementById('report-memo')?.value||'';
-  const html=await buildReportHTML(memo);
+  const html=await buildReportHTML('');
   const win=window.open('','_blank');
   if(!win){alert('팝업이 차단되었습니다. 팝업을 허용해주세요.');return;}
   win.document.write(html);
@@ -2156,8 +2154,7 @@ async function saveReportAsImage(){
 
   try{
     // 보고자료 HTML을 새 창에 렌더링 후 html2canvas로 캡처
-    const memo=document.getElementById('report-memo')?.value||'';
-    const html=await buildReportHTML(memo);
+    const html=await buildReportHTML('');
     const win=window.open('','_blank','width=1200,height=900');
     win.document.write(html);
     win.document.close();
