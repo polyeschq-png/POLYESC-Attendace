@@ -8,9 +8,11 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* html, body 모두 100% 높이 확보 - 이게 없으면 main이 0높이가 됨 */
+    html, body { height: 100%; }
+
     body {
       font-family: 'Noto Sans KR', sans-serif;
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
       opacity: 0;
@@ -32,66 +34,32 @@
       z-index: 100;
       flex-shrink: 0;
     }
+    .header-logo { display: flex; align-items: center; gap: 10px; }
+    .header-logo img { height: 30px; width: auto; }
+    .header-logo span { font-size: 13px; font-weight: 600; color: #0D47A1; }
 
-    .header-logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .header-logo img {
-      height: 30px;
-      width: auto;
-    }
-    .header-logo span {
-      font-size: 13px;
-      font-weight: 600;
-      color: #0D47A1;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    #user-email {
-      font-size: 12px;
-      color: #888;
-    }
-    .hdr-sep {
-      width: 1px;
-      height: 14px;
-      background: #ddd;
-    }
-    #user-display {
-      font-size: 12px;
-      font-weight: 600;
-      color: #222;
-    }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    #user-email { font-size: 12px; color: #888; }
+    .hdr-sep { width: 1px; height: 14px; background: #ddd; }
+    #user-display { font-size: 12px; font-weight: 600; color: #222; }
     #user-role-label {
-      font-size: 11px;
-      padding: 2px 8px;
-      background: #e8f0fe;
-      color: #1565C0;
-      border-radius: 10px;
-      border: 1px solid #b3c7f7;
+      font-size: 11px; padding: 2px 8px;
+      background: #e8f0fe; color: #1565C0;
+      border-radius: 10px; border: 1px solid #b3c7f7;
     }
     .logout-btn {
-      font-size: 11px;
-      padding: 3px 9px;
-      border: 1px solid #fca5a5;
-      border-radius: 5px;
-      color: #dc2626;
-      background: #fff;
-      cursor: pointer;
-      font-family: 'Noto Sans KR', sans-serif;
-      line-height: 1.4;
-      transition: background 0.15s;
+      font-size: 11px; padding: 3px 9px;
+      border: 1px solid #fca5a5; border-radius: 5px;
+      color: #dc2626; background: #fff;
+      cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
+      line-height: 1.4; transition: background 0.15s;
     }
     .logout-btn:hover { background: #fef2f2; }
 
-    /* ── 슬라이더 ── */
+    /* ── 슬라이더 영역 ── */
     main {
-      flex: 1;
+      flex: 1 1 0;          /* 남은 높이를 모두 차지 */
+      min-height: 0;        /* flex shrink 허용 */
       position: relative;
       overflow: hidden;
     }
@@ -99,14 +67,14 @@
     .slider-track {
       display: flex;
       height: 100%;
-      /* 카드 4개, 3개 보이도록: 전체너비 = 4/3 * 100% */
-      width: calc(400% / 3);
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+      /* JS가 초기화하기 전 기본값: 3장이면 100% */
+      width: 100%;
     }
 
-    /* 카드 4개 모두 동일 너비 = 트랙의 25% = 화면의 1/3 */
     .slide-card {
-      flex: 0 0 25%;
+      /* JS가 초기화 후 flex 값을 덮어씀 */
+      flex: 0 0 33.333%;
       height: 100%;
       position: relative;
       overflow: hidden;
@@ -116,137 +84,91 @@
     .slide-card:last-child { border-right: none; }
 
     .slide-card .bg {
-      position: absolute;
-      inset: 0;
-      background-size: cover;
-      background-position: center;
+      position: absolute; inset: 0;
+      background-size: cover; background-position: center;
       transition: transform 0.5s ease;
     }
     .slide-card:hover .bg { transform: scale(1.04); }
 
-    /* 이미지 없을 때 기본 색상 */
-    .card-hq .bg     { background-color: #0d2f6e; background-image: url('images/hq_bg.jpg'); }
-    .card-campus .bg { background-color: #0d3a20; background-image: url('images/campus_bg.jpg'); }
-    .card-all .bg    { background-color: #2a0f40; background-image: url('images/workers_bg.jpg'); }
-    .card-perm .bg   { background-color: #1a0a3a; background-image: url('images/perm_bg.jpg'); }
+    /* 이미지 없을 때 배경색, 이미지 경로는 별도 로드 */
+    .card-hq     .bg { background-color: #0d2f6e; }
+    .card-campus .bg { background-color: #0d3a20; }
+    .card-all    .bg { background-color: #2a0f40; }
+    .card-perm   .bg { background-color: #1a0a3a; }
 
     .slide-card .overlay {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        to top,
-        rgba(0,0,0,0.72) 0%,
+      position: absolute; inset: 0;
+      background: linear-gradient(to top,
+        rgba(0,0,0,0.75) 0%,
         rgba(0,0,0,0.15) 55%,
-        transparent 100%
-      );
+        transparent 100%);
       transition: background 0.3s;
     }
     .slide-card:hover .overlay {
-      background: linear-gradient(
-        to top,
+      background: linear-gradient(to top,
         rgba(0,0,0,0.55) 0%,
         rgba(0,0,0,0.05) 55%,
-        transparent 100%
-      );
+        transparent 100%);
     }
 
     .card-content {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 32px 28px;
-      color: #fff;
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 32px 28px; color: #fff;
     }
     .card-sub {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 2.5px;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.6);
-      margin-bottom: 6px;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      color: rgba(255,255,255,0.6); margin-bottom: 6px;
     }
     .card-title {
       font-size: clamp(24px, 2.8vw, 38px);
-      font-weight: 700;
-      line-height: 1.15;
-      margin-bottom: 8px;
-      letter-spacing: -0.5px;
+      font-weight: 700; line-height: 1.15;
+      margin-bottom: 8px; letter-spacing: -0.5px;
     }
     .card-desc {
-      font-size: 13px;
-      color: rgba(255,255,255,0.7);
-      line-height: 1.6;
-      font-weight: 300;
+      font-size: 13px; color: rgba(255,255,255,0.7);
+      line-height: 1.6; font-weight: 300;
     }
 
     /* ── 슬라이드 화살표 ── */
     .arrow-btn {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: rgba(0,0,0,0.45);
-      border: 2px solid rgba(255,255,255,0.75);
-      cursor: pointer;
-      z-index: 20;
-      /* 평소 숨김 */
-      opacity: 0;
-      pointer-events: none;
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(0,0,0,0.50);
+      border: 2px solid rgba(255,255,255,0.80);
+      cursor: pointer; z-index: 20;
+      opacity: 0; pointer-events: none;
       transition: opacity 0.2s ease, background 0.2s ease;
-      /* flex로 화살표 중앙정렬 */
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
     }
-    /* 슬라이더 영역 hover 시 표시 */
-    main:hover .arrow-btn { opacity: 1; pointer-events: auto; }
-    .arrow-btn:hover { background: rgba(0,0,0,0.65); }
-
-    /* disabled: 끝에서는 완전히 숨김 */
+    main:hover .arrow-btn:not(.hidden) { opacity: 1; pointer-events: auto; }
+    .arrow-btn:hover { background: rgba(0,0,0,0.70); }
     .arrow-btn.hidden { opacity: 0 !important; pointer-events: none !important; }
 
     .arrow-btn svg {
-      width: 20px;
-      height: 20px;
-      stroke: #ffffff;
-      fill: none;
-      stroke-width: 2.5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      /* 브라우저 기본 스타일 제거 */
-      display: block;
+      width: 20px; height: 20px; display: block;
+      stroke: #ffffff; fill: none;
+      stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+      /* SVG 내부 기본 스타일 리셋 */
+      overflow: visible;
     }
 
     .arrow-left  { left: 16px; }
     .arrow-right { right: 16px; }
 
-    /* ── 도트 인디케이터 ── */
+    /* ── 도트 ── */
     .dots {
-      position: absolute;
-      bottom: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 6px;
-      z-index: 20;
+      position: absolute; bottom: 16px;
+      left: 50%; transform: translateX(-50%);
+      display: flex; gap: 6px; z-index: 20;
     }
     .dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 3px;
+      width: 6px; height: 6px; border-radius: 3px;
       background: rgba(255,255,255,0.4);
-      cursor: pointer;
-      transition: all 0.25s ease;
-      border: none;
-      padding: 0;
+      cursor: pointer; transition: all 0.25s;
+      border: none; padding: 0;
     }
-    .dot.active {
-      background: #fff;
-      width: 18px;
-    }
+    .dot.active { background: #fff; width: 18px; }
 
     /* ── 하단 바 ── */
     .bottom-bar {
@@ -326,89 +248,107 @@
 
     </div>
 
-    <!-- 좌우 화살표 -->
     <button class="arrow-btn arrow-left hidden" id="btn-prev" aria-label="이전">
-      <svg viewBox="0 0 24 24">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <polyline points="15 18 9 12 15 6"></polyline>
       </svg>
     </button>
-    <button class="arrow-btn arrow-right" id="btn-next" aria-label="다음">
-      <svg viewBox="0 0 24 24">
+    <button class="arrow-btn arrow-right hidden" id="btn-next" aria-label="다음">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <polyline points="9 18 15 12 9 6"></polyline>
       </svg>
     </button>
 
-    <!-- 도트 -->
-    <div class="dots" id="dots-wrap"></div>
+    <div class="dots" id="dots-wrap" style="display:none"></div>
 
   </main>
 
   <div class="bottom-bar"></div>
 
   <script>
-    // ── 슬라이더 로직 ──
-    var track   = document.getElementById('slider-track');
-    var btnPrev = document.getElementById('btn-prev');
-    var btnNext = document.getElementById('btn-next');
+    var track    = document.getElementById('slider-track');
+    var btnPrev  = document.getElementById('btn-prev');
+    var btnNext  = document.getElementById('btn-next');
     var dotsWrap = document.getElementById('dots-wrap');
-
-    var totalCards   = 3;   // 기본 3개 (권한관리 숨김 상태)
+    var curOffset   = 0;
+    var totalCards  = 3;
     var visibleCards = 3;
-    var curOffset    = 0;   // 현재 슬라이드 오프셋 (0 or 1)
-    var maxOffset    = 0;   // totalCards - visibleCards
+    var maxOffset   = 0;
+
+    // 이미지 경로 설정 (파일이 없으면 배경색으로 fallback)
+    var BG_IMAGES = {
+      'card-hq':     'images/hq_bg.jpg',
+      'card-campus': 'images/campus_bg.jpg',
+      'card-all':    'images/workers_bg.jpg',
+      'card-perm':   'images/perm_bg.jpg'
+    };
+    document.querySelectorAll('.slide-card').forEach(function(card) {
+      var key = Array.from(card.classList).find(function(c) { return BG_IMAGES[c]; });
+      if (key) {
+        var img = new Image();
+        img.onload = function() {
+          card.querySelector('.bg').style.backgroundImage = "url('" + BG_IMAGES[key] + "')";
+        };
+        img.src = BG_IMAGES[key];
+      }
+    });
 
     function buildDots() {
       dotsWrap.innerHTML = '';
-      var count = maxOffset + 1; // 도트 수 = 위치 수
+      if (maxOffset <= 0) { dotsWrap.style.display = 'none'; return; }
+      dotsWrap.style.display = 'flex';
       for (var i = 0; i <= maxOffset; i++) {
         var d = document.createElement('button');
         d.className = 'dot' + (i === 0 ? ' active' : '');
         d.setAttribute('aria-label', (i + 1) + '번째');
         d.dataset.idx = i;
-        d.addEventListener('click', function() {
-          moveTo(parseInt(this.dataset.idx));
-        });
+        d.addEventListener('click', function() { moveTo(parseInt(this.dataset.idx)); });
         dotsWrap.appendChild(d);
       }
     }
 
     function moveTo(offset) {
       curOffset = offset;
-      // 카드 1개씩 이동: 이동량 = offset * (1 / totalCards * 100)%
       var pct = (curOffset / totalCards) * 100;
       track.style.transform = 'translateX(-' + pct + '%)';
-
       btnPrev.classList.toggle('hidden', curOffset === 0);
-      btnNext.classList.toggle('hidden', curOffset === maxOffset);
-
+      btnNext.classList.toggle('hidden', curOffset >= maxOffset);
       document.querySelectorAll('.dot').forEach(function(d, i) {
         d.classList.toggle('active', i === curOffset);
       });
     }
 
     function updateSlider(cardCount) {
-      totalCards   = cardCount;
-      maxOffset    = Math.max(0, totalCards - visibleCards);
-      // 트랙 너비: 카드가 4개면 400%/3, 3개면 100%
-      track.style.width = totalCards > visibleCards
-        ? 'calc(' + (totalCards * 100 / visibleCards) + '% / 1)'
-        : '100%';
-      // 각 카드 너비: 1/totalCards of track
-      document.querySelectorAll('.slide-card').forEach(function(c) {
-        c.style.flex = '0 0 ' + (100 / totalCards) + '%';
-      });
+      totalCards  = cardCount;
+      maxOffset   = Math.max(0, totalCards - visibleCards);
+
+      if (totalCards > visibleCards) {
+        // 트랙 너비 = totalCards/visibleCards * 100%
+        track.style.width = (totalCards / visibleCards * 100) + '%';
+        document.querySelectorAll('.slide-card').forEach(function(c) {
+          c.style.flex = '0 0 ' + (100 / totalCards) + '%';
+        });
+      } else {
+        track.style.width = '100%';
+        document.querySelectorAll('.slide-card').forEach(function(c) {
+          c.style.flex = '0 0 ' + (100 / totalCards) + '%';
+        });
+      }
       buildDots();
       moveTo(0);
-      // 도트가 1개(이동 불필요)면 숨김
-      dotsWrap.style.display = maxOffset === 0 ? 'none' : 'flex';
     }
 
-    btnPrev.addEventListener('click', function() {
+    btnPrev.addEventListener('click', function(e) {
+      e.stopPropagation();
       if (curOffset > 0) moveTo(curOffset - 1);
     });
-    btnNext.addEventListener('click', function() {
+    btnNext.addEventListener('click', function(e) {
+      e.stopPropagation();
       if (curOffset < maxOffset) moveTo(curOffset + 1);
     });
+
+    // 페이지 로드 시 3장으로 바로 초기화 (Firebase 응답 전에도 화면이 보이도록)
+    updateSlider(3);
 
     function goTo(type) {
       var map = { hq: 'hq.html', campus: 'campus.html', all: 'workers.html', permissions: 'permissions.html' };
@@ -453,11 +393,9 @@
 
       document.getElementById('user-role-label').textContent = ROLE_LABELS[role] || '📊 리포트';
 
-      // Owner면 권한관리 카드 표시 후 슬라이더 4개로 재설정
       let cardCount = 3;
       if (role === 'owner') {
-        const perm = document.getElementById('card-permissions');
-        perm.style.display = '';
+        document.getElementById('card-permissions').style.display = '';
         cardCount = 4;
       }
       updateSlider(cardCount);
