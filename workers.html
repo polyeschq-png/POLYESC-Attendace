@@ -433,19 +433,28 @@ const SKIP_DIVS = new Set(['사업소득','일용직']);
 const PAGE = 30;
 
 // 직책 분류 맵
+// 직책 분류 맵 (분석·보고자료용)
 const POS_MAP = [
-  {key:'KT',    match:['유치부교사']},
-  {key:'CT',    match:['상담교사']},
-  {key:'유치부주임', match:['유치부주임']},
-  {key:'상담실장',   match:['상담실장']},
-  {key:'부원장',     match:['부원장']},
-  {key:'원장',       match:['원장']},
-  {key:'FT',    match:['원어민강사','원어민교사','원어민 HT','원어민HT']},
-  {key:'한국인강사', match:['한국인강사','한국인교사','한국인HT','한국인 HT']},
-  {key:'교수부장',   match:['교수부장']},
-  {key:'단시간',     match:['단기근로']},
+  {key:'원장',      match:['원장']},
+  {key:'부원장',    match:['부원장']},
+  {key:'AC교수부장',match:['AC교수부장','AC 교수부장']},
+  {key:'EC교수부장',match:['EC교수부장','EC 교수부장']},
+  {key:'KC교수부장',match:['KC교수부장','KC 교수부장','교수부장']},
+  {key:'CT',        match:['상담실장','상담교사']},
+  {key:'KT',        match:['유치부주임','유치부교사','한국인강사','한국인교사','한국인HT','한국인 HT']},
+  {key:'FT',        match:['원어민강사','원어민교사','원어민HT','원어민 HT']},
+  {key:'안전·사서', match:['POLY안전선생님','사서']},
+  {key:'단시간',    match:['단기근로','미화','기타']},
 ];
-const POS_ORDER = ['원장','부원장','교수부장','상담실장','유치부주임','KT','CT','FT','한국인강사','단시간','기타'];
+const POS_ORDER = ['원장','부원장','AC교수부장','EC교수부장','KC교수부장','CT','KT','FT','안전·사서','단시간'];
+
+// 캠퍼스 정렬: 일반폴리 먼저, 엠폴리 나중
+const MPOLY = ['대전엠폴리','분당엠폴리','목동엠폴리','영통엠폴리','일산엠폴리'];
+function sortCampuses(arr){
+  const poly  = arr.filter(c=>!MPOLY.includes(c)).sort((a,b)=>a.localeCompare(b,'ko'));
+  const mpoly = MPOLY.filter(c=>arr.includes(c)); // 지정 순서 유지
+  return [...poly, ...mpoly];
+}
 
 const CAMPUS_ALIASES = {
   '광교':'광교','광명':'광명','대전':'대전','mil':'MIL','MIL':'MIL',
@@ -884,7 +893,7 @@ async function loadPersonsMaster(){
     });
     console.log('[마스터] 불러옴 캠퍼스:', Object.keys(PERSONS));
     // 첫 캠퍼스 자동 선택
-    const campuses = Object.keys(PERSONS).sort((a,b)=>a.localeCompare(b,'ko'));
+    const campuses = sortCampuses(Object.keys(PERSONS));
     if(campuses.length && !selectedPersonCampus){
       selectedPersonCampus = campuses[0];
     }
@@ -1256,7 +1265,7 @@ function renderLeaveList(){
   Object.keys(PERSONS).sort((a,b)=>a.localeCompare(b,'ko')).forEach(campus=>{
     (PERSONS[campus]||[]).forEach(p=>{ if(p.isLeave) allLeave.push(Object.assign({},p,{campus})); });
   });
-  const campusList = [...new Set(allLeave.map(p=>p.campus))].sort((a,b)=>a.localeCompare(b,'ko'));
+  const campusList = sortCampuses([...new Set(allLeave.map(p=>p.campus))]);
   const filtered = leaveFilterCampuses.size===0 ? allLeave : allLeave.filter(p=>leaveFilterCampuses.has(p.campus));
 
   const listEl = document.getElementById('pm-campus-items');
@@ -1366,7 +1375,7 @@ function renderPersonCampusList() {
   const el = document.getElementById('pm-campus-items');
   if (!el) return;
   const allKeys = new Set([...Object.keys(PAYROLL), ...Object.keys(PERSONS)]);
-  const campuses = [...allKeys].sort((a,b)=>a.localeCompare(b,'ko'));
+  const campuses = sortCampuses([...allKeys]);
   if (!campuses.length) {
     el.innerHTML = '<div class="empty" style="padding:20px;font-size:12px">저장된 인원이 없습니다</div>';
     return;
@@ -1936,12 +1945,12 @@ window.selectResultCampus = function(campus) {
 };
 
 function renderCampusFilters(){
-  const campuses = [...new Set([
+  const campuses = sortCampuses([...new Set([
     ...RESULTS.add.map(r=>r.campus),
     ...RESULTS.del.map(r=>r.campus),
     ...RESULTS.abs.map(r=>r.campus),
     ...DUPS.map(r=>r.campus),
-  ])].sort((a,b)=>a.localeCompare(b,'ko'));
+  ])]);
 
   // 좌측 캠퍼스 리스트 갱신
   const list = document.getElementById('result-campus-list');
@@ -2099,7 +2108,7 @@ function renderReport(){
   }
 
   // 캠퍼스 목록 — PAYROLL 있으면 그 기준, 없으면 RESULTS+PERSONS
-  const campuses = [...new Set([
+  const campuses = sortCampuses([...new Set([
     ...Object.keys(PAYROLL),
     ...RESULTS.add.map(r=>r.campus),
     ...RESULTS.abs.map(r=>r.campus),
@@ -2107,7 +2116,7 @@ function renderReport(){
   ])].filter(c=>
     PAYROLL[c]?.length || PERSONS[c]?.length ||
     RESULTS.add.some(r=>r.campus===c) || RESULTS.abs.some(r=>r.campus===c)
-  ).sort((a,b)=>a.localeCompare(b,'ko'));
+  ));
 
   function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -2127,18 +2136,18 @@ function renderReport(){
 
     // 직책 약어 맵
     const POS_SHORT = {
-      '원장':'원장','부원장':'부원장','본부장':'본부장',
-      '교수부장':'AC/EC/KC','상담실장':'CT','유치부주임':'KT',
-      'KT':'KT','CT':'CT','FT':'FT',
-      '원어민강사':'FT','원어민교사':'FT','원어민HT':'FT',
-      '한국인강사':'KT','한국인교사':'KT','한국인HT':'KT',
-      '유치부교사':'KT','상담교사':'CT',
-      '단시간':'단시간','기타':'기타',
-      'POLY안전선생님':'안전','사서':'사서','미화':'미화',
+      '원장':'원장','부원장':'부원장',
+      'AC교수부장':'AC교수부장','EC교수부장':'EC교수부장','KC교수부장':'KC교수부장','교수부장':'KC교수부장',
+      '상담실장':'CT','상담교사':'CT',
+      '유치부주임':'KT','유치부교사':'KT',
+      '한국인강사':'KT','한국인교사':'KT','한국인HT':'KT','한국인 HT':'KT',
+      '원어민강사':'FT','원어민교사':'FT','원어민HT':'FT','원어민 HT':'FT',
+      'POLY안전선생님':'안전','사서':'안전',
+      '단시간':'단시간','미화':'단시간','기타':'기타',
     };
     function shortPos(pos){return POS_SHORT[pos]||pos||'?';}
 
-    // 이름들을 직책별로 그룹핑 후 태그 렌더링
+    // 직책별 그룹핑 — POS_ORDER 순서로 정렬
     function groupByPos(list, rateKey){
       const groups={};
       list.forEach(r=>{
@@ -2146,14 +2155,17 @@ function renderReport(){
         if(!groups[key]) groups[key]=[];
         groups[key].push(r);
       });
-      return Object.entries(groups).map(([pos,items])=>{
+      const POS_DISP = ['원장','부원장','AC교수부장','EC교수부장','KC교수부장','CT','KT','FT','안전','단시간','기타'];
+      const ordered = POS_DISP.filter(k=>groups[k]).map(k=>[k,groups[k]]);
+      const rest = Object.entries(groups).filter(([k])=>!POS_DISP.includes(k));
+      return [...ordered,...rest].map(([pos,items])=>{
         const names = items.map(r=>{
           const rate = rateKey ? ' <span style="color:#dc2626;font-size:10px;font-weight:600">'+r.rate+'%</span>' : '';
           return '<span style="color:#1e293b;font-size:12px">'+eh(r.name)+'</span>'+rate;
         }).join('<span style="color:#cbd5e1;margin:0 3px">/</span>');
         return '<div style="display:flex;align-items:baseline;padding:3px 0;border-bottom:1px dashed #f1f5f9">'
           +'<span style="font-size:10px;font-weight:700;color:#fff;background:#64748b;border-radius:4px;padding:1px 6px;'
-          +'white-space:nowrap;flex-shrink:0;width:52px;text-align:center;box-sizing:border-box;margin-right:8px">'+pos+'</span>'
+          +'white-space:nowrap;flex-shrink:0;min-width:72px;text-align:center;box-sizing:border-box;margin-right:8px">'+pos+'</span>'
           +'<span style="line-height:1.6">'+names+'</span>'
           +'</div>';
       }).join('');
@@ -2338,16 +2350,16 @@ window.downloadReportImage=async function(){
 // EMAIL
 // ══════════════════════════════════════
 function populateEmailCampuses(){
-  let campuses=[...new Set([
+  let campuses = sortCampuses([...new Set([
     ...RESULTS.add.map(r=>r.campus),
     ...RESULTS.del.map(r=>r.campus),
     ...RESULTS.abs.map(r=>r.campus),
-  ])].sort((a,b)=>a.localeCompare(b,'ko'));
+  ])]);
   // 수지2는 수지로 통합 표시
   campuses = campuses.filter(c=>c!=='수지2');
   if(!campuses.includes('수지') && (RESULTS.add.some(r=>r.campus==='수지2')||RESULTS.del.some(r=>r.campus==='수지2')||RESULTS.abs.some(r=>r.campus==='수지2'))) {
     campuses.push('수지');
-    campuses.sort((a,b)=>a.localeCompare(b,'ko'));
+    campuses = sortCampuses(campuses);
   }
   document.getElementById('email-campus').innerHTML=
     '<option value="">캠퍼스 선택...</option>'+
