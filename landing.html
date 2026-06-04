@@ -562,7 +562,7 @@
         const time = item.createdAt
           ? new Date(item.createdAt.seconds * 1000).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
           : '';
-        return `<div class="notif-item ${item.read ? '' : 'unread'}" data-id="${item.id}" onclick="markRead('${item.id}', '${item.type}')">
+        return `<div class="notif-item ${item.read ? '' : 'unread'}" data-id="${item.id}" onclick="markRead('${item.id}', '${item.type}', '${item.from || ''}')">
           <div class="notif-type">${typeLabel}</div>
           <div class="notif-msg">${item.message || ''}</div>
           <div class="notif-time">${time}</div>
@@ -571,11 +571,13 @@
     }
 
     // 알림 단건 읽음
-    window.markRead = async (id, type) => {
+    window.markRead = async (id, type, fromEmail) => {
       try {
         await updateDoc(doc(db, 'notifications', id), { read: true });
-        if (type === 'account_request' || type === 'role_request') {
-          window.location.href = 'permissions.html';
+        if (type === 'account_request') {
+          window.location.href = 'permissions.html?type=account&email=' + encodeURIComponent(fromEmail || '');
+        } else if (type === 'role_request') {
+          window.location.href = 'permissions.html?type=role&email=' + encodeURIComponent(fromEmail || '');
         }
       } catch(e) { console.warn(e); }
     };
