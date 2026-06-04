@@ -373,11 +373,18 @@
   if (auth.currentUser) {
     try {
       const snap = await getDoc(doc(db, 'Users', auth.currentUser.email));
-      if (snap.exists()) { window.location.href = 'landing.html'; return; }
-      await signOut(auth);
-    } catch(e) {}
+      if (snap.exists()) {
+        window.location.href = 'landing.html';
+      } else {
+        await signOut(auth);
+        document.body.style.opacity = '1';
+      }
+    } catch(e) {
+      document.body.style.opacity = '1';
+    }
+  } else {
+    document.body.style.opacity = '1';
   }
-  document.body.style.opacity = '1';
 
   // ── 에러 메시지 ──
   function showError(msg) {
