@@ -36,6 +36,13 @@ tr:hover td{background:#f8faff}
 .info-box{background:#fffbeb;border:1px solid #fbbf24;border-radius:10px;padding:14px 16px;font-size:12px;color:#92400e;margin-top:20px;line-height:1.7}
 .msg-ok{color:#16a34a;font-size:12px;margin-top:8px}
 .msg-err{color:#dc2626;font-size:12px;margin-top:8px}
+
+.autofill-email {
+  color: #1565C0 !important;
+  font-weight: 700 !important;
+  border-color: #1565C0 !important;
+  background: #f0f5ff !important;
+}
 </style>
 </head>
 <body>
@@ -127,6 +134,36 @@ onAuthStateChanged(auth,async user=>{
   document.getElementById('user-display').textContent=user.displayName||user.email;
   document.body.style.opacity='1';
   renderList();
+
+// ── URL 파라미터로 이메일 자동기입 ──
+const urlParams = new URLSearchParams(window.location.search);
+const paramType  = urlParams.get('type');
+const paramEmail = urlParams.get('email');
+
+if (paramEmail) {
+  if (paramType === 'account') {
+    // 새 계정 생성 이메일 자동기입
+    const el = document.getElementById('new-email');
+    el.value = paramEmail;
+    el.classList.add('autofill-email');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } else if (paramType === 'role') {
+    // 권한 변경 이메일 자동기입
+    const el = document.getElementById('perm-email');
+    el.value = paramEmail;
+    el.classList.add('autofill-email');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  // 포커스 시 파란 볼드 해제
+  document.querySelectorAll('.autofill-email').forEach(el => {
+    el.addEventListener('input', function() {
+      this.classList.remove('autofill-email');
+    }, { once: true });
+  });
+  // URL 파라미터 제거 (히스토리 정리)
+  window.history.replaceState({}, '', 'permissions.html');
+}
+
 });
 
 window.handleSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
