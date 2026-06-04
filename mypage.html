@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>마이페이지 - Poly ESC</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: #f4f6fa;
+      min-height: 100%;
+      opacity: 0; transition: opacity 0.3s ease;
+    }
+
+    /* ── 헤더 ── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 56px;
+      background: #fff; border-bottom: 1px solid #e8e8e8;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-logo { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .header-logo img { height: 30px; }
+    .header-logo span { font-size: 13px; font-weight: 600; color: #0D47A1; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .back-btn {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12px; color: #555; cursor: pointer;
+      background: none; border: none;
+      font-family: 'Noto Sans KR', sans-serif;
+      padding: 5px 10px; border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .back-btn:hover { background: #f0f0f0; }
+    .back-btn svg { width: 14px; height: 14px; stroke: #555; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ── 본문 ── */
+    .page-wrap {
+      max-width: 540px; margin: 40px auto; padding: 0 20px 60px;
+    }
+    .page-title {
+      font-size: 20px; font-weight: 700; color: #1a1a1a;
+      margin-bottom: 6px;
+    }
+    .page-sub { font-size: 13px; color: #888; margin-bottom: 28px; }
+
+    /* ── 카드 ── */
+    .card {
+      background: #fff; border-radius: 14px;
+      border: 1px solid #e8e8e8;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .card-title {
+      font-size: 13px; font-weight: 700; color: #222;
+      margin-bottom: 16px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .card-title svg { width: 15px; height: 15px; stroke: #1565C0; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    /* 정보 행 */
+    .info-row {
+      display: flex; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid #f5f5f5;
+      gap: 12px;
+    }
+    .info-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .info-label { font-size: 12px; color: #888; width: 80px; flex-shrink: 0; }
+    .info-value { font-size: 13px; color: #222; font-weight: 500; flex: 1; }
+    .info-badge {
+      font-size: 11px; padding: 2px 8px;
+      background: #e8f0fe; color: #1565C0;
+      border-radius: 9px; border: 1px solid #b3c7f7;
+    }
+
+    /* 입력 필드 */
+    .field-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 12px;
+    }
+    .field-input {
+      flex: 1; padding: 9px 12px;
+      border: 1px solid #ddd; border-radius: 8px;
+      font-size: 13px; font-family: 'Noto Sans KR', sans-serif;
+      outline: none; transition: border 0.15s; color: #222;
+    }
+    .field-input:focus { border-color: #1565C0; }
+    .field-btn {
+      padding: 9px 16px; border-radius: 8px;
+      border: none; background: #1565C0; color: #fff;
+      font-size: 12px; font-weight: 600;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer; white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .field-btn:hover { background: #0d47a1; }
+    .field-btn:disabled { background: #9ab; cursor: not-allowed; }
+    .field-msg { font-size: 11px; margin-top: 6px; min-height: 16px; }
+    .field-msg.error { color: #dc2626; }
+    .field-msg.success { color: #16a34a; }
+
+    /* 권한 선택 */
+    .role-options { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .role-option {
+      flex: 1; min-width: 80px;
+      padding: 10px 8px; border-radius: 10px;
+      border: 1.5px solid #ddd; background: #fff;
+      text-align: center; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .role-option:hover { border-color: #1565C0; background: #f0f5ff; }
+    .role-option.selected { border-color: #1565C0; background: #e8f0fe; }
+    .role-option .ro-icon { font-size: 18px; margin-bottom: 3px; }
+    .role-option .ro-label { font-size: 11px; font-weight: 600; color: #333; }
+    .role-option .ro-desc { font-size: 10px; color: #888; margin-top: 1px; }
+
+    .request-area { margin-top: 14px; }
+    .request-input {
+      width: 100%; padding: 9px 12px;
+      border: 1px solid #ddd; border-radius: 8px;
+      font-size: 12px; font-family: 'Noto Sans KR', sans-serif;
+      outline: none; resize: none; height: 72px;
+      transition: border 0.15s; color: #222;
+    }
+    .request-input:focus { border-color: #1565C0; }
+    .request-btn {
+      margin-top: 8px; width: 100%;
+      padding: 10px; border-radius: 8px;
+      border: none; background: #1565C0; color: #fff;
+      font-size: 13px; font-weight: 600;
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .request-btn:hover { background: #0d47a1; }
+    .request-btn:disabled { background: #9ab; cursor: not-allowed; }
+    .request-msg { font-size: 11px; margin-top: 6px; min-height: 16px; }
+    .request-msg.error { color: #dc2626; }
+    .request-msg.success { color: #16a34a; }
+
+    /* 현재 권한이 Owner면 권한변경 요청 카드 숨김 */
+    #role-request-card.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-logo" onclick="window.location.href='landing.html'">
+      <img src="Poly_Emblem_Blue_B.png" alt="폴리ESC 로고">
+      <span>(주) 폴리에스씨 인사팀</span>
+    </div>
+    <div class="header-right">
+      <button class="back-btn" onclick="window.location.href='landing.html'">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        돌아가기
+      </button>
+    </div>
+  </header>
+
+  <div class="page-wrap">
+    <div class="page-title">마이페이지</div>
+    <div class="page-sub">계정 정보를 확인하고 수정할 수 있습니다</div>
+
+    <!-- 내 정보 카드 -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        내 정보
+      </div>
+      <div class="info-row">
+        <span class="info-label">이메일</span>
+        <span class="info-value" id="info-email">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">권한</span>
+        <span class="info-badge" id="info-role">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">닉네임</span>
+        <span class="info-value" id="info-nickname">—</span>
+      </div>
+    </div>
+
+    <!-- 닉네임 변경 카드 -->
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        닉네임 변경
+      </div>
+      <div class="field-row">
+        <input class="field-input" id="nickname-input" type="text" placeholder="새 닉네임 입력" maxlength="20"/>
+        <button class="field-btn" id="nickname-btn" onclick="saveNickname()">저장</button>
+      </div>
+      <div class="field-msg" id="nickname-msg"></div>
+    </div>
+
+    <!-- 권한 변경 요청 카드 (Owner는 숨김) -->
+    <div class="card" id="role-request-card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        권한 변경 요청
+      </div>
+      <p style="font-size:12px;color:#888;margin-bottom:4px;">요청할 권한을 선택하고 사유를 입력하면 Owner에게 알림이 전송됩니다.</p>
+
+      <div class="role-options">
+        <div class="role-option" data-role="admin" onclick="selectRole(this)">
+          <div class="ro-icon">🔧</div>
+          <div class="ro-label">관리자</div>
+          <div class="ro-desc">전체 관리</div>
+        </div>
+        <div class="role-option" data-role="report" onclick="selectRole(this)">
+          <div class="ro-icon">📊</div>
+          <div class="ro-label">리포트</div>
+          <div class="ro-desc">조회 전용</div>
+        </div>
+      </div>
+
+      <div class="request-area">
+        <textarea class="request-input" id="role-reason" placeholder="권한 변경 요청 사유를 입력해주세요"></textarea>
+        <button class="request-btn" id="role-request-btn" onclick="sendRoleRequest()">권한 변경 요청 보내기</button>
+        <div class="request-msg" id="role-msg"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { initializeApp }   from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
+    import { getAuth, onAuthStateChanged, browserSessionPersistence, setPersistence }
+      from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+    import { getFirestore, doc, getDoc, updateDoc, addDoc, collection, serverTimestamp }
+      from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",
+      authDomain: "polyesc-attendance.firebaseapp.com",
+      projectId: "polyesc-attendance",
+      storageBucket: "polyesc-attendance.firebasestorage.app",
+      messagingSenderId: "430669631304",
+      appId: "1:430669631304:web:eb06ac4ba8d1d5108fed7d"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+    await setPersistence(auth, browserSessionPersistence);
+
+    const ROLE_LABELS = { owner: '👑 Owner', admin: '🔧 관리자', report: '📊 리포트' };
+    let currentUser = null;
+
+    onAuthStateChanged(auth, async user => {
+      if (!user) { window.location.href = 'index.html'; return; }
+      currentUser = user;
+
+      let role = 'report', nickname = user.email?.split('@')[0] || '';
+      try {
+        const snap = await getDoc(doc(db, 'Users', user.email));
+        if (snap.exists()) {
+          role     = snap.data().role     || 'report';
+          nickname = snap.data().nickname || nickname;
+        }
+      } catch(e) {}
+
+      document.getElementById('info-email').textContent    = user.email || '';
+      document.getElementById('info-role').textContent     = ROLE_LABELS[role] || role;
+      document.getElementById('info-nickname').textContent = nickname;
+      document.getElementById('nickname-input').value      = nickname;
+
+      // Owner는 권한변경 요청 카드 숨김
+      if (role === 'owner') {
+        document.getElementById('role-request-card').classList.add('hidden');
+      }
+
+      document.body.style.opacity = '1';
+    });
+
+    // 닉네임 저장
+    window.saveNickname = async () => {
+      const val = document.getElementById('nickname-input').value.trim();
+      const msg = document.getElementById('nickname-msg');
+      const btn = document.getElementById('nickname-btn');
+      msg.className = 'field-msg';
+      if (!val) { msg.className = 'field-msg error'; msg.textContent = '닉네임을 입력해주세요.'; return; }
+      if (val.length > 20) { msg.className = 'field-msg error'; msg.textContent = '20자 이내로 입력해주세요.'; return; }
+      btn.disabled = true; btn.textContent = '저장 중...';
+      try {
+        await updateDoc(doc(db, 'Users', currentUser.email), { nickname: val });
+        document.getElementById('info-nickname').textContent = val;
+        msg.className = 'field-msg success'; msg.textContent = '닉네임이 변경되었습니다!';
+        setTimeout(() => { msg.textContent = ''; }, 2500);
+      } catch(e) {
+        msg.className = 'field-msg error'; msg.textContent = '저장에 실패했습니다.';
+      } finally {
+        btn.disabled = false; btn.textContent = '저장';
+      }
+    };
+
+    // 권한 선택
+    let selectedRole = null;
+    window.selectRole = (el) => {
+      document.querySelectorAll('.role-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedRole = el.dataset.role;
+    };
+
+    // 권한 변경 요청 전송
+    window.sendRoleRequest = async () => {
+      const reason = document.getElementById('role-reason').value.trim();
+      const msg    = document.getElementById('role-msg');
+      const btn    = document.getElementById('role-request-btn');
+      msg.className = 'request-msg';
+      if (!selectedRole) { msg.className = 'request-msg error'; msg.textContent = '요청할 권한을 선택해주세요.'; return; }
+      if (!reason)        { msg.className = 'request-msg error'; msg.textContent = '요청 사유를 입력해주세요.'; return; }
+
+      btn.disabled = true; btn.textContent = '전송 중...';
+      try {
+        const roleLabel = { admin: '관리자', report: '리포트' }[selectedRole] || selectedRole;
+        await addDoc(collection(db, 'notifications'), {
+          type:          'role_request',
+          from:          currentUser.email,
+          requestedRole: selectedRole,
+          message:       `${currentUser.email}님이 '${roleLabel}' 권한을 요청했습니다.\n사유: ${reason}`,
+          read:          false,
+          status:        'pending',
+          createdAt:     serverTimestamp()
+        });
+        msg.className = 'request-msg success';
+        msg.textContent = 'Owner에게 요청이 전송되었습니다!';
+        document.getElementById('role-reason').value = '';
+        selectedRole = null;
+        document.querySelectorAll('.role-option').forEach(o => o.classList.remove('selected'));
+      } catch(e) {
+        msg.className = 'request-msg error'; msg.textContent = '전송에 실패했습니다.';
+      } finally {
+        btn.disabled = false; btn.textContent = '권한 변경 요청 보내기';
+      }
+    };
+  </script>
+
+</body>
+</html>
