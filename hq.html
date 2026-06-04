@@ -418,6 +418,24 @@ table.dt tr.group-hdr td{background:#eff6ff;font-weight:600;font-size:11px;color
       </table>
     </div>
   </div>
+  <!-- ── 수당 검증 테이블 ── -->
+  <div class="tw" id="ot-verify-wrap" style="margin-top:16px;display:none">
+    <div class="th2" style="background:#fff8f0;border-bottom:1px solid #fed7aa">
+      <div class="th2-title" style="color:#c2410c">⚠️ 수당 불일치 의심 <span class="badge" id="ot-verify-badge" style="margin-left:6px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">0건</span></div>
+      <span style="font-size:11px;color:#9a6700;margin-left:auto">실제 근무시간이 요청 수당 기준에 미달하는 인원</span>
+    </div>
+    <div class="tscroll">
+      <table class="dt" id="ot-verify-tb">
+        <thead style="background:#fff8f0">
+          <tr>
+            <th>부서</th><th>직급</th><th>이름</th><th>날짜</th><th>구분</th>
+            <th>요청 수당</th><th>요청 기준</th><th>실제 퇴근/근무</th><th>차이</th>
+          </tr>
+        </thead>
+        <tbody id="ot-verify-body"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- ════ 조기퇴근 ════ -->
@@ -1417,6 +1435,9 @@ function renderResults(){
   document.getElementById('ot-body').innerHTML=otList.length?otHTML:'<tr><td colspan="7" class="empty">그룹웨어 반영 탭에서 입력하세요</td></tr>';
   document.getElementById('ot-badge').textContent=otList.length+'건';
 
+  // ── 수당 불일치 검증
+  renderOtVerify(otList);
+
   // ── 조기퇴근
   const em={};
   earlyList.forEach(r=>{if(!em[r.name])em[r.name]={...r,days:[],times:[],diffs:[]};em[r.name].days.push(r.day);em[r.name].times.push(ts(r.out));em[r.name].diffs.push(r.diff);});
@@ -1581,6 +1602,103 @@ function updateChips(name){
 // ══════════════════════════════════════════
 //  GW 서브 렌더 함수들
 // ══════════════════════════════════════════
+
+// ══════════════════════════════════════════
+//  격려수당 불일치 검증
+// ══════════════════════════════════════════
+// 평일 수당 기준: note('20:30~','22:30~','24:00~','02:00~') → 최소 퇴근시각(분)
+const WD_THRESH={
+  '20:30~': 20*60+30,
+  '22:30~': 22*60+30,
+  '24:00~': 24*60,
+  '02:00~': 26*60,  // 익일 02:00 = 1440+120
+};
+// 주말 수당 기준: note('4h+','8h+','10h+') → 최소 근무시간(분)
+const HOL_THRESH={
+  '4h+': 4*60,
+  '8h+': 8*60,
+  '10h+':10*60,
+};
+
+function renderOtVerify(otList){
+  const wrap  = document.getElementById('ot-verify-wrap');
+  const badge = document.getElementById('ot-verify-badge');
+  const tbody = document.getElementById('ot-verify-body');
+  if(!otList.length || !Object.keys(empData).length){
+    wrap.style.display='none'; return;
+  }
+
+  const issues=[];
+  otList.forEach(r=>{
+    if(r.manual) return; // 수동추가 항목은 검증 제외
+    const emp=empData[r.name];
+    if(!emp) return;
+    const dayRec=emp.days?emp.days[r.day]:null;
+    if(!dayRec) return;
+
+    // manualTimes 우선 적용
+    const mt=(GW[r.name]&&GW[r.name].manualTimes)||{};
+    const moVal=mt[r.day+'_out'];
+    const miVal=mt[r.day+'_in'];
+    const actualOut = moVal===-999 ? null : (moVal!==undefined ? moVal : dayRec.out);
+    const actualIn  = miVal===-999 ? null : (miVal!==undefined ? miVal : dayRec.in);
+
+    if(r.isHol){
+      // 주말/공휴일: 근무시간 기준
+      const minWork=HOL_THRESH[r.note];
+      if(minWork===undefined) return;
+      if(actualIn===null||actualOut===null) return;
+      const worked=actualOut-actualIn;
+      if(worked<minWork){
+        const diff=minWork-worked;
+        issues.push({
+          ...r,
+          criteriaLabel: r.note,
+          actualLabel: ts(actualIn)+'~'+ts(actualOut)+' ('+Math.floor(worked/60)+'h'+String(worked%60).padStart(2,'0')+'m)',
+          diffLabel: '-'+Math.floor(diff/60)+'h'+String(diff%60).padStart(2,'0')+'m',
+          diffMin: diff,
+        });
+      }
+    } else {
+      // 평일: 퇴근시각 기준
+      const minOut=WD_THRESH[r.note];
+      if(minOut===undefined) return;
+      if(actualOut===null) return;
+      // 익일 02:00 처리: actualOut이 0~120분 사이면 익일이므로 +1440
+      let adjOut=actualOut;
+      if(r.note==='02:00~' && actualOut<180) adjOut=actualOut+1440;
+      if(adjOut<minOut){
+        const diff=minOut-adjOut;
+        issues.push({
+          ...r,
+          criteriaLabel: r.note,
+          actualLabel: ts(actualOut),
+          diffLabel: '-'+Math.floor(diff/60)+'h'+String(diff%60).padStart(2,'0')+'m',
+          diffMin: diff,
+        });
+      }
+    }
+  });
+
+  if(!issues.length){ wrap.style.display='none'; return; }
+  wrap.style.display='';
+  badge.textContent=issues.length+'건';
+
+  issues.sort((a,b)=>(a.dept||'').localeCompare(b.dept||'','ko')||(a.name.localeCompare(b.name,'ko'))||(a.day-b.day));
+  tbody.innerHTML=issues.map(r=>`
+    <tr style="background:#fffbf5">
+      <td class="nm">${r.dept}</td>
+      <td class="nm">${r.rank}</td>
+      <td class="nm" style="font-weight:600">${r.name}</td>
+      <td class="mono">${r.day}일 (${r.isHol?'주말/공휴일':'평일'})</td>
+      <td>${r.isHol?'<span class="badge bp">휴일</span>':'<span class="badge bb">평일</span>'}</td>
+      <td class="mono" style="color:var(--ok);font-weight:700">${r.pay.toLocaleString()}원</td>
+      <td class="mono" style="color:var(--tx2)">${r.criteriaLabel}</td>
+      <td class="mono" style="color:var(--acc);font-weight:600">${r.actualLabel}</td>
+      <td class="mono" style="color:var(--dan);font-weight:700">${r.diffLabel}</td>
+    </tr>`).join('');
+}
+
 function renderOtItems(name){
   const g=GW[name];
   if(!g.otList.length) return '';
