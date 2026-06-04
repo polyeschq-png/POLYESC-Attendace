@@ -7,37 +7,24 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    /* html, body 모두 100% 높이 확보 - 이게 없으면 main이 0높이가 됨 */
     html, body { height: 100%; }
-
     body {
       font-family: 'Noto Sans KR', sans-serif;
-      display: flex;
-      flex-direction: column;
-      opacity: 0;
-      transition: opacity 0.4s ease;
+      display: flex; flex-direction: column;
+      opacity: 0; transition: opacity 0.4s ease;
       background: #111;
     }
 
     /* ── 헤더 ── */
     header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 32px;
-      height: 56px;
-      background: #fff;
-      border-bottom: 1px solid #e8e8e8;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 56px;
+      background: #fff; border-bottom: 1px solid #e8e8e8;
+      position: sticky; top: 0; z-index: 100; flex-shrink: 0;
     }
     .header-logo { display: flex; align-items: center; gap: 10px; }
     .header-logo img { height: 30px; width: auto; }
     .header-logo span { font-size: 13px; font-weight: 600; color: #0D47A1; }
-
     .header-right { display: flex; align-items: center; gap: 12px; }
     #user-email { font-size: 12px; color: #888; }
     .hdr-sep { width: 1px; height: 14px; background: #ddd; }
@@ -56,86 +43,119 @@
     }
     .logout-btn:hover { background: #fef2f2; }
 
-    /* ── 슬라이더 영역 ── */
-    main {
-      flex: 1 1 0;          /* 남은 높이를 모두 차지 */
-      min-height: 0;        /* flex shrink 허용 */
+    /* ── 종 아이콘 (Owner 전용) ── */
+    .bell-wrap {
       position: relative;
-      overflow: hidden;
+      display: none; /* JS에서 owner면 표시 */
+    }
+    .bell-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: #f5f5f5; border: 1px solid #e0e0e0;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+      position: relative;
+    }
+    .bell-btn:hover { background: #eee; }
+    .bell-btn svg {
+      width: 17px; height: 17px;
+      stroke: #555; fill: none;
+      stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+    }
+    /* 안읽은 알림 뱃지 */
+    .bell-badge {
+      position: absolute; top: -3px; right: -3px;
+      min-width: 16px; height: 16px; border-radius: 8px;
+      background: #ef4444; color: #fff;
+      font-size: 9px; font-weight: 700;
+      display: none; align-items: center; justify-content: center;
+      padding: 0 3px; border: 1.5px solid #fff;
+    }
+    .bell-badge.show { display: flex; }
+
+    /* 알림 드롭다운 */
+    .notif-dropdown {
+      position: absolute; top: calc(100% + 10px); right: 0;
+      width: 300px; max-height: 380px;
+      background: #fff; border: 1px solid #e8e8e8;
+      border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      overflow: hidden; display: none; flex-direction: column;
+      z-index: 200;
+    }
+    .notif-dropdown.open { display: flex; }
+    .notif-header {
+      padding: 14px 16px 10px;
+      font-size: 13px; font-weight: 600; color: #222;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .notif-mark-all {
+      font-size: 11px; color: #1565C0; cursor: pointer;
+      background: none; border: none; font-family: 'Noto Sans KR', sans-serif;
+    }
+    .notif-list { overflow-y: auto; flex: 1; }
+    .notif-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f5f5f5;
+      cursor: pointer; transition: background 0.1s;
+    }
+    .notif-item:hover { background: #f9f9f9; }
+    .notif-item.unread { background: #f0f5ff; }
+    .notif-item.unread:hover { background: #e8f0fe; }
+    .notif-type {
+      font-size: 10px; font-weight: 600; color: #1565C0;
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px;
+    }
+    .notif-msg { font-size: 12px; color: #333; line-height: 1.5; }
+    .notif-time { font-size: 10px; color: #aaa; margin-top: 3px; }
+    .notif-empty {
+      padding: 32px 16px; text-align: center;
+      font-size: 12px; color: #aaa;
     }
 
+    /* ── 슬라이더 ── */
+    main {
+      flex: 1 1 0; min-height: 0;
+      position: relative; overflow: hidden;
+    }
     .slider-track {
-      display: flex;
-      height: 100%;
+      display: flex; height: 100%;
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-      /* JS가 초기화하기 전 기본값: 3장이면 100% */
       width: 100%;
     }
-
     .slide-card {
-      /* JS가 초기화 후 flex 값을 덮어씀 */
-      flex: 0 0 33.333%;
-      height: 100%;
-      position: relative;
-      overflow: hidden;
-      cursor: pointer;
+      flex: 0 0 33.333%; height: 100%;
+      position: relative; overflow: hidden; cursor: pointer;
       border-right: 1px solid rgba(255,255,255,0.15);
     }
     .slide-card:last-child { border-right: none; }
-
     .slide-card .bg {
       position: absolute; inset: 0;
       background-size: cover; background-position: center;
       transition: transform 0.5s ease;
     }
     .slide-card:hover .bg { transform: scale(1.04); }
-
-    /* 이미지 없을 때 배경색, 이미지 경로는 별도 로드 */
     .card-hq     .bg { background-color: #0d2f6e; }
     .card-campus .bg { background-color: #0d3a20; }
     .card-all    .bg { background-color: #2a0f40; }
     .card-perm   .bg { background-color: #1a0a3a; }
-
     .slide-card .overlay {
       position: absolute; inset: 0;
-      background: linear-gradient(to top,
-        rgba(0,0,0,0.75) 0%,
-        rgba(0,0,0,0.15) 55%,
-        transparent 100%);
+      background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 55%, transparent 100%);
       transition: background 0.3s;
     }
     .slide-card:hover .overlay {
-      background: linear-gradient(to top,
-        rgba(0,0,0,0.55) 0%,
-        rgba(0,0,0,0.05) 55%,
-        transparent 100%);
+      background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.05) 55%, transparent 100%);
     }
+    .card-content { position: absolute; bottom: 0; left: 0; right: 0; padding: 32px 28px; color: #fff; }
+    .card-sub { font-size: 10px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(255,255,255,0.6); margin-bottom: 6px; }
+    .card-title { font-size: clamp(24px, 2.8vw, 38px); font-weight: 700; line-height: 1.15; margin-bottom: 8px; letter-spacing: -0.5px; }
+    .card-desc { font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.6; font-weight: 300; }
 
-    .card-content {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 32px 28px; color: #fff;
-    }
-    .card-sub {
-      font-size: 10px; font-weight: 600;
-      letter-spacing: 2.5px; text-transform: uppercase;
-      color: rgba(255,255,255,0.6); margin-bottom: 6px;
-    }
-    .card-title {
-      font-size: clamp(24px, 2.8vw, 38px);
-      font-weight: 700; line-height: 1.15;
-      margin-bottom: 8px; letter-spacing: -0.5px;
-    }
-    .card-desc {
-      font-size: 13px; color: rgba(255,255,255,0.7);
-      line-height: 1.6; font-weight: 300;
-    }
-
-    /* ── 슬라이드 화살표 ── */
+    /* ── 화살표 ── */
     .arrow-btn {
       position: absolute; top: 50%; transform: translateY(-50%);
       width: 44px; height: 44px; border-radius: 50%;
-      background: rgba(0,0,0,0.50);
-      border: 2px solid rgba(255,255,255,0.80);
+      background: rgba(0,0,0,0.50); border: 2px solid rgba(255,255,255,0.80);
       cursor: pointer; z-index: 20;
       opacity: 0; pointer-events: none;
       transition: opacity 0.2s ease, background 0.2s ease;
@@ -144,38 +164,91 @@
     main:hover .arrow-btn:not(.hidden) { opacity: 1; pointer-events: auto; }
     .arrow-btn:hover { background: rgba(0,0,0,0.70); }
     .arrow-btn.hidden { opacity: 0 !important; pointer-events: none !important; }
-
-    .arrow-btn svg {
-      width: 20px; height: 20px; display: block;
-      stroke: #ffffff; fill: none;
-      stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
-      /* SVG 내부 기본 스타일 리셋 */
-      overflow: visible;
-    }
-
+    .arrow-btn svg { width: 20px; height: 20px; display: block; stroke: #ffffff; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
     .arrow-left  { left: 16px; }
     .arrow-right { right: 16px; }
 
     /* ── 도트 ── */
-    .dots {
-      position: absolute; bottom: 16px;
-      left: 50%; transform: translateX(-50%);
-      display: flex; gap: 6px; z-index: 20;
-    }
-    .dot {
-      width: 6px; height: 6px; border-radius: 3px;
-      background: rgba(255,255,255,0.4);
-      cursor: pointer; transition: all 0.25s;
-      border: none; padding: 0;
-    }
+    .dots { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 20; }
+    .dot { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.4); cursor: pointer; transition: all 0.25s; border: none; padding: 0; }
     .dot.active { background: #fff; width: 18px; }
 
     /* ── 하단 바 ── */
-    .bottom-bar {
-      height: 4px;
-      background: linear-gradient(90deg, #2196F3, #29b6f6, #26c6da);
-      flex-shrink: 0;
+    .bottom-bar { height: 4px; background: linear-gradient(90deg, #2196F3, #29b6f6, #26c6da); flex-shrink: 0; }
+
+    /* ── 우측 하단 플로팅 버튼 ── */
+    .floating-btns {
+      position: fixed; bottom: 24px; right: 20px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 150;
     }
+    .float-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 42px; height: 42px; border-radius: 50%;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid #ddd;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      cursor: pointer; transition: all 0.15s;
+      position: relative;
+    }
+    .float-btn:hover { background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.2); transform: translateY(-1px); }
+    .float-btn svg { width: 18px; height: 18px; stroke: #444; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: block; }
+    /* 툴팁 */
+    .float-btn::before {
+      content: attr(data-tip);
+      position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+      background: rgba(0,0,0,0.75); color: #fff;
+      font-size: 11px; padding: 4px 8px; border-radius: 5px;
+      white-space: nowrap; opacity: 0; pointer-events: none;
+      transition: opacity 0.15s;
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+    .float-btn:hover::before { opacity: 1; }
+
+    /* ── 비밀번호 변경 모달 ── */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 300; display: none;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 14px;
+      padding: 28px 28px 24px;
+      width: 340px; max-width: 90vw;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.18);
+    }
+    .modal-title { font-size: 15px; font-weight: 700; color: #222; margin-bottom: 4px; }
+    .modal-sub { font-size: 12px; color: #888; margin-bottom: 20px; }
+    .modal-field { margin-bottom: 14px; }
+    .modal-field label { display: block; font-size: 11px; font-weight: 600; color: #555; margin-bottom: 5px; }
+    .modal-field input {
+      width: 100%; padding: 9px 12px;
+      border: 1px solid #ddd; border-radius: 8px;
+      font-size: 13px; font-family: 'Noto Sans KR', sans-serif;
+      outline: none; transition: border 0.15s;
+    }
+    .modal-field input:focus { border-color: #1565C0; }
+    .modal-msg { font-size: 12px; min-height: 18px; margin-bottom: 14px; }
+    .modal-msg.error { color: #dc2626; }
+    .modal-msg.success { color: #16a34a; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-cancel {
+      padding: 8px 16px; border-radius: 8px;
+      border: 1px solid #ddd; background: #fff;
+      font-size: 12px; color: #555; cursor: pointer;
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+    .btn-confirm {
+      padding: 8px 18px; border-radius: 8px;
+      border: none; background: #1565C0;
+      font-size: 12px; color: #fff; cursor: pointer;
+      font-family: 'Noto Sans KR', sans-serif;
+      transition: background 0.15s;
+    }
+    .btn-confirm:hover { background: #0d47a1; }
+    .btn-confirm:disabled { background: #9ab; cursor: not-allowed; }
 
     @media (max-width: 640px) {
       .arrow-btn { width: 36px; height: 36px; }
@@ -197,17 +270,36 @@
       <div class="hdr-sep"></div>
       <span id="user-display"></span>
       <span id="user-role-label"></span>
+
+      <!-- 종 아이콘 (Owner만) -->
+      <div class="bell-wrap" id="bell-wrap">
+        <button class="bell-btn" id="bell-btn" aria-label="알림">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="bell-badge" id="bell-badge"></span>
+        </button>
+        <div class="notif-dropdown" id="notif-dropdown">
+          <div class="notif-header">
+            <span>알림</span>
+            <button class="notif-mark-all" id="notif-mark-all">모두 읽음</button>
+          </div>
+          <div class="notif-list" id="notif-list">
+            <div class="notif-empty">알림이 없습니다</div>
+          </div>
+        </div>
+      </div>
+
       <button class="logout-btn" onclick="handleSignOut()">로그아웃</button>
     </div>
   </header>
 
   <main id="slider-main">
-
     <div class="slider-track" id="slider-track">
 
       <div class="slide-card card-hq" onclick="goTo('hq')">
-        <div class="bg"></div>
-        <div class="overlay"></div>
+        <div class="bg"></div><div class="overlay"></div>
         <div class="card-content">
           <div class="card-sub">Headquarters</div>
           <div class="card-title">HQ 근태</div>
@@ -216,8 +308,7 @@
       </div>
 
       <div class="slide-card card-campus" onclick="goTo('campus')">
-        <div class="bg"></div>
-        <div class="overlay"></div>
+        <div class="bg"></div><div class="overlay"></div>
         <div class="card-content">
           <div class="card-sub">Campus</div>
           <div class="card-title">캠퍼스 근태</div>
@@ -226,8 +317,7 @@
       </div>
 
       <div class="slide-card card-all" onclick="goTo('all')">
-        <div class="bg"></div>
-        <div class="overlay"></div>
+        <div class="bg"></div><div class="overlay"></div>
         <div class="card-content">
           <div class="card-sub">All Workers</div>
           <div class="card-title">전체 근로자 관리</div>
@@ -237,8 +327,7 @@
 
       <div class="slide-card card-perm" id="card-permissions"
            onclick="goTo('permissions')" style="display:none">
-        <div class="bg"></div>
-        <div class="overlay"></div>
+        <div class="bg"></div><div class="overlay"></div>
         <div class="card-content">
           <div class="card-sub">Administration</div>
           <div class="card-title">권한 관리</div>
@@ -249,33 +338,59 @@
     </div>
 
     <button class="arrow-btn arrow-left hidden" id="btn-prev" aria-label="이전">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polyline points="15 18 9 12 15 6"></polyline>
-      </svg>
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polyline points="15 18 9 12 15 6"></polyline></svg>
     </button>
     <button class="arrow-btn arrow-right hidden" id="btn-next" aria-label="다음">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <polyline points="9 18 15 12 9 6"></polyline>
-      </svg>
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polyline points="9 18 15 12 9 6"></polyline></svg>
     </button>
-
     <div class="dots" id="dots-wrap" style="display:none"></div>
-
   </main>
 
   <div class="bottom-bar"></div>
 
+  <!-- 우측 하단 플로팅 버튼 -->
+  <div class="floating-btns">
+    <button class="float-btn" data-tip="마이페이지" onclick="window.location.href='mypage.html'">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    </button>
+    <button class="float-btn" data-tip="비밀번호 변경" onclick="openPwModal()">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </button>
+  </div>
+
+  <!-- 비밀번호 변경 모달 -->
+  <div class="modal-backdrop" id="pw-backdrop">
+    <div class="modal">
+      <div class="modal-title">비밀번호 변경</div>
+      <div class="modal-sub">새로운 비밀번호를 입력해주세요</div>
+      <div class="modal-field">
+        <label>현재 비밀번호</label>
+        <input type="password" id="pw-current" placeholder="현재 비밀번호"/>
+      </div>
+      <div class="modal-field">
+        <label>새 비밀번호</label>
+        <input type="password" id="pw-new" placeholder="새 비밀번호 (6자 이상)"/>
+      </div>
+      <div class="modal-field">
+        <label>새 비밀번호 확인</label>
+        <input type="password" id="pw-confirm" placeholder="새 비밀번호 재입력"/>
+      </div>
+      <div class="modal-msg" id="pw-msg"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closePwModal()">취소</button>
+        <button class="btn-confirm" id="pw-submit" onclick="submitPwChange()">변경하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 슬라이더 JS -->
   <script>
     var track    = document.getElementById('slider-track');
     var btnPrev  = document.getElementById('btn-prev');
     var btnNext  = document.getElementById('btn-next');
     var dotsWrap = document.getElementById('dots-wrap');
-    var curOffset   = 0;
-    var totalCards  = 3;
-    var visibleCards = 3;
-    var maxOffset   = 0;
+    var curOffset = 0, totalCards = 3, visibleCards = 3, maxOffset = 0;
 
-    // 이미지 경로 설정 (파일이 없으면 배경색으로 fallback)
     var BG_IMAGES = {
       'card-hq':     'HQ프로그램용.png',
       'card-campus': '캠퍼스프로그램용.png',
@@ -286,9 +401,7 @@
       var key = Array.from(card.classList).find(function(c) { return BG_IMAGES[c]; });
       if (key) {
         var img = new Image();
-        img.onload = function() {
-          card.querySelector('.bg').style.backgroundImage = "url('" + BG_IMAGES[key] + "')";
-        };
+        img.onload = function() { card.querySelector('.bg').style.backgroundImage = "url('" + BG_IMAGES[key] + "')"; };
         img.src = BG_IMAGES[key];
       }
     });
@@ -300,67 +413,70 @@
       for (var i = 0; i <= maxOffset; i++) {
         var d = document.createElement('button');
         d.className = 'dot' + (i === 0 ? ' active' : '');
-        d.setAttribute('aria-label', (i + 1) + '번째');
+        d.setAttribute('aria-label', (i+1) + '번째');
         d.dataset.idx = i;
         d.addEventListener('click', function() { moveTo(parseInt(this.dataset.idx)); });
         dotsWrap.appendChild(d);
       }
     }
-
     function moveTo(offset) {
       curOffset = offset;
-      var pct = (curOffset / totalCards) * 100;
-      track.style.transform = 'translateX(-' + pct + '%)';
+      track.style.transform = 'translateX(-' + (curOffset / totalCards * 100) + '%)';
       btnPrev.classList.toggle('hidden', curOffset === 0);
       btnNext.classList.toggle('hidden', curOffset >= maxOffset);
-      document.querySelectorAll('.dot').forEach(function(d, i) {
-        d.classList.toggle('active', i === curOffset);
-      });
+      document.querySelectorAll('.dot').forEach(function(d, i) { d.classList.toggle('active', i === curOffset); });
     }
-
     function updateSlider(cardCount) {
-      totalCards  = cardCount;
-      maxOffset   = Math.max(0, totalCards - visibleCards);
-
-      if (totalCards > visibleCards) {
-        // 트랙 너비 = totalCards/visibleCards * 100%
-        track.style.width = (totalCards / visibleCards * 100) + '%';
-        document.querySelectorAll('.slide-card').forEach(function(c) {
-          c.style.flex = '0 0 ' + (100 / totalCards) + '%';
-        });
-      } else {
-        track.style.width = '100%';
-        document.querySelectorAll('.slide-card').forEach(function(c) {
-          c.style.flex = '0 0 ' + (100 / totalCards) + '%';
-        });
-      }
-      buildDots();
-      moveTo(0);
+      totalCards = cardCount;
+      maxOffset  = Math.max(0, totalCards - visibleCards);
+      track.style.width = (totalCards > visibleCards) ? (totalCards / visibleCards * 100) + '%' : '100%';
+      document.querySelectorAll('.slide-card').forEach(function(c) { c.style.flex = '0 0 ' + (100 / totalCards) + '%'; });
+      buildDots(); moveTo(0);
     }
-
-    btnPrev.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if (curOffset > 0) moveTo(curOffset - 1);
-    });
-    btnNext.addEventListener('click', function(e) {
-      e.stopPropagation();
-      if (curOffset < maxOffset) moveTo(curOffset + 1);
-    });
-
-    // 페이지 로드 시 3장으로 바로 초기화 (Firebase 응답 전에도 화면이 보이도록)
+    btnPrev.addEventListener('click', function(e) { e.stopPropagation(); if (curOffset > 0) moveTo(curOffset - 1); });
+    btnNext.addEventListener('click', function(e) { e.stopPropagation(); if (curOffset < maxOffset) moveTo(curOffset + 1); });
     updateSlider(3);
 
     function goTo(type) {
       var map = { hq: 'hq.html', campus: 'campus.html', all: 'workers.html', permissions: 'permissions.html' };
       if (map[type]) window.location.href = map[type];
     }
+
+    // 비밀번호 모달
+    function openPwModal() {
+      document.getElementById('pw-backdrop').classList.add('open');
+      document.getElementById('pw-current').value = '';
+      document.getElementById('pw-new').value = '';
+      document.getElementById('pw-confirm').value = '';
+      document.getElementById('pw-msg').textContent = '';
+      document.getElementById('pw-msg').className = 'modal-msg';
+    }
+    function closePwModal() {
+      document.getElementById('pw-backdrop').classList.remove('open');
+    }
+    document.getElementById('pw-backdrop').addEventListener('click', function(e) {
+      if (e.target === this) closePwModal();
+    });
+
+    // 알림 드롭다운 토글
+    document.getElementById('bell-btn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.getElementById('notif-dropdown').classList.toggle('open');
+    });
+    document.addEventListener('click', function() {
+      document.getElementById('notif-dropdown').classList.remove('open');
+    });
+    document.getElementById('notif-dropdown').addEventListener('click', function(e) { e.stopPropagation(); });
   </script>
 
+  <!-- Firebase JS -->
   <script type="module">
     import { initializeApp }   from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
-    import { getAuth, onAuthStateChanged, signOut, browserSessionPersistence, setPersistence }
+    import { getAuth, onAuthStateChanged, signOut, reauthenticateWithCredential,
+             EmailAuthProvider, updatePassword, browserSessionPersistence, setPersistence }
       from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
-    import { getFirestore, doc, getDoc }
+    import { getFirestore, doc, getDoc, collection, query, where,
+             onSnapshot, updateDoc, writeBatch, serverTimestamp }
       from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
 
     const firebaseConfig = {
@@ -378,32 +494,136 @@
     await setPersistence(auth, browserSessionPersistence);
 
     const ROLE_LABELS = { owner: '👑 Owner', admin: '🔧 관리자', report: '📊 리포트' };
+    let unsubNotif = null;
 
     onAuthStateChanged(auth, async user => {
       if (!user) { window.location.href = 'index.html'; return; }
 
       document.getElementById('user-email').textContent   = user.email || '';
-      document.getElementById('user-display').textContent = user.email?.split('@')[0] || user.displayName || '';
 
-      let role = 'report';
+      // 닉네임: nickname 필드 우선, 없으면 이메일 앞부분
+      let role = 'report', nickname = user.email?.split('@')[0] || '';
       try {
         const snap = await getDoc(doc(db, 'Users', user.email));
-        if (snap.exists()) role = snap.data().role || 'report';
-      } catch(e) { console.warn('role 읽기 실패:', e); }
+        if (snap.exists()) {
+          role     = snap.data().role     || 'report';
+          nickname = snap.data().nickname || nickname;
+        }
+      } catch(e) { console.warn('user 읽기 실패:', e); }
 
+      document.getElementById('user-display').textContent    = nickname;
       document.getElementById('user-role-label').textContent = ROLE_LABELS[role] || '📊 리포트';
 
+      // 슬라이더 카드 수
       let cardCount = 3;
       if (role === 'owner') {
         document.getElementById('card-permissions').style.display = '';
         cardCount = 4;
+
+        // 종 아이콘 표시 + 실시간 알림 구독
+        document.getElementById('bell-wrap').style.display = 'flex';
+        startNotifListener();
       }
       updateSlider(cardCount);
-
       document.body.style.opacity = '1';
     });
 
+    // ── 실시간 알림 리스너 (Owner) ──
+    function startNotifListener() {
+      if (unsubNotif) unsubNotif();
+      const q = query(collection(db, 'notifications'), where('status', '!=', 'deleted'));
+      unsubNotif = onSnapshot(q, snapshot => {
+        const items = [];
+        snapshot.forEach(d => items.push({ id: d.id, ...d.data() }));
+        items.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+        const unread = items.filter(i => !i.read).length;
+        const badge  = document.getElementById('bell-badge');
+        if (unread > 0) {
+          badge.textContent = unread > 99 ? '99+' : unread;
+          badge.classList.add('show');
+        } else {
+          badge.classList.remove('show');
+        }
+        renderNotifList(items);
+      });
+    }
+
+    function renderNotifList(items) {
+      const list = document.getElementById('notif-list');
+      if (items.length === 0) {
+        list.innerHTML = '<div class="notif-empty">알림이 없습니다</div>';
+        return;
+      }
+      list.innerHTML = items.map(item => {
+        const typeLabel = item.type === 'account_request' ? '계정 요청'
+                        : item.type === 'role_request'    ? '권한 변경 요청'
+                        : '알림';
+        const time = item.createdAt
+          ? new Date(item.createdAt.seconds * 1000).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
+          : '';
+        return `<div class="notif-item ${item.read ? '' : 'unread'}" data-id="${item.id}" onclick="markRead('${item.id}', '${item.type}')">
+          <div class="notif-type">${typeLabel}</div>
+          <div class="notif-msg">${item.message || ''}</div>
+          <div class="notif-time">${time}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // 알림 단건 읽음
+    window.markRead = async (id, type) => {
+      try {
+        await updateDoc(doc(db, 'notifications', id), { read: true });
+        if (type === 'account_request' || type === 'role_request') {
+          window.location.href = 'permissions.html';
+        }
+      } catch(e) { console.warn(e); }
+    };
+
+    // 모두 읽음
+    document.getElementById('notif-mark-all').addEventListener('click', async () => {
+      const q = query(collection(db, 'notifications'), where('read', '==', false));
+      const snap = await import('https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js')
+        .then(m => m.getDocs(q));
+      const batch = writeBatch(db);
+      snap.forEach(d => batch.update(d.ref, { read: true }));
+      await batch.commit();
+    });
+
+    // ── 비밀번호 변경 ──
+    window.submitPwChange = async () => {
+      const current = document.getElementById('pw-current').value.trim();
+      const nw      = document.getElementById('pw-new').value;
+      const confirm = document.getElementById('pw-confirm').value;
+      const msg     = document.getElementById('pw-msg');
+      const btn     = document.getElementById('pw-submit');
+
+      msg.className = 'modal-msg';
+      if (!current || !nw || !confirm) { msg.className = 'modal-msg error'; msg.textContent = '모든 항목을 입력해주세요.'; return; }
+      if (nw.length < 6)               { msg.className = 'modal-msg error'; msg.textContent = '새 비밀번호는 6자 이상이어야 합니다.'; return; }
+      if (nw !== confirm)              { msg.className = 'modal-msg error'; msg.textContent = '새 비밀번호가 일치하지 않습니다.'; return; }
+
+      btn.disabled = true; btn.textContent = '변경 중...';
+      try {
+        const user = auth.currentUser;
+        const cred = EmailAuthProvider.credential(user.email, current);
+        await reauthenticateWithCredential(user, cred);
+        await updatePassword(user, nw);
+        msg.className = 'modal-msg success';
+        msg.textContent = '비밀번호가 변경되었습니다!';
+        setTimeout(closePwModal, 1500);
+      } catch(e) {
+        msg.className = 'modal-msg error';
+        msg.textContent = e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'
+          ? '현재 비밀번호가 올바르지 않습니다.'
+          : '오류가 발생했습니다. 다시 시도해주세요.';
+      } finally {
+        btn.disabled = false; btn.textContent = '변경하기';
+      }
+    };
+
     window.handleSignOut = async () => {
+      if (unsubNotif) unsubNotif();
       await signOut(auth);
       window.location.href = 'index.html';
     };
