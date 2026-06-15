@@ -1186,8 +1186,16 @@ function switchITab(itab) {
 // ══════════════════════════════════════
 // SIDEBAR
 // ══════════════════════════════════════
+
+// 캠퍼스 정렬: 폴리(MIL 포함) → 엠폴리
+function sortCampuses(campusArr) {
+  const poly = campusArr.filter(x => !x.includes('엠폴리')).sort((a,b) => a.localeCompare(b,'ko'));
+  const emf  = campusArr.filter(x => x.includes('엠폴리')).sort((a,b) => a.localeCompare(b,'ko'));
+  return [...poly, ...emf];
+}
+
 function getCampusList() {
-  return [...new Set(EMPLOYEES.map(e => e.campus))].sort((a,b) => a.localeCompare(b,'ko'));
+  return sortCampuses([...new Set(EMPLOYEES.map(e => e.campus))]);
 }
 
 function renderSidebar() {
@@ -1524,6 +1532,17 @@ function processFile(file) {
     try {
       await parseExcelAsync(e.target.result);
       document.getElementById('upload-cfg').style.display = 'block';
+      // 파일의 실제 날짜 범위 자동 감지
+      const dates = RAW_DATA.map(r => r.date).filter(Boolean).sort();
+      if (dates.length) {
+        const fileStart = dates[0];
+        const fileEnd   = dates[dates.length - 1];
+        const dtStart = document.getElementById('dt-start');
+        const dtEnd   = document.getElementById('dt-end');
+        if (dtStart) dtStart.value = fileStart;
+        if (dtEnd)   dtEnd.value   = fileEnd;
+        updateHeaderMonth();
+      }
       showToast(`✅ ${file.name} — ${RAW_DATA.length}건 로드`, 'ok');
     } catch(err) {
       showToast('❌ 파일 오류: ' + err.message, 'err');
@@ -2630,8 +2649,8 @@ function exportCSV() {
 // ══════════════════════════════════════
 function saveState() {
   console.log('[saveState] RAW_DATA:', RAW_DATA.length, 'RESULTS:', RESULTS.length);
-  // Firebase 연동 시 설정도 동기화
-  if (window._fbReady && currentUser) saveSettingsToFirebase().catch(()=>{});
+  // Firebase 연동 시 설정도 동기화 — 로드 완료 후에만
+  if (window._fbReady && currentUser && window._fbLoaded) saveSettingsToFirebase().catch(()=>{});
   // RAW_DATA가 있으면 자동 재분석, 없고 RESULTS만 있으면(기록 불러오기 상태) 보고자료만 갱신
   if (RAW_DATA.length > 0) {
     clearTimeout(window._autoReanalysisTimer);
@@ -2945,9 +2964,16 @@ function downloadReportPDF() {
   const receipts = monthKey ? (REPORT_RECEIPTS[monthKey]||{}) : {};
   const today = new Date().toLocaleDateString('ko-KR');
 
-  const campuses = [...new Set(RESULTS.map(r=>r.campus))]
-    .filter(c=>MANAGED_CAMPUSES.has(c))
-    .sort((a,b)=>a.localeCompare(b,'ko'));
+  // 결과 없는 캠퍼스도 포함 (EMPLOYEES 기준)
+  const _rCampus = new Set(RESULTS.map(r=>r.campus));
+  const _eCampus = new Set(EMPLOYEES.map(e=>e.campus));
+  const campuses = sortCampuses([..._rCampus, ..._eCampus]
+    .filter((v,i,a)=>a.indexOf(v)===i)
+    .filter(c=>MANAGED_CAMPUSES.has(c)))
+    .sort((a,b)=>{
+      const rank = x => x.includes('엠폴리') ? 2 : 1;
+      return rank(a) !== rank(b) ? rank(a)-rank(b) : a.localeCompare(b,'ko');
+    });
 
   const totalLate  = [...new Set(RESULTS.filter(r=>r.type==='late').map(r=>r.name+r.campus))].length;
   const totalShort = [...new Set(RESULTS.filter(r=>r.type==='short').map(r=>r.name+r.campus))].length;
