@@ -2761,7 +2761,7 @@ function refreshReport() {
   // 분석 결과에 있는 캠퍼스 + 기준 리스트에 있는 캠퍼스 합집합 (MANAGED만)
   const resultCampuses = new Set(RESULTS.map(r => r.campus));
   const empCampuses = new Set(EMPLOYEES.map(e => e.campus));
-  const campuses = [...MANAGED_CAMPUSES].filter(ca => resultCampuses.has(ca) || empCampuses.has(ca)).sort((a,b) => a.localeCompare(b,'ko'));
+  const campuses = sortCampuses([...MANAGED_CAMPUSES].filter(ca => resultCampuses.has(ca) || empCampuses.has(ca)));
 
   function buildNameList(rows) {
     const map = {};
@@ -2923,7 +2923,7 @@ function downloadReportExcel() {
 
   const monthKey = getReportMonthKey();
   const receipts = monthKey ? (REPORT_RECEIPTS[monthKey]||{}) : {};
-  const campuses = [...new Set(RESULTS.map(r=>r.campus))].filter(ca=>MANAGED_CAMPUSES.has(ca)).sort((a,b)=>a.localeCompare(b,'ko'));
+  const campuses = sortCampuses([...new Set(RESULTS.map(r=>r.campus))].filter(ca=>MANAGED_CAMPUSES.has(ca)));
 
   function buildNameList(rows) {
     const map = {};
@@ -2969,11 +2969,7 @@ function downloadReportPDF() {
   const _eCampus = new Set(EMPLOYEES.map(e=>e.campus));
   const campuses = sortCampuses([..._rCampus, ..._eCampus]
     .filter((v,i,a)=>a.indexOf(v)===i)
-    .filter(c=>MANAGED_CAMPUSES.has(c)))
-    .sort((a,b)=>{
-      const rank = x => x.includes('엠폴리') ? 2 : 1;
-      return rank(a) !== rank(b) ? rank(a)-rank(b) : a.localeCompare(b,'ko');
-    });
+    .filter(c=>MANAGED_CAMPUSES.has(c)));
 
   const totalLate  = [...new Set(RESULTS.filter(r=>r.type==='late').map(r=>r.name+r.campus))].length;
   const totalShort = [...new Set(RESULTS.filter(r=>r.type==='short').map(r=>r.name+r.campus))].length;
