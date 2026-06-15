@@ -555,7 +555,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
       <div class="sec-title">
         <span id="ex-title">📌 특이사항 설정</span>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button class="btn btn-blue btn-sm" onclick="RAW_DATA.length ? (rerunAnalysis(), switchTab('report')) : (refreshReport(), switchTab('report'))">✅ 보고자료에 반영</button>
+          <button class="btn btn-blue btn-sm" onclick="applyToReport()">✅ 보고자료에 반영</button>
           <button class="btn btn-ghost btn-sm" onclick="addException()">+ 특이사항 추가</button>
         </div>
       </div>
@@ -2092,9 +2092,30 @@ function rerunAnalysis() {
     renderEarlyoutTable();
   }
   renderSidebar();
-  if (currentTab === 'report') refreshReport();
   renderCampusPanel();
   showToast('🔄 설정 변경 — 자동 재분석됨', 'ok');
+  // 보고자료 탭이 열려있으면 갱신 (applyToReport에서 switchTab 후 호출)
+  if (currentTab === 'report') refreshReport();
+}
+
+
+// ══════════════════════════════════════
+// 보고자료에 반영 (특이사항 → 재분석 → 보고자료)
+// ══════════════════════════════════════
+function applyToReport() {
+  if (RAW_DATA.length > 0) {
+    // 재분석 후 보고자료 탭으로 이동
+    rerunAnalysis();
+    // rerunAnalysis는 동기 실행이므로 완료 후 탭 전환
+    switchTab('report');
+    refreshReport();
+  } else if (RESULTS.length > 0) {
+    // 기록 불러오기 상태 — 보고자료만 갱신
+    switchTab('report');
+    refreshReport();
+  } else {
+    showToast('⚠ 먼저 파일을 업로드하거나 기록을 불러오세요', 'err');
+  }
 }
 
 // ══════════════════════════════════════
