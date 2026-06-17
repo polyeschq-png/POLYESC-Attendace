@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login</title>
-  <link rel="icon" type="image/png" href="Poly_Emblem_Blue_B.png">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -233,6 +232,40 @@
     }
     .acct-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    .forgot-pw {
+      text-align: right; margin-top: 8px;
+    }
+    .forgot-pw a {
+      font-size: 11.5px; color: #9ca3af;
+      text-decoration: none; transition: color 0.15s;
+    }
+    .forgot-pw a:hover { color: var(--blue); }
+    /* 비밀번호 찾기 모달 */
+    .forgot-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 500;
+      display: none; align-items: center; justify-content: center;
+    }
+    .forgot-backdrop.open { display: flex; }
+    .forgot-modal {
+      background: #fff; border-radius: 16px;
+      padding: 30px 28px 24px;
+      width: 340px; max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: rise 0.3s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    .forgot-modal .acct-title { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+    .forgot-modal .acct-sub   { font-size: 12px; color: #9ca3af; margin-bottom: 20px; }
+    .forgot-modal .acct-field { margin-bottom: 14px; }
+    .forgot-modal .acct-field label { display: block; font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 4px; }
+    .forgot-modal .acct-field input {
+      width: 100%; padding: 9px 12px;
+      border: 1.5px solid #e5e7eb; border-radius: 8px;
+      font-size: 13px; font-family: inherit; color: #111827;
+      outline: none; transition: border 0.15s; background: #fafbff;
+    }
+    .forgot-modal .acct-field input:focus { border-color: #3a6bdb; }
+
     @media (max-width: 640px) {
       .left { display: none; }
       .right { width: 100%; padding: 40px 28px; }
@@ -299,6 +332,10 @@
 
       <button class="btn-signin" id="signInBtn" onclick="handleEmailLogin()">Sign In</button>
 
+      <div class="forgot-pw">
+        <a href="#" onclick="openForgotModal(); return false;">비밀번호를 잊으셨나요?</a>
+      </div>
+
       <div class="or-row">
         <span class="line"></span>
         <span>or with</span>
@@ -317,6 +354,23 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- 비밀번호 찾기 모달 -->
+<div class="forgot-backdrop" id="forgot-backdrop">
+  <div class="forgot-modal">
+    <div class="acct-title">비밀번호 재설정</div>
+    <div class="acct-sub">가입한 이메일 주소를 입력하면<br>비밀번호 재설정 링크를 보내드려요.</div>
+    <div class="acct-field">
+      <label>이메일</label>
+      <input type="email" id="forgot-email" placeholder="example@polyesc.com"/>
+    </div>
+    <div class="acct-msg" id="forgot-msg"></div>
+    <div class="acct-actions">
+      <button class="acct-cancel" onclick="closeForgotModal()">취소</button>
+      <button class="acct-submit" id="forgot-submit" onclick="submitForgotPw()">재설정 링크 발송</button>
+    </div>
   </div>
 </div>
 
@@ -348,7 +402,7 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
-           signOut, browserSessionPersistence, setPersistence }
+           signOut, sendPasswordResetEmail, browserSessionPersistence, setPersistence }
     from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
   import { getFirestore, doc, getDoc, addDoc, collection, serverTimestamp }
     from 'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
@@ -449,6 +503,46 @@
       btn.style.opacity = '1'; btn.style.pointerEvents = 'auto';
       if (e.code !== 'auth/popup-closed-by-user')
         showError('Google 로그인 실패: ' + e.message);
+    }
+  };
+
+  // ── 비밀번호 찾기 모달 ──
+  window.openForgotModal = () => {
+    document.getElementById('forgot-backdrop').classList.add('open');
+    document.getElementById('forgot-email').value = document.getElementById('email').value || '';
+    const msg = document.getElementById('forgot-msg');
+    msg.textContent = ''; msg.className = 'acct-msg';
+  };
+  window.closeForgotModal = () => {
+    document.getElementById('forgot-backdrop').classList.remove('open');
+  };
+  document.getElementById('forgot-backdrop').addEventListener('click', function(e) {
+    if (e.target === this) window.closeForgotModal();
+  });
+  window.submitForgotPw = async () => {
+    const email = document.getElementById('forgot-email').value.trim();
+    const msg   = document.getElementById('forgot-msg');
+    const btn   = document.getElementById('forgot-submit');
+    msg.className = 'acct-msg';
+    if (!email || !email.includes('@')) {
+      msg.className = 'acct-msg error'; msg.textContent = '올바른 이메일을 입력해주세요.'; return;
+    }
+    btn.disabled = true; btn.textContent = '발송 중...';
+    try {
+      await sendPasswordResetEmail(auth, email);
+      msg.className = 'acct-msg success';
+      msg.textContent = '재설정 링크가 발송되었습니다! 이메일을 확인해주세요.';
+      setTimeout(window.closeForgotModal, 2500);
+    } catch(e) {
+      msg.className = 'acct-msg error';
+      const msgs = {
+        'auth/user-not-found':  '등록되지 않은 이메일입니다.',
+        'auth/invalid-email':   '올바른 이메일 형식이 아닙니다.',
+        'auth/too-many-requests': '잠시 후 다시 시도해주세요.',
+      };
+      msg.textContent = msgs[e.code] || '발송에 실패했습니다. 다시 시도해주세요.';
+    } finally {
+      btn.disabled = false; btn.textContent = '재설정 링크 발송';
     }
   };
 
