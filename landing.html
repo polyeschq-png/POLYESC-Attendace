@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Poly ESC 근태 관리 시스템</title>
-  <link rel="icon" type="image/png" href="Poly_Emblem_Blue_B.png">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -26,6 +25,17 @@
     .header-logo { display: flex; align-items: center; gap: 10px; }
     .header-logo img { height: 30px; width: auto; }
     .header-logo span { font-size: 13px; font-weight: 600; color: #0D47A1; }
+    .dashboard-btn {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 12px; font-weight: 500; color: #555;
+      background: #f5f5f5; border: 1px solid #e0e0e0;
+      border-radius: 7px; padding: 5px 12px;
+      cursor: pointer; text-decoration: none;
+      transition: all 0.15s; font-family: 'Noto Sans KR', sans-serif;
+      white-space: nowrap;
+    }
+    .dashboard-btn:hover { background: #eee; border-color: #ccc; color: #222; }
+    .dashboard-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .header-right { display: flex; align-items: center; gap: 12px; }
     #user-email { font-size: 12px; color: #888; }
     .hdr-sep { width: 1px; height: 14px; background: #ddd; }
@@ -278,6 +288,10 @@
       <img src="Poly_Emblem_Blue_B.png" alt="폴리ESC 로고">
       <span>(주) 폴리에스씨 인사팀</span>
     </div>
+    <a class="dashboard-btn" href="https://polyesc-dashboard.vercel.app/" target="_blank">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      대시보드
+    </a>
     <div class="header-right">
       <span id="user-email"></span>
       <div class="hdr-sep"></div>
