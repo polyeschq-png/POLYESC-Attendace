@@ -24,7 +24,8 @@
     }
     .header-logo { display: flex; align-items: center; gap: 10px; }
     .header-logo img { height: 30px; width: auto; }
-    .header-logo span { font-size: 13px; font-weight: 600; color: #0D47A1; }
+    .header-logo span { font-size: 13px; font-weight: 600; color: #0D47A1; cursor: pointer; }
+    .header-logo span:hover { text-decoration: underline; }
     .dashboard-btn {
       display: flex; align-items: center; gap: 5px;
       font-size: 12px; font-weight: 500; color: #555;
@@ -286,12 +287,8 @@
   <header>
     <div class="header-logo">
       <img src="Poly_Emblem_Blue_B.png" alt="폴리ESC 로고">
-      <span>(주) 폴리에스씨 인사팀</span>
+      <span onclick="window.open('https://polyesc-dashboard.vercel.app/','_blank')">(주)폴리이에스씨 인사팀</span>
     </div>
-    <a class="dashboard-btn" href="https://polyesc-dashboard.vercel.app/" target="_blank">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      대시보드
-    </a>
     <div class="header-right">
       <span id="user-email"></span>
       <div class="hdr-sep"></div>
@@ -319,6 +316,10 @@
       </div>
 
       <button class="logout-btn" onclick="handleSignOut()">로그아웃</button>
+      <a class="dashboard-btn" href="https://polyesc-dashboard.vercel.app/" target="_blank">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        대시보드
+      </a>
     </div>
   </header>
 
