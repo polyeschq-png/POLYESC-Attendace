@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Poly ESC 근태 관리 시스템</title>
-  <link rel="icon" type="image/png" href="Poly_Emblem_Blue_B.png">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -285,14 +284,10 @@
 <body>
 
   <header>
-    <div class="header-logo">
+    <div class="header-logo" onclick="window.open('https://polyesc-dashboard.vercel.app/','_blank')" style="cursor:pointer;">
       <img src="Poly_Emblem_Blue_B.png" alt="폴리ESC 로고">
-      <span>(주) 폴리에스씨 인사팀</span>
+      <span>(주) 폴리이에스씨 인사팀</span>
     </div>
-    <a class="dashboard-btn" href="https://polyesc-dashboard.vercel.app/" target="_blank">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      대시보드
-    </a>
     <div class="header-right">
       <span id="user-email"></span>
       <div class="hdr-sep"></div>
@@ -320,6 +315,10 @@
       </div>
 
       <button class="logout-btn" onclick="handleSignOut()">로그아웃</button>
+      <a class="dashboard-btn" href="https://polyesc-dashboard.vercel.app/" target="_blank">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        대시보드
+      </a>
     </div>
   </header>
 
