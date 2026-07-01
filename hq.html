@@ -1235,10 +1235,8 @@ function doAnalyse(){
     const isInRow  = typeVal==='출근' || typeVal.includes('출근');
     const isOutRow = typeVal==='퇴근' || typeVal.includes('퇴근');
 
-    // 이름 없는 행인데 퇴근행까지 이미 완료된 경우 → 고아 행으로 판단하고 skip
+    // 이름 없는 행인데 퇴근까지 완료된 상태면 고아 행으로 판단 → skip
     if(!nm && _outDone && (isInRow || isOutRow)) return;
-
-    // 퇴근행 완료 플래그 업데이트
     if(isOutRow) _outDone=true;
     else if(isInRow) _outDone=false;
 
@@ -2317,6 +2315,10 @@ tr.dept-hdr td{background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;b
   <div class="sum-card"><div class="num c-red">${lateList.length}건</div><div class="lbl">지각</div></div>
   <div class="sum-card"><div class="num c-green" style="font-size:${totalOT>=10000000?'17px':'22px'}">${totalOT.toLocaleString()}원</div><div class="lbl">격려수당 합계 (${otList.length}건)</div></div>
 </div>
+<div class="section">
+  <div class="sec-hdr"><h2>💰 격려수당 내역</h2><span class="sec-badge green">${otList.length}건 · ${totalOT.toLocaleString()}원</span><span style="margin-left:auto;font-size:11px;color:#94a3b8">부서별 정렬</span></div>
+  <table><thead><tr><th>이름</th><th>직급</th><th>날짜</th><th>구분</th><th style="text-align:right">수당금액</th><th>비고</th></tr></thead><tbody>${deptOtRows}</tbody></table>
+</div>
 <div class="cmp-card">
   <div class="cmp-title">💰 격려수당 전월 비교 ${!prevRec?'<span style="font-size:11px;color:#94a3b8;font-weight:400">— 전달 저장 기록 없음</span>':''}</div>
   <table class="cmp-tbl">
@@ -2331,10 +2333,6 @@ tr.dept-hdr td{background:#eff6ff;color:#1d4ed8;font-weight:700;font-size:12px;b
     <div class="sub-item"><div class="sub-lbl">주말/공휴일</div><div class="sub-prev">${prevRec?prev.holiday.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#1e293b">${cur.holiday.toLocaleString()}원</div><div class="sub-diff" style="color:${cur.holiday-prev.holiday>0?'#dc2626':cur.holiday-prev.holiday<0?'#2563eb':'#64748b'}">${fmt(cur.holiday-prev.holiday,!!prevRec)}</div></div>
     <div class="sub-item"><div class="sub-lbl">합계</div><div class="sub-prev">${prevRec?prev.total.toLocaleString()+'원':'—'}</div><div class="sub-cur" style="color:#1e293b">${cur.total.toLocaleString()}원</div><div class="sub-diff" style="color:${totDiff>0?'#dc2626':totDiff<0?'#2563eb':'#64748b'}">${fmt(totDiff,!!prevRec)}</div></div>
   </div>
-</div>
-<div class="section">
-  <div class="sec-hdr"><h2>💰 격려수당 내역</h2><span class="sec-badge green">${otList.length}건 · ${totalOT.toLocaleString()}원</span><span style="margin-left:auto;font-size:11px;color:#94a3b8">부서별 정렬</span></div>
-  <table><thead><tr><th>이름</th><th>직급</th><th>날짜</th><th>구분</th><th style="text-align:right">수당금액</th><th>비고</th></tr></thead><tbody>${deptOtRows}</tbody></table>
 </div>
 <div class="section">
   <div class="sec-hdr"><h2>⏰ 지각자 현황</h2><span class="sec-badge red">${lateList.length}건</span></div>
