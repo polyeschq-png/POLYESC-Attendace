@@ -1196,7 +1196,7 @@ function doAnalyse(){
   // 구분열 찾기 (출근/퇴근 텍스트가 있는 열)
   const typeCol=fc(['구분','출퇴근구분','근태구분']);
 
-  let _curEmp=null, _curSt=null;
+  let _curEmp=null, _curSt=null, _outDone=false;
   rawRows.slice(hr+1,rawRows.length).forEach(row=>{
     if(!row||row.every(c=>c===''||c===null)) return;
 
@@ -1219,14 +1219,14 @@ function doAnalyse(){
         return partial||null;
       })();
       if(st&&!st.noData){
-        _curSt=st; _curEmp=empData[st.name]||null;
+        _curSt=st; _curEmp=empData[st.name]||null; _outDone=false;
         if(_curEmp){
           if(deptCol>=0&&!st.dept) _curEmp.dept=String(row[deptCol]||'').trim();
           else if(st.dept) _curEmp.dept=st.dept;
           if(empnoCol>=0&&!_curEmp.empno) _curEmp.empno=String(row[empnoCol]||'').trim();
           if(rankCol>=0&&row[rankCol]&&!st._rankOverride) _curEmp.rank=String(row[rankCol]).trim()||_curEmp.rank;
         }
-      } else { _curSt=null; _curEmp=null; }
+      } else { _curSt=null; _curEmp=null; _outDone=false; }
     }
     if(!_curEmp) return;
 
@@ -1234,6 +1234,13 @@ function doAnalyse(){
     const typeVal=typeCol>=0?String(row[typeCol]||'').trim():'';
     const isInRow  = typeVal==='출근' || typeVal.includes('출근');
     const isOutRow = typeVal==='퇴근' || typeVal.includes('퇴근');
+
+    // 이름 없는 행인데 퇴근행까지 이미 완료된 경우 → 고아 행으로 판단하고 skip
+    if(!nm && _outDone && (isInRow || isOutRow)) return;
+
+    // 퇴근행 완료 플래그 업데이트
+    if(isOutRow) _outDone=true;
+    else if(isInRow) _outDone=false;
 
     Object.entries(dayMap).forEach(([ds,ci])=>{
       const day=+ds; if(day>CMAX) return;
