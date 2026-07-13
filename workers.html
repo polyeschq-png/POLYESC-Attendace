@@ -316,10 +316,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
       <div class="scard purple" onclick="switchITab('res-dup')"><div class="num" id="s-dup">0</div><div class="lbl">중복 계정</div></div>
     </div>
     <div class="itabs" style="margin-top:12px">
-      <div class="itab active" data-itab="res-add" onclick="switchITab('res-add')">➕ 추가 필요 <span id="tab-cnt-add" style="display:none;margin-left:5px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-      <div class="itab" data-itab="res-del"        onclick="switchITab('res-del')">🗑 삭제 필요 <span id="tab-cnt-del" style="display:none;margin-left:5px;background:#d97706;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-      <div class="itab" data-itab="res-abs"        onclick="switchITab('res-abs')">📉 출근률 미달 <span id="tab-cnt-abs" style="display:none;margin-left:5px;background:#8a6a00;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-      <div class="itab" data-itab="res-dup"        onclick="switchITab('res-dup')">🔴 중복 계정 <span id="tab-cnt-dup" style="display:none;margin-left:5px;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+      <div class="itab active" data-itab="res-add" onclick="switchITab('res-add')">➕ 추가 필요 <span id="tab-cnt-add" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+      <div class="itab" data-itab="res-del"        onclick="switchITab('res-del')">🗑 삭제 필요 <span id="tab-cnt-del" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+      <div class="itab" data-itab="res-abs"        onclick="switchITab('res-abs')">📉 출근률 미달 <span id="tab-cnt-abs" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+      <div class="itab" data-itab="res-dup"        onclick="switchITab('res-dup')">🔴 중복 계정 <span id="tab-cnt-dup" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
     </div>
   </div>
   <!-- 하단: 캠퍼스 리스트 + 데이터 -->
@@ -1932,12 +1932,19 @@ function updateSummaryCards(){
   document.getElementById('s-del').textContent=RESULTS.del.length;
   document.getElementById('s-abs').textContent=RESULTS.abs.length;
   document.getElementById('s-dup').textContent=RESULTS.dup.length;
-  // 탭 뱃지 업데이트
-  [['add',RESULTS.add.length],['del',RESULTS.del.length],['abs',RESULTS.abs.length],['dup',RESULTS.dup.length]].forEach(([k,n])=>{
+  // 탭 뱃지 — 선택된 캠퍼스 기준으로 필터링
+  const c = selectedResultCampus;
+  const counts = {
+    add: c ? RESULTS.add.filter(r=>r.campus===c).length : RESULTS.add.length,
+    del: c ? RESULTS.del.filter(r=>r.campus===c).length : RESULTS.del.length,
+    abs: c ? RESULTS.abs.filter(r=>r.campus===c).length : RESULTS.abs.length,
+    dup: c ? RESULTS.dup.filter(r=>r.campus===c).length : RESULTS.dup.length,
+  };
+  ['add','del','abs','dup'].forEach(k=>{
     const el=document.getElementById('tab-cnt-'+k);
     if(!el) return;
-    el.textContent=n;
-    el.style.display=n>0?'inline-block':'none';
+    el.textContent=counts[k];
+    el.style.display=counts[k]>0?'inline-block':'none';
   });
 }
 
