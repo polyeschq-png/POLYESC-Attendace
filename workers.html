@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>전체 근로자 근태</title>
-<link rel="icon" type="image/png" href="Poly_Emblem_Blue_B.png">
 <script type="module">
   import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
   import{getFirestore,doc,getDoc,setDoc,collection,getDocs,deleteDoc,query,orderBy}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
@@ -317,10 +316,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
       <div class="scard purple" onclick="switchITab('res-dup')"><div class="num" id="s-dup">0</div><div class="lbl">중복 계정</div></div>
     </div>
     <div class="itabs" style="margin-top:12px">
-      <div class="itab active" data-itab="res-add" onclick="switchITab('res-add')">➕ 추가 필요</div>
-      <div class="itab" data-itab="res-del"        onclick="switchITab('res-del')">🗑 삭제 필요</div>
-      <div class="itab" data-itab="res-abs"        onclick="switchITab('res-abs')">📉 출근률 미달</div>
-      <div class="itab" data-itab="res-dup"        onclick="switchITab('res-dup')">🔴 중복 계정</div>
+      <div class="itab active" data-itab="res-add" onclick="switchITab('res-add')">➕ 추가 필요 <span id="tab-cnt-add" style="display:none;margin-left:5px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+      <div class="itab" data-itab="res-del"        onclick="switchITab('res-del')">🗑 삭제 필요 <span id="tab-cnt-del" style="display:none;margin-left:5px;background:#d97706;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+      <div class="itab" data-itab="res-abs"        onclick="switchITab('res-abs')">📉 출근률 미달 <span id="tab-cnt-abs" style="display:none;margin-left:5px;background:#8a6a00;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+      <div class="itab" data-itab="res-dup"        onclick="switchITab('res-dup')">🔴 중복 계정 <span id="tab-cnt-dup" style="display:none;margin-left:5px;background:#7c3aed;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
     </div>
   </div>
   <!-- 하단: 캠퍼스 리스트 + 데이터 -->
@@ -1933,6 +1932,13 @@ function updateSummaryCards(){
   document.getElementById('s-del').textContent=RESULTS.del.length;
   document.getElementById('s-abs').textContent=RESULTS.abs.length;
   document.getElementById('s-dup').textContent=RESULTS.dup.length;
+  // 탭 뱃지 업데이트
+  [['add',RESULTS.add.length],['del',RESULTS.del.length],['abs',RESULTS.abs.length],['dup',RESULTS.dup.length]].forEach(([k,n])=>{
+    const el=document.getElementById('tab-cnt-'+k);
+    if(!el) return;
+    el.textContent=n;
+    el.style.display=n>0?'inline-block':'none';
+  });
 }
 
 let selectedResultCampus = ''; // '' = 전체
@@ -2428,18 +2434,18 @@ window.renderEmailPreview=function(){
   }
   if(inclDel&&del.length){
     bodyHtml+='<span style="color:#8a6a00;font-weight:bold">【 삭제 필요 인원 】</span><br>';
-    del.forEach(r=>{bodyHtml+='&nbsp;&nbsp;'+eh(r.name)+(r.position?' ('+eh(r.position)+')<br>':'<br>');});
+    del.forEach(r=>{bodyHtml+='&nbsp;&nbsp;'+eh(r.name)+' — '+eh(r.reason)+(r.leaveDate?' ('+r.leaveDate+')':'')+'<br>';});
     bodyHtml+='<br>';
     bodyTxt+='【 삭제 필요 인원 】\n';
-    del.forEach(r=>{bodyTxt+='  '+r.name+(r.position?' ('+r.position+')':'')+'\n';});
+    del.forEach(r=>{bodyTxt+='  '+r.name+' — '+r.reason+(r.leaveDate?' ('+r.leaveDate+')':'')+'\n';});
     bodyTxt+='\n';
   }
   if(inclAbs&&abs.length){
     bodyHtml+='<span style="color:#8a6a00;font-weight:bold">【 출근률 미달 인원 】</span><br>';
-    abs.forEach(r=>{bodyHtml+='&nbsp;&nbsp;'+eh(r.name)+(r.position?' ('+eh(r.position)+')<br>':'<br>');});
+    abs.forEach(r=>{bodyHtml+='&nbsp;&nbsp;'+eh(r.name)+' ('+eh(r.position||'-')+') — 합산 '+r.rate+'% (출근 '+r.ciRate+'% / 퇴근 '+r.coRate+'%)<br>';});
     bodyHtml+='<br>';
     bodyTxt+='【 출근률 미달 인원 】\n';
-    abs.forEach(r=>{bodyTxt+='  '+r.name+(r.position?' ('+r.position+')':'')+'\n';});
+    abs.forEach(r=>{bodyTxt+='  '+r.name+' ('+( r.position||'-')+') — 합산 '+r.rate+'% (출근 '+r.ciRate+'% / 퇴근 '+r.coRate+'%)\n';});
     bodyTxt+='\n';
   }
 
