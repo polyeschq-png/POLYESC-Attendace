@@ -579,29 +579,7 @@ function initApp() {
       });
       switchTab('history');
     })();
-    // 권한별 메뉴 제어
-    // owner  : 전체 표시
-    // admin  : 분석결과, 보고자료, 월별기록
-    // report : 보고자료, 월별기록
-    (function applyMenuByRole(){
-      const menuRules = {
-        upload:  ['owner'],
-        persons: ['owner'],
-        result:  ['owner','admin'],
-        report:  ['owner','admin','report'],
-        email:   ['owner'],
-        history: ['owner','admin','report'],
-      };
-      Object.entries(menuRules).forEach(([tab, allowed])=>{
-        const el = document.querySelector(`.sb-item[data-tab="${tab}"]`);
-        if(!el) return;
-        if(!allowed.includes(role)){
-          el.style.display='none';
-        }
-      });
-      // 항상 월별기록으로 시작
-      switchTab('history');
-    })();
+
     document.body.style.opacity='1';
     await loadPersonsMaster(); // 인원 마스터 먼저 로드
     loadHistory();
