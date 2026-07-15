@@ -193,12 +193,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
   </div>
   <div class="sb-section">
     <div class="sb-label">메뉴</div>
-    <div class="sb-item active" data-tab="upload" onclick="switchTab('upload')"><span class="sb-icon">📁</span>파일 업로드</div>
+    <div class="sb-item" data-tab="upload" onclick="switchTab('upload')"><span class="sb-icon">📁</span>파일 업로드</div>
     <div class="sb-item" data-tab="persons" onclick="switchTab('persons')"><span class="sb-icon">👥</span>인원 관리<span class="sb-cnt" id="sb-unmatched">0</span></div>
     <div class="sb-item" data-tab="result" onclick="switchTab('result')"><span class="sb-icon">📊</span>분석 결과</div>
     <div class="sb-item" data-tab="report" onclick="switchTab('report')"><span class="sb-icon">📋</span>보고자료</div>
     <div class="sb-item" data-tab="email" onclick="switchTab('email')"><span class="sb-icon">✉️</span>이메일 복사</div>
-    <div class="sb-item" data-tab="history" onclick="switchTab('history')"><span class="sb-icon">💾</span>월별 기록</div>
+    <div class="sb-item active" data-tab="history" onclick="switchTab('history')"><span class="sb-icon">💾</span>월별 기록</div>
   </div>
   <div style="margin-top:auto;padding:12px 10px;border-top:1px solid rgba(0,0,0,.08);">
     <div id="sb-nickname" style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px"></div>
@@ -567,12 +567,8 @@ function initApp() {
           el.style.display='none';
         }
       });
-      // 숨겨진 탭이 active인 경우 첫 번째 보이는 탭으로 이동
-      const activeEl = document.querySelector('.sb-item.active');
-      if(activeEl && activeEl.style.display==='none'){
-        const firstVisible = document.querySelector('.sb-item:not([style*="display: none"]):not([style*="display:none"])');
-        if(firstVisible) firstVisible.click();
-      }
+      // 항상 월별기록으로 시작
+      switchTab('history');
     })();
     document.body.style.opacity='1';
     await loadPersonsMaster(); // 인원 마스터 먼저 로드
