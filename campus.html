@@ -2846,6 +2846,12 @@ function maskDateInput(el, campus, monthKey){
     setReceipt(campus, monthKey, 'unnecessary', false);
     setReceipt(campus, monthKey, 'date', result);
     refreshReport();
+  } else if(result.length===0){
+    // 날짜를 전부 지우면 date 초기화 → 드롭박스 다시 표시
+    setReceipt(campus, monthKey, 'date', '');
+    setReceipt(campus, monthKey, 'unreceived', false);
+    setReceipt(campus, monthKey, 'unnecessary', false);
+    refreshReport();
   }
 }
 
