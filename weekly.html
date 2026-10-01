@@ -497,6 +497,7 @@ function initApp(){
     }
     document.body.style.opacity='1';
     await Promise.all([loadPersonsMaster(),loadConfig(),loadNonwork(),loadTokens(),loadRuns()]);
+    await restoreWeekInputs();
     renderRuleBox();
     if(RUNS.length){fillWeekSelect();}
   });
@@ -521,7 +522,47 @@ window.setWeekFromDate=function(dateStr){
   $('week-months').textContent=months.length>1?`⚠ 두 달에 걸친 주입니다. CAPS 파일은 ${months.map(m=>+m.slice(5)+'월').join(', ')} 두 달치가 필요합니다.`:`필요한 CAPS 파일: ${+months[0].slice(5)}월`;
   FILES.forEach(f=>{if(!months.includes(f.month)) f.month=months[0];});
   renderFileTable();
+  // 주차를 바꾸면: 새로 올린 파일이 없을 때만 그 주차의 저장본을 불러옴 (올리던 파일은 유지)
+  if(currentUser&&!FILES.some(f=>!f.saved)) restoreWeekInputs();
 };
+// ── 주차별 입력 저장본 (CAPS 파일·연차) : 다시 접속해도 분석·미매칭을 이어서 할 수 있게 ──
+let restoring=false;
+async function saveWeekInputs(){
+  if(!canEdit()||!WEEK||!window._fb) return;
+  const{db,doc,writeBatch}=window._fb;
+  try{
+    const batch=writeBatch(db);
+    FILES.filter(f=>f.campus&&WEEK.months.includes(f.month)).forEach(f=>{
+      batch.set(doc(db,'weekly_caps',`${WEEK.key}_${f.campus}_${f.month}`),{weekKey:WEEK.key,campus:f.campus,month:f.month,name:f.name,persons:f.persons,savedAt:new Date().toISOString(),savedBy:currentUser.email});
+      f.saved=true;
+    });
+    batch.set(doc(db,'weekly_leaves',WEEK.key),{weekKey:WEEK.key,leaves:LEAVES,savedAt:new Date().toISOString()});
+    await batch.commit();
+    renderFileTable();
+  }catch(e){showToast('입력 저장본 저장 실패: '+e.message,'err');}
+}
+async function restoreWeekInputs(){
+  if(!WEEK||!window._fb||!currentUser||restoring) return;
+  restoring=true;
+  const{db,doc,getDoc,collection,getDocs,query,where}=window._fb;
+  try{
+    const snap=await getDocs(query(collection(db,'weekly_caps'),where('weekKey','==',WEEK.key)));
+    const files=[];
+    snap.forEach(d=>{const x=d.data();files.push({name:x.name,campus:x.campus,month:x.month,persons:x.persons||[],saved:true});});
+    const lv=await getDoc(doc(db,'weekly_leaves',WEEK.key));
+    FILES=files;
+    LEAVES=lv.exists()?(lv.data().leaves||[]):[];
+    RESULTS=null; $('result-empty').style.display='block'; $('result-body').style.display='none'; $('sb-soe').textContent='0';
+    renderFileTable();
+    const sys=LEAVES.filter(l=>l.src==='system').length, fl=LEAVES.filter(l=>l.src==='file').length;
+    $('lv-status').innerHTML=LEAVES.length?`💾 저장본: 연차시스템 ${sys}건${fl?` + 엑셀 ${fl}건`:''}`:'아직 가져오지 않음';
+    if(files.length){
+      showToast(`${fmtMD(WEEK.start)} 주차 저장본 복원: CAPS ${files.length}개 파일`,'ok');
+      runAnalysis({keepTab:true,noSave:true});
+    } else { $('analyze-hint').textContent=''; }
+  }catch(e){showToast('저장본 불러오기 실패: '+e.message,'err');}
+  restoring=false;
+}
 window.shiftWeek=function(n){const [y,m,d]=WEEK.start.split('-').map(Number);const dt=new Date(y,m-1,d+7*n);setWeekFromDate(ymd(dt));};
 
 function renderRuleBox(){
@@ -557,7 +598,7 @@ window.loadCapsFiles=function(input){
         if(!parsed.persons.length){showToast(`${file.name}: 인원 0명 — 파일 형식을 확인하세요 (${parsed.error||''})`,'err');return;}
         const month=detectMonthFromFilename(file.name)||(WEEK?WEEK.months[WEEK.months.length-1]:'');
         FILES=FILES.filter(f=>!(f.campus===campus&&f.month===month&&campus));
-        FILES.push({name:file.name,campus:campus||'',month,persons:parsed.persons});
+        FILES.push({name:file.name,campus:campus||'',month,persons:parsed.persons,saved:false});
         renderFileTable();
         showToast(`${campus||'캠퍼스 미인식'} ${parsed.persons.length}명 로드`,campus?'ok':'err');
       }catch(err){showToast(`${file.name} 읽기 실패: ${err.message}`,'err');}
@@ -616,7 +657,7 @@ function renderFileTable(){
   const campOpts=sortCampuses([...new Set(Object.values(CAMPUS_ALIASES))]);
   el.innerHTML=`<div class="twrap"><table><thead><tr><th>파일</th><th>캠퍼스</th><th>월</th><th>인원</th><th></th></tr></thead><tbody>${
     FILES.map((f,i)=>`<tr class="file-row">
-      <td class="mono">${esc(f.name)}</td>
+      <td class="mono">${esc(f.name)} ${f.saved?'<span class="chip chip-teal">저장본</span>':'<span class="chip chip-yellow">새 파일</span>'}</td>
       <td><select onchange="FILES[${i}].campus=this.value;renderFileTable()" ${f.campus?'':'style="border-color:var(--red)"'}>
         <option value="">(미인식)</option>${campOpts.map(c=>`<option ${f.campus===c?'selected':''}>${c}</option>`).join('')}</select></td>
       <td><select onchange="FILES[${i}].month=this.value">${months.map(m=>`<option value="${m}" ${f.month===m?'selected':''}>${+m.slice(5)}월</option>`).join('')}${months.includes(f.month)?'':`<option value="${f.month}" selected>${f.month}</option>`}</select></td>
@@ -885,6 +926,7 @@ window.runAnalysis=function(opts={}){
   if(!opts.keepTab){rTab='soe'; rCampus='';}
   renderResults();
   if(!opts.keepTab) switchTab('result');
+  if(!opts.noSave) saveWeekInputs(); // 분석할 때마다 그 주차의 CAPS·연차를 저장 (다시 접속해도 복원)
 };
 
 // ══════════════════════════════════════
