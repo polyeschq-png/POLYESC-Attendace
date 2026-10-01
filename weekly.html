@@ -787,7 +787,7 @@ function leavesFor(idx,campus,per,date){
 }
 function isFullDayLeave(type){const t=String(type||'');if(/반차|반반차|half|quarter/i.test(t)) return false;return true;}
 
-window.runAnalysis=function(){
+window.runAnalysis=function(opts={}){
   if(!WEEK) return;
   const validFiles=FILES.filter(f=>f.campus);
   if(!validFiles.length){showToast('CAPS 파일을 먼저 올리세요','err');return;}
@@ -796,7 +796,8 @@ window.runAnalysis=function(){
   const ATTEND={};
   validFiles.forEach(f=>{if(!ATTEND[f.campus])ATTEND[f.campus]={};ATTEND[f.campus][f.month]=f.persons;});
   const lvIdx=buildLeaveIndex();
-  const R={soe:[],check:[],auto:[],unmatched:[],excluded:[],warnings:[],campuses:[]};
+  // capsNames/freeMaster: 미매칭 탭에서 바로 매칭할 때 쓰는 후보 목록 (그룹별)
+  const R={soe:[],check:[],auto:[],unmatched:[],excluded:[],warnings:[],campuses:[],capsNames:{},freeMaster:{}};
   const fileCampuses=new Set(Object.keys(ATTEND));
   // 분석 대상 캠퍼스 = CAPS 파일이 올라온 캠퍼스 (수지 그룹은 합쳐서)
   const targetGroups=new Set([...fileCampuses].map(groupKey));
@@ -813,19 +814,24 @@ window.runAnalysis=function(){
     });
     // CAPS 이름 → 기록 (그룹 내 모든 캠퍼스·월 합침)
     const capsByName=new Map(); // name → {month:{ci,co}}
+    const capsCampus={};        // name → 실제 캠퍼스 (수지2 등 그룹 내 구분용)
     group.forEach(c=>{Object.entries(ATTEND[c]||{}).forEach(([m,list])=>{list.forEach(p=>{
       if(!capsByName.has(p.name)) capsByName.set(p.name,{});
+      if(!capsCampus[p.name]) capsCampus[p.name]=c;
       const slot=capsByName.get(p.name);
       if(!slot[m]) slot[m]={ci:{},co:{}};
       Object.assign(slot[m].ci,p.ci);Object.assign(slot[m].co,p.co);
     });});});
     const masterAttendNames=new Set(persons.map(p=>p.attendName).filter(Boolean));
+    // 매칭 후보: 아직 마스터에 쓰이지 않은 CAPS 이름 / 출퇴근 이름이 비어 있는 마스터 인원
+    R.capsNames[gk]=[...capsByName.keys()].filter(n=>!masterAttendNames.has(n)).sort((a,b)=>a.localeCompare(b,'ko'));
+    R.freeMaster[gk]=persons.filter(p=>!p.attendName&&!p.ignored&&p.payName).map(p=>({campus:p._campus,payName:p.payName,position:p.posOverride||''}));
     // CAPS에만 있는 이름
     capsByName.forEach((_,name)=>{
       if(!masterAttendNames.has(name)){
-        // 급여대장 이름과 정규화 일치하면 힌트
-        const cand=persons.find(p=>normName(baseNameOf(p.payName))===normName(name));
-        R.unmatched.push({campus:gk,name,why:'CAPS에는 있는데 마스터에 출퇴근 이름으로 등록되지 않음',hint:cand?`급여대장 "${cand.payName}"과 이름 일치 → 인원관리에서 매칭`:''});
+        // 급여대장 이름과 정규화 일치하면 후보로 미리 선택
+        const cand=persons.find(p=>!p.attendName&&!p.ignored&&normName(baseNameOf(p.payName))===normName(name));
+        R.unmatched.push({kind:'caps_only',group:gk,campus:capsCampus[name]||gk,name,why:'CAPS에는 있는데 마스터에 연결되지 않음',cand:cand?{campus:cand._campus,payName:cand.payName}:null});
       }
     });
     persons.forEach(per=>{
@@ -836,7 +842,11 @@ window.runAnalysis=function(){
       if(SKIP_POSITIONS.includes(per.posOverride||'')){R.excluded.push({...base,date:'',why:'제외 직책'});return;}
       if(isSafetyTeacher(per.posOverride)){R.excluded.push({...base,date:'',why:'안전선생님 (별도 관리 · 총무지원팀 연계)'});return;}
       if(per.isLeave){R.excluded.push({...base,date:'',why:'휴직자'});return;}
-      if(!per.attendName){R.unmatched.push({campus:gk,name:per.payName,why:'마스터에 출퇴근 이름이 지정되지 않음 (인원관리에서 매칭 필요)',hint:''});return;}
+      if(!per.attendName){
+        const cand=R.capsNames[gk].find(n=>normName(n)===normName(baseNameOf(per.payName)));
+        R.unmatched.push({kind:'no_attend',group:gk,campus,name:per.payName,payName:per.payName,position:per.posOverride||'',why:'급여대장에 있는데 출퇴근 이름이 지정되지 않음',cand:cand||''});
+        return;
+      }
       const caps=capsByName.get(per.attendName);
       const nw=(NONWORK[campus]&&NONWORK[campus][per.attendName])||[];
       WEEK.dates.forEach(date=>{
@@ -872,9 +882,48 @@ window.runAnalysis=function(){
   $('result-week').textContent=`${fmtMD(WEEK.start)} ~ ${fmtMD(WEEK.end)}`;
   $('result-empty').style.display='none';$('result-body').style.display='block';
   $('analyze-hint').textContent=`분석 완료: 소명 필요 ${R.soe.length}건 · 확인 필요 ${R.check.length}건 · 연차 자동종결 ${R.auto.length}건`;
-  rTab='soe'; rCampus='';
+  if(!opts.keepTab){rTab='soe'; rCampus='';}
   renderResults();
-  switchTab('result');
+  if(!opts.keepTab) switchTab('result');
+};
+
+// ══════════════════════════════════════
+// 미매칭 → 바로 매칭 (마스터 workers_persons의 출퇴근 이름 한 칸만 기록)
+// ══════════════════════════════════════
+async function savePersonsCampus(campus){
+  const{db,doc,setDoc}=window._fb;
+  await setDoc(doc(db,'workers_persons',campus),{campus,persons:PERSONS[campus]||[],updatedAt:new Date().toISOString()});
+}
+function attendNameInUse(group,name){return campusGroup(group).some(c=>(PERSONS[c]||[]).some(p=>p.attendName===name));}
+window.matchAssign=async function(campus,payName,attendName){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  attendName=String(attendName||'').trim();
+  if(!attendName){showToast('출퇴근 이름을 선택하세요','err');return;}
+  const p=(PERSONS[campus]||[]).find(x=>x.payName===payName&&!x.attendName&&!x.ignored);
+  if(!p){showToast('마스터에서 해당 인원을 찾지 못했습니다','err');return;}
+  if(attendNameInUse(groupKey(campus),attendName)){showToast(`"${attendName}"은 이미 다른 사람에게 연결돼 있습니다`,'err');return;}
+  p.attendName=attendName; p.matchType='manual';
+  try{await savePersonsCampus(campus);showToast(`${payName} ↔ ${attendName} 연결 저장`,'ok');}
+  catch(e){p.attendName=null;showToast('저장 실패: '+e.message,'err');return;}
+  runAnalysis({keepTab:true});
+};
+window.matchFromSelect=function(sel,campus,payName){
+  if(sel.value==='__custom'){const v=prompt(`${payName}의 CAPS(출퇴근) 이름을 입력하세요`);sel.value='';if(v) matchAssign(campus,payName,v);return;}
+  if(sel.value) matchAssign(campus,payName,sel.value);
+};
+window.matchCapsToMaster=function(sel,attendName){
+  if(!sel.value) return;
+  const [campus,payName]=sel.value.split('|');
+  matchAssign(campus,payName,attendName);
+};
+window.matchIgnore=async function(campus,attendName){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  if(!confirm(`"${attendName}"을(를) 점검 대상이 아닌 이름으로 표시할까요?\n(외부 인력·퇴사자 등. 전체 근로자 관리의 "무시" 처리와 같은 방식으로 마스터에 기록됩니다)`)) return;
+  PERSONS[campus]=PERSONS[campus]||[];
+  PERSONS[campus].push({payName:attendName,attendName,matchType:'ignored',ignored:true,note:'주간점검 무시처리',campus,posOverride:'',divOverride:'',isLeave:false,hireDate:'',leaveDate:''});
+  try{await savePersonsCampus(campus);showToast(`${attendName} 무시 처리`,'ok');}
+  catch(e){PERSONS[campus].pop();showToast('저장 실패: '+e.message,'err');return;}
+  runAnalysis({keepTab:true});
 };
 
 function renderResults(){
@@ -883,17 +932,18 @@ function renderResults(){
   $('check-filter-wrap').style.display=rTab==='check'?'inline':'none';
   const list=RESULTS[rTab]||[];
   const counts={};
-  list.forEach(r=>{counts[r.campus]=(counts[r.campus]||0)+1;});
+  list.forEach(r=>{const g=r.group||r.campus;counts[g]=(counts[g]||0)+1;});
   const camps=sortCampuses(RESULTS.campuses);
   $('result-campus-list').innerHTML=`<div class="rc-item ${rCampus===''?'active':''}" onclick="rCampus='';renderResults()"><span>전체</span><span class="rc-cnt">${list.length}</span></div>`+
     camps.map(c=>`<div class="rc-item ${rCampus===c?'active':''}" onclick="rCampus='${esc(c)}';renderResults()"><span>${esc(c)}</span><span class="rc-cnt">${counts[c]||0}</span></div>`).join('');
   renderResultTable();
 }
 window.renderResultTable=function(){
-  let list=(RESULTS[rTab]||[]).filter(r=>!rCampus||r.campus===rCampus);
+  let list=(RESULTS[rTab]||[]).filter(r=>!rCampus||(r.group||r.campus)===rCampus);
   if(rTab==='check'&&$('chk-no-short').checked) list=list.filter(r=>!SHORT_POS.has(r.posClass));
   const el=$('result-content');
   if(!list.length){el.innerHTML='<div class="empty"><div class="icon">✅</div><h3>해당 없음</h3></div>';return;}
+  if(rTab==='unmatched'){renderUnmatched(el,list);return;}
   const cols={
     soe:['캠퍼스','이름','직책','날짜','상태','출근','퇴근','연차 힌트'],
     check:['캠퍼스','이름','직책','날짜','출근','퇴근','체류시간','연차'],
@@ -910,6 +960,25 @@ window.renderResultTable=function(){
   })[rTab];
   el.innerHTML=`<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${list.map(r=>`<tr>${row(r).map(v=>`<td>${v==null?'':(String(v).startsWith('<')?v:esc(v))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 };
+// 미매칭 탭: 여기서 바로 연결 (저장 즉시 재분석)
+function renderUnmatched(el,list){
+  const edit=canEdit();
+  const noAttend=list.filter(r=>r.kind==='no_attend'), capsOnly=list.filter(r=>r.kind==='caps_only');
+  const opt=(v,label,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(label)}</option>`;
+  let html=`<div class="info-box" style="margin:14px 14px 0">연결하면 마스터(전체 근로자 관리 인원관리)에 출퇴근 이름이 기록되고, 다음 주부터 자동으로 맞습니다. 이름이 비슷해도 자동으로 묶지 않으니 직접 골라 주세요.</div>`;
+  html+=`<div class="card-title" style="margin:16px 14px 6px">① 급여대장에 있는데 출퇴근 이름이 없는 사람 <span class="chip chip-purple">${noAttend.length}</span></div>`;
+  html+=noAttend.length?`<table><thead><tr><th>캠퍼스</th><th>급여대장 이름</th><th>직책</th><th>CAPS 이름 고르기</th></tr></thead><tbody>${noAttend.map(r=>{
+    const names=RESULTS.capsNames[r.group]||[];
+    const sel=edit?`<select class="match-sel ${r.cand?'ok':''}" onchange="matchFromSelect(this,'${esc(r.campus)}','${esc(r.payName)}')">${opt('','▼ 선택',!r.cand)}${names.map(n=>opt(n,n,n===r.cand)).join('')}${opt('__custom','(직접 입력…)',false)}</select>${r.cand?` <button class="btn btn-primary btn-sm" onclick="matchAssign('${esc(r.campus)}','${esc(r.payName)}','${esc(r.cand)}')">✔ "${esc(r.cand)}" 연결</button>`:''}`:'<span class="hint">권한 없음</span>';
+    return `<tr><td>${esc(r.campus)}</td><td><b>${esc(r.payName)}</b></td><td>${esc(r.position)}</td><td>${sel}</td></tr>`;}).join('')}</tbody></table>`:'<div class="hint" style="padding:6px 14px 12px">없음</div>';
+  html+=`<div class="card-title" style="margin:20px 14px 6px">② CAPS에는 있는데 마스터에 없는 이름 <span class="chip chip-purple">${capsOnly.length}</span></div>`;
+  html+=capsOnly.length?`<table><thead><tr><th>캠퍼스</th><th>CAPS 이름</th><th>급여대장 사람 고르기</th><th></th></tr></thead><tbody>${capsOnly.map(r=>{
+    const cands=RESULTS.freeMaster[r.group]||[];
+    const cv=r.cand?`${r.cand.campus}|${r.cand.payName}`:'';
+    const sel=edit?`<select class="match-sel ${r.cand?'ok':''}" onchange="matchCapsToMaster(this,'${esc(r.name)}')">${opt('','▼ 선택',!r.cand)}${cands.map(c=>opt(`${c.campus}|${c.payName}`,`${c.payName}${c.position?' ('+c.position+')':''}${c.campus!==r.group?' · '+c.campus:''}`,`${c.campus}|${c.payName}`===cv)).join('')}</select>${r.cand?` <button class="btn btn-primary btn-sm" onclick="matchAssign('${esc(r.cand.campus)}','${esc(r.cand.payName)}','${esc(r.name)}')">✔ "${esc(r.cand.payName)}" 연결</button>`:''}`:'<span class="hint">권한 없음</span>';
+    return `<tr><td>${esc(r.campus)}</td><td><b>${esc(r.name)}</b></td><td>${sel}</td><td>${edit?`<button class="btn btn-ghost btn-sm" onclick="matchIgnore('${esc(r.campus)}','${esc(r.name)}')">점검 대상 아님</button>`:''}</td></tr>`;}).join('')}</tbody></table>`:'<div class="hint" style="padding:6px 14px 12px">없음</div>';
+  el.innerHTML=html;
+}
 window.exportResultsXlsx=function(){
   if(!RESULTS) return;
   const wb=XLSX.utils.book_new();
@@ -917,7 +986,7 @@ window.exportResultsXlsx=function(){
   add('소명필요',RESULTS.soe.map(r=>({캠퍼스:r.campus,이름:r.name,급여대장이름:r.payName,직책:r.position,날짜:r.date,상태:KIND_LABEL[r.kind],출근:r.ci,퇴근:r.co,연차힌트:r.hint})));
   add('확인필요',RESULTS.check.map(r=>({캠퍼스:r.campus,이름:r.name,직책:r.position,날짜:r.date,출근:r.ci,퇴근:r.co,체류시간:r.hours,연차:r.leave})));
   add('연차자동종결',RESULTS.auto.map(r=>({캠퍼스:r.campus,이름:r.name,직책:r.position,날짜:r.date,기록:KIND_LABEL[r.kind],연차:r.leave})));
-  add('미매칭',RESULTS.unmatched.map(r=>({캠퍼스:r.campus,이름:r.name,사유:r.why,안내:r.hint})));
+  add('미매칭',RESULTS.unmatched.map(r=>({캠퍼스:r.campus,이름:r.name,사유:r.why,후보:typeof r.cand==='string'?r.cand:(r.cand?r.cand.payName:'')})));
   add('제외',RESULTS.excluded.map(r=>({캠퍼스:r.campus,이름:r.name,직책:r.position,날짜:r.date,사유:r.why})));
   XLSX.writeFile(wb,`주간근태_${WEEK.start}_분석.xlsx`);
 };
