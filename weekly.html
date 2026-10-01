@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주간 근태 점검</title>
+<link rel="icon" type="image/png" href="Poly_Emblem_Blue_B.png">
+<script type="module">
+  import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
+  import{getFirestore,doc,getDoc,setDoc,updateDoc,deleteDoc,collection,getDocs,query,where,writeBatch}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
+  import{getAuth,signOut,onAuthStateChanged,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
+  const CFG={apiKey:"AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",authDomain:"polyesc-attendance.firebaseapp.com",projectId:"polyesc-attendance",storageBucket:"polyesc-attendance.firebasestorage.app",messagingSenderId:"430669631304",appId:"1:430669631304:web:eb06ac4ba8d1d5108fed7d"};
+  const app=initializeApp(CFG);
+  const db=getFirestore(app);
+  const auth=getAuth(app);
+  await setPersistence(auth,browserSessionPersistence);
+  window._fb={db,auth,doc,getDoc,setDoc,updateDoc,deleteDoc,collection,getDocs,query,where,writeBatch,signOut,onAuthStateChanged};
+  window._fbReady=true;
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+:root{
+  --green:#ffcd4a;--green-dk:#d4a800;--green-lt:#feefc5;
+  --navy:#feefc5;--navy-dk:#fde8a8;
+  --bg:#f4f6f8;--white:#fff;--border:#dde2ea;--border2:#c8d0db;
+  --text:#1e2a3a;--text2:#4a5568;--text3:#8a96a8;
+  --red:#e53e3e;--orange:#dd6b20;--yellow:#d69e2e;--blue:#3182ce;--purple:#7c3aed;--teal:#0f766e;
+  --radius:8px;--shadow:0 1px 3px rgba(0,0,0,.08);--shadow-md:0 4px 12px rgba(0,0,0,.10);
+  --mono:'JetBrains Mono',monospace;--sans:'Noto Sans KR',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;display:flex;opacity:0;transition:opacity .3s}
+.sidebar{width:200px;min-width:200px;background:var(--navy);display:flex;flex-direction:column;height:100vh;position:fixed;left:0;top:0;z-index:50;overflow-y:auto}
+.sb-logo{display:flex;align-items:center;gap:10px;padding:16px 14px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-logo img{height:28px;object-fit:contain}
+.sb-title{font-size:13px;font-weight:700;color:var(--text)}.sb-sub{font-size:10px;color:var(--text2)}
+.sb-section{padding:14px 10px 4px}
+.sb-label{font-size:10px;font-weight:700;color:#8a6a00;text-transform:uppercase;letter-spacing:.8px;padding:0 6px 6px}
+.sb-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;transition:all .15s;margin-bottom:1px}
+.sb-item:hover{background:rgba(0,0,0,.05);color:var(--text)}.sb-item.active{background:var(--green);color:#2d2200}
+.sb-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0}
+.sb-cnt{margin-left:auto;font-size:11px;font-family:var(--mono);background:rgba(0,0,0,.08);border-radius:10px;padding:1px 6px;color:var(--text2)}
+.sb-item.active .sb-cnt{background:rgba(255,255,255,.4);color:var(--green-dk)}
+.sb-bottom-btn{display:block;width:100%;padding:8px 10px;border-radius:6px;font-size:12px;font-weight:500;font-family:var(--sans);cursor:pointer;border:none;background:rgba(0,0,0,.06);color:var(--text2);text-align:left;margin-bottom:4px;transition:all .15s}
+.sb-bottom-btn:hover{background:rgba(0,0,0,.1);color:var(--text)}.sb-logout{color:var(--red)!important}.sb-logout:hover{background:#fff0f0!important}
+.main-wrap{margin-left:200px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+header{background:var(--white);border-bottom:1px solid var(--border);padding:0 20px;height:52px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40}
+.hdr-title{font-size:15px;font-weight:700}.hdr-badge{background:var(--green);color:#2d2200;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px}
+.hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.content{flex:1;overflow-y:auto;padding:20px 24px;background:var(--bg)}
+.panel{display:none}.panel.active{display:block}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:24px;text-align:center;cursor:pointer;background:var(--white);transition:all .2s;position:relative;overflow:hidden}
+.upload-zone:hover{border-color:var(--green);background:var(--green-lt)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2}
+.upload-zone h3{font-size:14px;font-weight:600;margin-bottom:4px;pointer-events:none}
+.upload-zone p{color:var(--text3);font-size:12px;pointer-events:none}
+.sum-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px}
+.scard{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s}
+.scard:hover{box-shadow:var(--shadow-md);background:#f8fafc}
+.scard .num{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:3px}
+.scard .lbl{font-size:11px;color:var(--text2)}
+.scard.red .num{color:var(--red)}.scard.orange .num{color:var(--orange)}.scard.yellow .num{color:var(--yellow)}.scard.teal .num{color:var(--teal)}.scard.purple .num{color:var(--purple)}.scard.gray .num{color:var(--text3)}
+.scard.active{outline:2px solid var(--green)}
+.twrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse}
+th{background:#f8fafc;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #f0f4f8;font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:#fafcfe}
+.mono{font-family:var(--mono);font-size:12px}
+.itabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);flex-wrap:wrap}
+.itab{padding:8px 16px;cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-2px}
+.itab:hover{color:var(--text)}.itab.active{color:#8a6a00;border-bottom-color:var(--green);font-weight:600}
+.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;white-space:nowrap}
+.chip-red{background:#fff0f0;color:var(--red)}.chip-orange{background:#fff4ed;color:var(--orange)}.chip-yellow{background:#fffbeb;color:var(--yellow)}.chip-green{background:#fef3c7;color:#8a6a00}.chip-purple{background:#f5f0ff;color:var(--purple)}.chip-gray{background:#f4f6f8;color:var(--text2)}.chip-blue{background:#ebf4ff;color:var(--blue)}.chip-teal{background:#e6f7f5;color:var(--teal)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;font-family:var(--sans)}
+.btn-primary{background:var(--green);color:#2d2200;font-weight:700}.btn-primary:hover{background:var(--green-dk)}
+.btn-ghost{background:var(--white);color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--bg)}
+.btn-danger{background:#fff0f0;color:var(--red);border:1px solid #fecaca}
+.btn-blue{background:var(--blue);color:#fff}.btn-teal{background:var(--teal);color:#fff}
+.btn-sm{padding:4px 10px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}
+.fbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+input[type=text],input[type=number],input[type=date],input[type=email],input[type=password],select,textarea{background:var(--white);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:7px 10px;font-size:13px;font-family:var(--sans);outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--green)}
+.info-box{background:#f0f7e8;border:1px solid #c6e0a0;border-radius:var(--radius);padding:11px 14px;font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6}
+.warn-box{background:#fffbeb;border:1px solid #fcd34d;border-radius:var(--radius);padding:11px 14px;font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6}
+.err-box{background:#fff0f0;border:1px solid #fecaca;border-radius:var(--radius);padding:11px 14px;font-size:13px;color:var(--red);margin-bottom:14px;line-height:1.6}
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}.empty .icon{font-size:32px;margin-bottom:8px}.empty h3{color:var(--text2);font-size:14px;margin-bottom:4px}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:11px 15px;font-size:13px;z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s;max-width:340px;box-shadow:var(--shadow-md)}
+.toast.show{transform:translateY(0);opacity:1}.toast.ok{border-color:var(--green)}.toast.err{border-color:var(--red)}
+.split{display:flex;gap:0;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);min-height:400px}
+.split-left{width:170px;min-width:170px;border-right:1px solid var(--border);overflow-y:auto;background:var(--white)}
+.rc-item{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:6px}
+.rc-item:hover{background:var(--bg)}.rc-item.active{background:var(--blue);color:#fff;font-weight:700}
+.rc-item.active .rc-cnt{background:rgba(255,255,255,.25);color:#fff}
+.rc-cnt{font-size:11px;font-family:var(--mono);background:var(--bg);border-radius:9px;padding:1px 6px;color:var(--text3);white-space:nowrap}
+.split-right{flex:1;overflow:auto;min-width:0}
+.week-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.week-label{font-size:18px;font-weight:700;font-family:var(--mono)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:1100px){.grid2{grid-template-columns:1fr}.sum-row{grid-template-columns:repeat(3,1fr)}}
+.thumb{width:44px;height:44px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer;margin-right:4px;vertical-align:middle}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-bg.show{display:flex}
+.modal{background:var(--white);border-radius:10px;max-width:900px;width:100%;max-height:92vh;overflow:auto;padding:20px;box-shadow:var(--shadow-md)}
+.modal img{max-width:100%;max-height:70vh;display:block;margin:0 auto 10px}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;font-size:13px;margin-bottom:10px}
+.kv b{color:var(--text2);font-weight:600}
+.status-open{color:var(--red);font-weight:700}
+.status-replied{color:var(--blue);font-weight:700}
+.status-approved{color:var(--teal);font-weight:700}
+.status-rejected{color:var(--orange);font-weight:700}
+.dow-box{display:inline-flex;gap:4px}
+.dow-box label{display:inline-flex;align-items:center;gap:3px;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:2px 6px;cursor:pointer}
+.dow-box label.on{background:var(--green-lt);border-color:var(--green-dk)}
+textarea{width:100%;min-height:120px;font-family:var(--mono);font-size:12px;line-height:1.5}
+.hint{font-size:11px;color:var(--text3)}
+.pill-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.file-row td{font-size:12px}
+.file-row select{padding:3px 6px;font-size:12px}
+.progress{height:8px;background:var(--bg);border-radius:99px;overflow:hidden;border:1px solid var(--border)}
+.progress > div{height:100%;background:var(--teal)}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sb-logo">
+    <img src="Poly 폴리어학원_blue_2.png" alt="" onerror="this.style.display='none'">
+    <div><div class="sb-title">주간 근태 점검</div><div class="sb-sub">㈜폴리이에스씨</div></div>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">메뉴</div>
+    <div class="sb-item active" data-tab="upload" onclick="switchTab('upload')"><span class="sb-icon">📁</span>주차·파일</div>
+    <div class="sb-item" data-tab="result" onclick="switchTab('result')"><span class="sb-icon">📊</span>분석 결과<span class="sb-cnt" id="sb-soe">0</span></div>
+    <div class="sb-item" data-tab="status" onclick="switchTab('status')"><span class="sb-icon">📨</span>소명 현황<span class="sb-cnt" id="sb-open">0</span></div>
+    <div class="sb-item" data-tab="links" onclick="switchTab('links')"><span class="sb-icon">🔗</span>캠퍼스 링크</div>
+    <div class="sb-item" data-tab="settings" onclick="switchTab('settings')"><span class="sb-icon">⚙️</span>기준 관리</div>
+    <div class="sb-item" data-tab="history" onclick="switchTab('history')"><span class="sb-icon">💾</span>주차 기록</div>
+  </div>
+  <div style="margin-top:auto;padding:12px 10px;border-top:1px solid rgba(0,0,0,.08);">
+    <div id="sb-nickname" style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px"></div>
+    <div id="sb-user-id" style="font-size:10px;color:var(--text2);margin-bottom:2px;word-break:break-all"></div>
+    <div id="sb-role-badge" style="font-size:10px;color:var(--text2);margin-bottom:10px"></div>
+    <button class="sb-bottom-btn" onclick="window.location.href='landing.html'">🏠 메인으로</button>
+    <button class="sb-bottom-btn sb-logout" onclick="handleSignOut()">🚪 로그아웃</button>
+  </div>
+</div>
+
+<div class="main-wrap">
+<header>
+  <span class="hdr-title">주간 근태 점검</span>
+  <span class="hdr-badge" id="hdr-badge">-</span>
+  <div class="hdr-right">
+    <span class="hint" id="hdr-master">인원 마스터 로딩 중…</span>
+  </div>
+</header>
+<div class="content">
+
+<!-- ═══════════ 주차·파일 ═══════════ -->
+<div class="panel active" id="panel-upload">
+  <div class="card">
+    <div class="card-title">📅 점검 주차 (월~금)</div>
+    <div class="week-nav">
+      <button class="btn btn-ghost btn-sm" onclick="shiftWeek(-1)">◀ 이전 주</button>
+      <span class="week-label" id="week-label">-</span>
+      <button class="btn btn-ghost btn-sm" onclick="shiftWeek(1)">다음 주 ▶</button>
+      <input type="date" id="week-pick" onchange="setWeekFromDate(this.value)">
+      <span class="hint" id="week-months"></span>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">🕐 CAPS 출퇴근 파일 (캠퍼스별, 여러 개 한 번에 선택 가능)</div>
+      <div class="upload-zone">
+        <input type="file" id="caps-file" accept=".xlsx,.xls,.csv" multiple onchange="loadCapsFiles(this)">
+        <h3>CAPS 월별 출퇴근 파일을 올리세요</h3>
+        <p>파일명에 캠퍼스명이 있어야 자동 인식됩니다 (예: 광교_9월.xlsx). 주가 두 달에 걸치면 두 달 파일을 모두 올리세요.</p>
+      </div>
+      <div id="file-table" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🏖 연차 내역 (연차관리 시스템)</div>
+      <div class="info-box">연차관리 시스템 계정(본사 관리자)으로 연결하면 이번 주 승인된 연차를 자동으로 가져옵니다. 연결이 안 되면 아래에서 엑셀로 올릴 수 있습니다.</div>
+      <div class="fbar">
+        <input type="email" id="lv-email" placeholder="연차시스템 이메일" style="width:200px">
+        <input type="password" id="lv-pw" placeholder="비밀번호" style="width:140px">
+        <button class="btn btn-teal btn-sm" onclick="connectLeaveSystem()">🔗 연결해서 가져오기</button>
+      </div>
+      <div id="lv-status" class="hint">아직 가져오지 않음</div>
+      <div style="margin-top:12px">
+        <div class="upload-zone" style="padding:14px">
+          <input type="file" id="leave-file" accept=".xlsx,.xls,.csv" onchange="loadLeaveFile(this)">
+          <h3 style="font-size:13px">📥 연차 엑셀 업로드 (대안)</h3>
+          <p>열 이름에 이름 / 캠퍼스 / 날짜 / 휴가 종류가 있으면 됩니다. 그룹웨어 내역도 같은 열 이름으로 맞추면 올릴 수 있습니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔍 분석</div>
+    <div class="info-box" id="rule-box"></div>
+    <button class="btn btn-primary" id="btn-analyze" onclick="runAnalysis()">🔍 분석 실행</button>
+    <span class="hint" style="margin-left:10px" id="analyze-hint"></span>
+  </div>
+</div>
+
+<!-- ═══════════ 분석 결과 ═══════════ -->
+<div class="panel" id="panel-result">
+  <div id="result-empty" class="card"><div class="empty"><div class="icon">📊</div><h3>분석 결과가 없습니다</h3><p>주차·파일 탭에서 CAPS 파일을 올리고 분석을 실행하세요.</p></div></div>
+  <div id="result-body" style="display:none">
+    <div class="sum-row">
+      <div class="scard red" onclick="switchRTab('soe')"><div class="num" id="n-soe">0</div><div class="lbl">소명 필요</div></div>
+      <div class="scard orange" onclick="switchRTab('check')"><div class="num" id="n-check">0</div><div class="lbl">확인 필요 (짧은 근무)</div></div>
+      <div class="scard teal" onclick="switchRTab('auto')"><div class="num" id="n-auto">0</div><div class="lbl">연차 자동종결</div></div>
+      <div class="scard purple" onclick="switchRTab('unmatched')"><div class="num" id="n-unmatched">0</div><div class="lbl">미매칭</div></div>
+      <div class="scard gray" onclick="switchRTab('excluded')"><div class="num" id="n-excluded">0</div><div class="lbl">제외</div></div>
+    </div>
+    <div id="result-warn"></div>
+    <div class="fbar">
+      <span class="week-label" id="result-week" style="font-size:15px"></span>
+      <span style="flex:1"></span>
+      <label class="hint" id="check-filter-wrap" style="display:none"><input type="checkbox" id="chk-no-short" onchange="renderResultTable()"> 단시간 직군 제외</label>
+      <button class="btn btn-ghost btn-sm" onclick="exportResultsXlsx()">⬇ 엑셀</button>
+      <button class="btn btn-primary" id="btn-publish" onclick="publishRequests()">📨 소명요청 발행 (캠퍼스 링크에 올리기)</button>
+    </div>
+    <div class="split">
+      <div class="split-left" id="result-campus-list"></div>
+      <div class="split-right" id="result-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 소명 현황 ═══════════ -->
+<div class="panel" id="panel-status">
+  <div class="card">
+    <div class="fbar" style="margin-bottom:0">
+      <span style="font-weight:700">주차</span>
+      <select id="st-week" onchange="loadWeekItems(this.value)"></select>
+      <button class="btn btn-ghost btn-sm" onclick="loadWeekItems(document.getElementById('st-week').value)">🔄 새로고침</button>
+      <span style="flex:1"></span>
+      <select id="st-filter" onchange="renderStatus()">
+        <option value="">전체 상태</option>
+        <option value="open">미회신</option>
+        <option value="replied">회신됨 (검토 대기)</option>
+        <option value="approved">승인</option>
+        <option value="rejected">반려</option>
+      </select>
+      <input type="text" id="st-search" placeholder="이름 검색" style="width:140px" oninput="renderStatus()">
+      <button class="btn btn-ghost btn-sm" onclick="exportStatusXlsx()">⬇ 엑셀</button>
+    </div>
+  </div>
+  <div id="st-summary"></div>
+  <div class="split" id="st-split" style="display:none">
+    <div class="split-left" id="st-campus-list"></div>
+    <div class="split-right" id="st-content"></div>
+  </div>
+  <div id="st-empty" class="card"><div class="empty"><div class="icon">📨</div><h3>발행된 소명요청이 없습니다</h3><p>분석 결과 탭에서 "소명요청 발행"을 누르면 여기서 회신을 검토할 수 있습니다.</p></div></div>
+</div>
+
+<!-- ═══════════ 캠퍼스 링크 ═══════════ -->
+<div class="panel" id="panel-links">
+  <div class="card">
+    <div class="card-title">🔗 원장 소명 페이지 링크</div>
+    <div class="info-box">캠퍼스마다 고정 링크가 하나씩 있습니다. 원장에게 한 번만 보내면 매주 같은 링크에서 새 소명요청을 보고 회신합니다. 링크가 외부로 새면 "재발급"으로 바꾸세요 (이전 링크는 즉시 무효).</div>
+    <div class="twrap"><table><thead><tr><th>캠퍼스</th><th>링크</th><th></th></tr></thead><tbody id="links-body"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ═══════════ 기준 관리 ═══════════ -->
+<div class="panel" id="panel-settings">
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">⏱ 짧은 근무 기준</div>
+      <div class="info-box">정규직 근무시간은 09:00~18:00 (9시간)입니다. 1시간 여유를 두어 출근~퇴근 체류시간이 <b>기준 시간 미만</b>이면 "확인 필요" 탭에 표시합니다. 소명 의무는 없고 본사가 한 번 더 보는 용도입니다.</div>
+      <div class="fbar">
+        <label>기준 시간 <input type="number" id="cfg-minhours" min="1" max="12" step="0.5" value="8" style="width:80px"> 시간 미만</label>
+        <button class="btn btn-primary btn-sm" onclick="saveConfig()">💾 저장</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📅 추가 공휴일·휴원일</div>
+      <div class="hint" style="margin-bottom:8px">내장 공휴일(2025~2026) 외에 전 캠퍼스 공통으로 제외할 날짜를 추가합니다. 한 줄에 하나, YYYY-MM-DD.</div>
+      <textarea id="cfg-holidays" placeholder="2026-12-31"></textarea>
+      <div style="margin-top:8px"><button class="btn btn-primary btn-sm" onclick="saveConfig()">💾 저장</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">📆 비근무요일 (단시간 근로자 등)</div>
+    <div class="info-box">근무하지 않는 요일을 지정하면 그 요일의 빈칸은 소명 대상에서 자동 제외됩니다. 소명 현황에서 "비근무요일" 사유를 승인할 때 "매주 반복"을 켜도 여기에 자동 등록됩니다.</div>
+    <div class="fbar">
+      <select id="nw-campus" onchange="renderNonwork()"></select>
+      <input type="text" id="nw-search" placeholder="이름 검색" style="width:140px" oninput="renderNonwork()">
+      <label class="hint"><input type="checkbox" id="nw-only" onchange="renderNonwork()"> 지정된 사람만</label>
+      <span style="flex:1"></span>
+      <button class="btn btn-primary btn-sm" onclick="saveNonwork()">💾 이 캠퍼스 저장</button>
+    </div>
+    <div class="twrap" style="max-height:520px"><table><thead><tr><th>이름 (CAPS)</th><th>급여대장 이름</th><th>직책</th><th>비근무요일</th></tr></thead><tbody id="nw-body"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ═══════════ 주차 기록 ═══════════ -->
+<div class="panel" id="panel-history">
+  <div class="card">
+    <div class="card-title">💾 발행된 주차</div>
+    <div id="history-list"></div>
+  </div>
+</div>
+
+</div><!-- /content -->
+</div><!-- /main-wrap -->
+
+<div class="modal-bg" id="modal" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal-box"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ══════════════════════════════════════
+// 상수
+// ══════════════════════════════════════
+const MPOLY = ['대전엠폴리','분당엠폴리','목동엠폴리','영통엠폴리','일산엠폴리'];
+function sortCampuses(arr){
+  const poly  = arr.filter(c=>!MPOLY.includes(c)).sort((a,b)=>a.localeCompare(b,'ko'));
+  const mpoly = MPOLY.filter(c=>arr.includes(c));
+  return [...poly, ...mpoly];
+}
+const CAMPUS_ALIASES = {
+  '광교':'광교','광명':'광명','대전':'대전','mil':'MIL','MIL':'MIL',
+  '대치폴리매그넷':'대치폴리매그넷','대치폴리':'대치폴리매그넷',
+  '목동':'목동','목동매그넷':'목동매그넷','분당':'분당',
+  '송도':'송도','송파':'송파','수지':'수지','수지2':'수지2',
+  '운정':'운정','위례':'위례','유성':'유성','일산':'일산','정발':'정발','중계':'중계',
+  '대전엠폴리':'대전엠폴리','대전m':'대전엠폴리','대전M':'대전엠폴리',
+  '목동엠폴리':'목동엠폴리','목동m':'목동엠폴리','목동M':'목동엠폴리',
+  '분당엠폴리':'분당엠폴리','분당m':'분당엠폴리','분당M':'분당엠폴리',
+  '영통엠폴리':'영통엠폴리','영통m':'영통엠폴리','영통M':'영통엠폴리',
+  '일산엠폴리':'일산엠폴리','일산m':'일산엠폴리','일산M':'일산엠폴리',
+};
+const MERGE_GROUPS = [['수지','수지2']];
+const SKIP_POSITIONS = ['본부장','본사'];
+const POS_MAP = [
+  {key:'원장',      match:['원장']},
+  {key:'부원장',    match:['부원장']},
+  {key:'AC교수부장',match:['AC교수부장','AC 교수부장']},
+  {key:'EC교수부장',match:['EC교수부장','EC 교수부장']},
+  {key:'KC교수부장',match:['KC교수부장','KC 교수부장','교수부장']},
+  {key:'CT',        match:['상담실장','상담교사']},
+  {key:'KT',        match:['유치부주임','유치부교사','한국인강사','한국인교사','한국인HT','한국인 HT']},
+  {key:'FT',        match:['원어민강사','원어민교사','원어민HT','원어민 HT']},
+  {key:'안전·사서', match:['POLY안전선생님','사서']},
+  {key:'단시간',    match:['단기근로','미화','기타']},
+];
+const SHORT_POS = new Set(['안전·사서','단시간']);
+const HOLIDAYS = new Set([
+  '2025-01-01','2025-01-28','2025-01-29','2025-01-30',
+  '2025-03-01','2025-05-05','2025-05-06','2025-06-06',
+  '2025-08-15','2025-10-03','2025-10-06','2025-10-07','2025-10-08','2025-10-09',
+  '2025-12-25',
+  '2026-01-01','2026-01-26','2026-01-27','2026-01-28','2026-01-29','2026-01-30',
+  '2026-03-01','2026-03-02','2026-05-05','2026-05-25','2026-06-06',
+  '2026-08-15','2026-08-17','2026-09-24','2026-09-25','2026-09-26',
+  '2026-10-03','2026-10-09','2026-12-25',
+]);
+const DOW_KO = ['일','월','화','수','목','금','토'];
+const FULL_DAY_LEAVE = ['연차휴가','경조/기타','경조','기타','병가','공가','휴가'];
+const REASONS = ['지류 연차 (연차신청서)','반차·반반차','CAPS 미체크 (근무함)','외근·출장','교육·행사','비근무요일','병가·공가','기타'];
+const KIND_LABEL = {none:'기록 없음', ci_only:'퇴근 누락', co_only:'출근 누락', absent_all:'CAPS 파일에 없음'};
+const STATUS_LABEL = {open:'미회신', replied:'회신됨', approved:'승인', rejected:'반려'};
+const LV_URL='https://swxjbawcpzhmrwwppcva.supabase.co';
+const LV_KEY='sb_publishable_0J9Ew8aHFAo4ILVPGpDunA_AYPPR4u2';
+
+// ══════════════════════════════════════
+// 상태
+// ══════════════════════════════════════
+let WEEK = null;          // {key, start, end, dates:[YYYY-MM-DD x5], months:[YYYY-MM]}
+let FILES = [];           // [{name, campus, month, persons:[...]}]
+let PERSONS = {};         // workers_persons 마스터 {campus:[{payName,attendName,...}]}
+let LEAVES = [];          // [{name, campus, date, type, src}]
+let CONFIG = {minHours:8, holidays:[]};
+let NONWORK = {};         // {campus:{attendName:[dow,...]}}
+let TOKENS = {};          // {campus: token}
+let RESULTS = null;       // {soe:[], check:[], auto:[], unmatched:[], excluded:[], warnings:[]}
+let ITEMS = [];           // 소명 현황 현재 주차 항목
+let RUNS = [];
+let currentUser=null, ROLE='report';
+let rTab='soe', rCampus='', stCampus='';
+
+// ══════════════════════════════════════
+// 공통 헬퍼
+// ══════════════════════════════════════
+const $=id=>document.getElementById(id);
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function showToast(msg,type=''){const t=$('toast');t.textContent=msg;t.className='toast show '+type;clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',3200);}
+function normCampus(name){
+  if(!name) return null;
+  const n=String(name).trim();
+  if(CAMPUS_ALIASES[n]) return CAMPUS_ALIASES[n];
+  const keys=Object.keys(CAMPUS_ALIASES).sort((a,b)=>b.length-a.length);
+  for(const k of keys){if(n.toLowerCase().includes(k.toLowerCase())) return CAMPUS_ALIASES[k];}
+  return null;
+}
+function normCampusFromFile(fn){
+  const n=fn.replace(/\.xlsx?$|\.xls$|\.csv$/i,'');
+  const keys=Object.keys(CAMPUS_ALIASES).sort((a,b)=>b.length-a.length);
+  for(const k of keys){if(n.includes(k)) return CAMPUS_ALIASES[k];}
+  return null;
+}
+function normName(n){return String(n||'').trim().replace(/\s*\(.*?\)/g,'').replace(/\s+/g,' ').toLowerCase();}
+function baseNameOf(name){return String(name||'').trim().replace(/\s*[\(\（(][^)\）)]*[\)\）)]/g,'').replace(/\s+/g,' ').trim();}
+function pad2(n){return String(n).padStart(2,'0');}
+function ymd(d){return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;}
+function parseYMD(s){const m=String(s||'').match(/(\d{4})[-./]?(\d{2})[-./]?(\d{2})/);return m?`${m[1]}-${m[2]}-${m[3]}`:'';}
+function isHoliday(dateStr){return HOLIDAYS.has(dateStr)||(CONFIG.holidays||[]).includes(dateStr);}
+function dowOf(dateStr){const [y,m,d]=dateStr.split('-').map(Number);return new Date(y,m-1,d).getDay();}
+function fmtMD(dateStr){const [y,m,d]=dateStr.split('-');return `${+m}/${+d}(${DOW_KO[dowOf(dateStr)]})`;}
+function classifyPos(position,div){
+  if(div==='단기근로') return '단시간';
+  const p=(position||'').trim();
+  for(const pm of POS_MAP){
+    if(pm.key==='단시간') continue;
+    if(pm.match.some(m=>p.includes(m))) return pm.key;
+  }
+  return '기타';
+}
+function parseTime(v){
+  // "09:02", "9:02:15", "0902", 엑셀 시각 소수 → 분 단위 숫자. 실패 시 null
+  if(v==null||v==='') return null;
+  if(typeof v==='number'){ if(v>0&&v<1) return Math.round(v*24*60); if(v>=100&&v<=2359){return Math.floor(v/100)*60+(v%100);} return null; }
+  const s=String(v).trim();
+  let m=s.match(/(\d{1,2}):(\d{2})/);
+  if(m) return (+m[1])*60+(+m[2]);
+  m=s.match(/^(\d{2})(\d{2})$/);
+  if(m) return (+m[1])*60+(+m[2]);
+  return null;
+}
+function campusGroup(campus){const g=MERGE_GROUPS.find(g=>g.includes(campus));return g||[campus];}
+function groupKey(campus){const g=MERGE_GROUPS.find(g=>g.includes(campus));return g?g[0]:campus;}
+function itemId(weekKey,date,name){return `${weekKey}_${date}_${String(name).replace(/[\/\.#$\[\]]/g,'_')}`;}
+function randomToken(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(36).padStart(2,'0')).join('').slice(0,22);}
+function canEdit(){return ROLE==='owner'||ROLE==='admin';}
+
+// ══════════════════════════════════════
+// 탭
+// ══════════════════════════════════════
+window.switchTab=function(tab){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+tab));
+  document.querySelectorAll('.sb-item').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  if(tab==='status'&&!ITEMS.length&&RUNS.length) loadWeekItems($('st-week').value||RUNS[0].weekKey);
+  if(tab==='links') renderLinks();
+  if(tab==='settings') renderSettings();
+  if(tab==='history') renderHistory();
+};
+window.switchRTab=function(t){rTab=t;renderResults();};
+
+// ══════════════════════════════════════
+// 초기화 / 인증
+// ══════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+  // 기본: 지난 주
+  const d=new Date(); d.setDate(d.getDate()-7);
+  setWeekFromDate(ymd(d));
+  renderRuleBox();
+  let attempts=0;
+  const w=setInterval(()=>{attempts++;if(window._fbReady){clearInterval(w);initApp();}else if(attempts>50){clearInterval(w);document.body.style.opacity='1';}},100);
+});
+function initApp(){
+  const{auth,onAuthStateChanged}=window._fb;
+  onAuthStateChanged(auth,async user=>{
+    if(!user){
+      if(location.protocol==='file:'){
+        // 로컬에서 더블클릭으로 연 경우: 로그인 페이지(index.html)가 없으므로 안내만 표시
+        document.body.style.opacity='1';
+        document.querySelector('.content').innerHTML='<div class="card"><div class="empty"><div class="icon">🔒</div><h3>이 페이지는 근태 관리 사이트에 올린 뒤 로그인해서 사용합니다</h3><p>weekly.html · weekly_reply.html 두 파일을 GitHub 저장소(POLYESC-Attendace) 루트에 올리고<br>https://polyeschq-png.github.io/POLYESC-Attendace/weekly.html 로 접속하세요.<br>(workers.html과 같은 방식 — 로컬 파일로는 로그인이 되지 않습니다)</p></div></div>';
+        return;
+      }
+      window.location.href='index.html';return;
+    }
+    currentUser=user;
+    $('sb-nickname').textContent=user.email?.split('@')[0]||'';
+    $('sb-user-id').textContent=user.email;
+    const ROLE_LABELS={owner:'👑 Owner',admin:'🔧 관리자',report:'📊 리포트'};
+    try{
+      const{db,doc,getDoc}=window._fb;
+      const snap=await getDoc(doc(db,'Users',user.email));
+      ROLE=snap.exists()?snap.data().role||'report':'report';
+    }catch(e){ROLE='report';}
+    $('sb-role-badge').textContent=ROLE_LABELS[ROLE]||'📊 리포트';
+    if(!canEdit()){
+      ['btn-analyze','btn-publish'].forEach(id=>{const b=$(id);if(b)b.style.display='none';});
+    }
+    document.body.style.opacity='1';
+    await Promise.all([loadPersonsMaster(),loadConfig(),loadNonwork(),loadTokens(),loadRuns()]);
+    renderRuleBox();
+    if(RUNS.length){fillWeekSelect();}
+  });
+}
+window.handleSignOut=async function(){const{auth,signOut}=window._fb;await signOut(auth);window.location.href='index.html';};
+
+// ══════════════════════════════════════
+// 주차
+// ══════════════════════════════════════
+window.setWeekFromDate=function(dateStr){
+  if(!dateStr) return;
+  const [y,m,d]=dateStr.split('-').map(Number);
+  const dt=new Date(y,m-1,d);
+  const dow=dt.getDay();
+  const mon=new Date(dt); mon.setDate(dt.getDate()-((dow+6)%7));
+  const dates=[];
+  for(let i=0;i<5;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);dates.push(ymd(x));}
+  const months=[...new Set(dates.map(s=>s.slice(0,7)))];
+  WEEK={key:dates[0],start:dates[0],end:dates[4],dates,months};
+  $('week-pick').value=dates[0];
+  $('week-label').textContent=`${fmtMD(dates[0])} ~ ${fmtMD(dates[4])}`;
+  $('week-months').textContent=months.length>1?`⚠ 두 달에 걸친 주입니다. CAPS 파일은 ${months.map(m=>+m.slice(5)+'월').join(', ')} 두 달치가 필요합니다.`:`필요한 CAPS 파일: ${+months[0].slice(5)}월`;
+  FILES.forEach(f=>{if(!months.includes(f.month)) f.month=months[0];});
+  renderFileTable();
+};
+window.shiftWeek=function(n){const [y,m,d]=WEEK.start.split('-').map(Number);const dt=new Date(y,m-1,d+7*n);setWeekFromDate(ymd(dt));};
+
+function renderRuleBox(){
+  $('rule-box').innerHTML=`<b>판정 기준</b><br>
+  · 출근·퇴근 둘 다 찍혀 있으면 통과. 하나라도 없으면 <b>소명 필요</b> (비율 기준 없음, 건별로 사유가 들어가야 종결)<br>
+  · 빈칸이어도 연차관리 시스템에 <b>전일 연차(연차휴가·경조/기타)</b>가 승인돼 있으면 자동 종결. 반차·반반차는 힌트만 표시하고 소명 필요<br>
+  · 공휴일·입사 전·퇴사 후·휴직자·제외직책(본부장·본사)·지정된 비근무요일은 제외<br>
+  · 둘 다 찍혀 있어도 체류시간이 <b>${CONFIG.minHours}시간 미만</b>이면 "확인 필요" (정규직 09:00~18:00 = 9시간, 1시간 여유)`;
+}
+
+// ══════════════════════════════════════
+// CAPS 파일
+// ══════════════════════════════════════
+function detectMonthFromFilename(fn){
+  let m=fn.match(/(20\d{2})[-._]?(\d{1,2})월/); if(m) return `${m[1]}-${pad2(+m[2])}`;
+  m=fn.match(/(20\d{2})[-._]?(0[1-9]|1[0-2])(?!\d)/); if(m) return `${m[1]}-${m[2]}`;
+  m=fn.match(/(?:^|[^\d])(\d{1,2})월/); if(m&&WEEK){const mm=pad2(+m[1]);const hit=WEEK.months.find(x=>x.slice(5)===mm);if(hit) return hit;}
+  return null;
+}
+window.loadCapsFiles=function(input){
+  const files=Array.from(input.files);
+  input.value='';
+  files.forEach(file=>{
+    const campus=normCampusFromFile(file.name);
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+        const parsed=parseAttendSheet(rows);
+        if(!parsed.persons.length){showToast(`${file.name}: 인원 0명 — 파일 형식을 확인하세요 (${parsed.error||''})`,'err');return;}
+        const month=detectMonthFromFilename(file.name)||(WEEK?WEEK.months[WEEK.months.length-1]:'');
+        FILES=FILES.filter(f=>!(f.campus===campus&&f.month===month&&campus));
+        FILES.push({name:file.name,campus:campus||'',month,persons:parsed.persons});
+        renderFileTable();
+        showToast(`${campus||'캠퍼스 미인식'} ${parsed.persons.length}명 로드`,campus?'ok':'err');
+      }catch(err){showToast(`${file.name} 읽기 실패: ${err.message}`,'err');}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
+// CAPS 월별 파일: 사람마다 '출근' 행 + '퇴근' 행, 1~31일 열
+function parseAttendSheet(rows){
+  if(!rows||!rows.length) return {persons:[],error:'빈 파일'};
+  let hdrRowIdx=-1;
+  for(let i=0;i<Math.min(8,rows.length);i++){
+    if(rows[i].some(c=>['이름','성명'].includes(String(c||'').trim()))){hdrRowIdx=i;break;}
+  }
+  if(hdrRowIdx<0) hdrRowIdx=0;
+  const hdr=rows[hdrRowIdx];
+  let nameIdx=-1,empIdIdx=-1,divIdx=-1;
+  hdr.forEach((h,i)=>{
+    const s=String(h||'').trim();
+    if(['이름','성명'].includes(s)) nameIdx=i;
+    else if(['사원번호','사번','번호'].includes(s)) empIdIdx=i;
+    else if(s==='구분') divIdx=i;
+  });
+  if(nameIdx<0) nameIdx=2;
+  if(empIdIdx<0) empIdIdx=3;
+  if(divIdx<0) divIdx=4;
+  const dayIndices={};
+  hdr.forEach((h,i)=>{const n=parseInt(h);if(n>=1&&n<=31&&String(h).trim().length<=3) dayIndices[n]=i;});
+  if(!Object.keys(dayIndices).length) return {persons:[],error:'날짜 열(1~31) 없음'};
+  const persons=[];
+  let i=hdrRowIdx+1;
+  while(i<rows.length){
+    const r=rows[i];
+    const name=String(r[nameIdx]||'').trim().replace(/\s+/g,' ');
+    const div=String(r[divIdx]||'').trim();
+    if(!name||div!=='출근'){i++;continue;}
+    const empId=String(r[empIdIdx]||'').trim();
+    const ci={},co={};
+    Object.entries(dayIndices).forEach(([d,idx])=>{const v=String(r[idx]||'').trim();if(v&&v!=='0') ci[+d]=v;});
+    if(i+1<rows.length&&String(rows[i+1][divIdx]||'').trim()==='퇴근'){
+      const r2=rows[i+1];
+      Object.entries(dayIndices).forEach(([d,idx])=>{const v=String(r2[idx]||'').trim();if(v&&v!=='0') co[+d]=v;});
+      i+=2;
+    } else i++;
+    // 같은 이름이 두 번 나오면(중복 계정) 기록을 합침
+    const ex=persons.find(p=>p.name===name);
+    if(ex){Object.assign(ex.ci,{...ci,...ex.ci});Object.assign(ex.co,{...co,...ex.co});ex.dup=true;}
+    else persons.push({name,empId,ci,co});
+  }
+  return {persons};
+}
+function renderFileTable(){
+  const el=$('file-table');
+  if(!FILES.length){el.innerHTML='<div class="hint">올린 파일 없음</div>';return;}
+  const months=WEEK?WEEK.months:[];
+  const campOpts=sortCampuses([...new Set(Object.values(CAMPUS_ALIASES))]);
+  el.innerHTML=`<div class="twrap"><table><thead><tr><th>파일</th><th>캠퍼스</th><th>월</th><th>인원</th><th></th></tr></thead><tbody>${
+    FILES.map((f,i)=>`<tr class="file-row">
+      <td class="mono">${esc(f.name)}</td>
+      <td><select onchange="FILES[${i}].campus=this.value;renderFileTable()" ${f.campus?'':'style="border-color:var(--red)"'}>
+        <option value="">(미인식)</option>${campOpts.map(c=>`<option ${f.campus===c?'selected':''}>${c}</option>`).join('')}</select></td>
+      <td><select onchange="FILES[${i}].month=this.value">${months.map(m=>`<option value="${m}" ${f.month===m?'selected':''}>${+m.slice(5)}월</option>`).join('')}${months.includes(f.month)?'':`<option value="${f.month}" selected>${f.month}</option>`}</select></td>
+      <td class="mono">${f.persons.length}명</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="FILES.splice(${i},1);renderFileTable()">✖</button></td>
+    </tr>`).join('')}</tbody></table></div>
+    <div class="hint" style="margin-top:6px">캠퍼스 ${new Set(FILES.filter(f=>f.campus).map(f=>f.campus)).size}개 · 마스터 캠퍼스 ${Object.keys(PERSONS).length}개</div>`;
+}
+
+// ══════════════════════════════════════
+// 연차 내역
+// ══════════════════════════════════════
+window.connectLeaveSystem=async function(){
+  if(!WEEK) return;
+  const email=$('lv-email').value.trim(), pw=$('lv-pw').value;
+  if(!email||!pw){showToast('연차시스템 이메일·비밀번호를 입력하세요','err');return;}
+  $('lv-status').textContent='연결 중…';
+  try{
+    const sb=window.supabase.createClient(LV_URL,LV_KEY,{auth:{persistSession:false}});
+    const{error:ae}=await sb.auth.signInWithPassword({email,password:pw});
+    if(ae) throw new Error('로그인 실패: '+ae.message);
+    const{data,error}=await sb.from('leave_requests')
+      .select('leave_date,leave_type,deduction,status,profiles!leave_requests_user_id_fkey(name),campuses!leave_requests_campus_id_fkey(name)')
+      .eq('status','approved').gte('leave_date',WEEK.start).lte('leave_date',WEEK.end).limit(5000);
+    if(error) throw new Error(error.message);
+    await sb.auth.signOut();
+    LEAVES=LEAVES.filter(l=>l.src!=='system');
+    (data||[]).forEach(r=>{
+      LEAVES.push({name:r.profiles?.name||'',campus:normCampus(r.campuses?.name)||r.campuses?.name||'',date:r.leave_date,type:r.leave_type||'',src:'system'});
+    });
+    $('lv-pw').value='';
+    $('lv-status').innerHTML=`✅ 연차시스템 ${(data||[]).length}건 (${WEEK.start}~${WEEK.end} 승인분)`+(LEAVES.some(l=>l.src==='file')?` + 엑셀 ${LEAVES.filter(l=>l.src==='file').length}건`:'');
+    showToast('연차 내역 가져옴','ok');
+  }catch(e){
+    $('lv-status').innerHTML=`<span style="color:var(--red)">❌ ${esc(e.message)}</span>`;
+  }
+};
+window.loadLeaveFile=function(input){
+  const file=input.files[0]; input.value='';
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      let total=0;
+      LEAVES=LEAVES.filter(l=>l.src!=='file');
+      wb.SheetNames.forEach(sn=>{
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:''});
+        total+=parseLeaveRows(rows,sn);
+      });
+      $('lv-status').innerHTML=`📥 엑셀 ${total}건`+(LEAVES.some(l=>l.src==='system')?` + 연차시스템 ${LEAVES.filter(l=>l.src==='system').length}건`:'');
+      showToast(total?`연차 엑셀 ${total}건 로드`:'인식된 연차 행이 없습니다 (열 이름 확인)',total?'ok':'err');
+    }catch(err){showToast('연차 파일 읽기 실패: '+err.message,'err');}
+  };
+  reader.readAsArrayBuffer(file);
+};
+function parseLeaveRows(rows,sheetName){
+  let hdrIdx=-1;
+  for(let i=0;i<Math.min(10,rows.length);i++){
+    const cells=rows[i].map(c=>String(c||'').trim());
+    if(cells.some(c=>/^(이름|성명|name)$/i.test(c))&&cells.some(c=>/(날짜|일자|date|시작)/i.test(c))){hdrIdx=i;break;}
+  }
+  if(hdrIdx<0) return 0;
+  const hdr=rows[hdrIdx].map(c=>String(c||'').trim());
+  const find=re=>hdr.findIndex(h=>re.test(h));
+  const nameI=find(/^(이름|성명|name)$/i), campI=find(/(캠퍼스|campus|소속)/i), dateI=find(/^(날짜|일자|date|사용일|휴가일)$/i), startI=find(/(시작|start)/i), endI=find(/(종료|end)/i), typeI=find(/(종류|type|구분)/i), statI=find(/(상태|status)/i);
+  let n=0;
+  for(let i=hdrIdx+1;i<rows.length;i++){
+    const r=rows[i];
+    const name=String(r[nameI]||'').trim(); if(!name) continue;
+    if(statI>=0){const st=String(r[statI]||'').trim();if(st&&!/승인|approved/i.test(st)) continue;}
+    const campusRaw=campI>=0?String(r[campI]||''):sheetName;
+    const campus=normCampus(campusRaw)||campusRaw;
+    const type=typeI>=0?String(r[typeI]||'').trim():'연차';
+    let dates=[];
+    if(dateI>=0){const d=parseYMD(r[dateI]);if(d) dates=[d];}
+    else if(startI>=0){
+      const s=parseYMD(r[startI]), e=endI>=0?(parseYMD(r[endI])||s):s;
+      if(s){let cur=s;let guard=0;while(cur<=e&&guard++<62){dates.push(cur);const [y,m,d]=cur.split('-').map(Number);cur=ymd(new Date(y,m-1,d+1));}}
+    }
+    dates.forEach(d=>{LEAVES.push({name,campus,date:d,type,src:'file'});n++;});
+  }
+  return n;
+}
+
+// ══════════════════════════════════════
+// Firestore: 마스터 / 설정 / 비근무요일 / 토큰 / 기록
+// ══════════════════════════════════════
+async function loadPersonsMaster(){
+  const{db,collection,getDocs}=window._fb;
+  try{
+    const snap=await getDocs(collection(db,'workers_persons'));
+    PERSONS={};
+    snap.forEach(d=>{const data=d.data();if(data.campus&&Array.isArray(data.persons)) PERSONS[data.campus]=data.persons;});
+    const n=Object.values(PERSONS).reduce((a,l)=>a+l.length,0);
+    $('hdr-master').textContent=`인원 마스터 ${Object.keys(PERSONS).length}개 캠퍼스 · ${n}명 (전체 근로자 관리에서 관리)`;
+    $('hdr-badge').textContent=`${Object.keys(PERSONS).length} 캠퍼스`;
+    renderFileTable();
+  }catch(e){$('hdr-master').textContent='마스터 불러오기 실패: '+e.message;}
+}
+async function loadConfig(){
+  const{db,doc,getDoc}=window._fb;
+  try{const s=await getDoc(doc(db,'weekly_config','main'));if(s.exists()){CONFIG={minHours:8,holidays:[],...s.data()};}}catch(e){}
+  $('cfg-minhours').value=CONFIG.minHours;
+  $('cfg-holidays').value=(CONFIG.holidays||[]).join('\n');
+}
+window.saveConfig=async function(){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  const mh=parseFloat($('cfg-minhours').value)||8;
+  const hol=$('cfg-holidays').value.split(/\n/).map(s=>parseYMD(s)).filter(Boolean);
+  CONFIG={...CONFIG,minHours:mh,holidays:hol,updatedAt:new Date().toISOString(),updatedBy:currentUser?.email||''};
+  const{db,doc,setDoc}=window._fb;
+  try{await setDoc(doc(db,'weekly_config','main'),CONFIG);showToast('기준 저장됨','ok');renderRuleBox();$('cfg-holidays').value=hol.join('\n');}
+  catch(e){showToast('저장 실패: '+e.message,'err');}
+};
+async function loadNonwork(){
+  const{db,collection,getDocs}=window._fb;
+  try{const snap=await getDocs(collection(db,'weekly_nonwork'));NONWORK={};snap.forEach(d=>{NONWORK[d.id]=d.data().map||{};});}catch(e){}
+}
+async function saveNonworkCampus(campus){
+  const{db,doc,setDoc}=window._fb;
+  await setDoc(doc(db,'weekly_nonwork',campus),{campus,map:NONWORK[campus]||{},updatedAt:new Date().toISOString()});
+}
+async function loadTokens(){
+  const{db,collection,getDocs}=window._fb;
+  try{const snap=await getDocs(collection(db,'weekly_tokens'));TOKENS={};snap.forEach(d=>{TOKENS[d.id]=d.data().token;});}catch(e){}
+}
+async function ensureToken(campus){
+  if(TOKENS[campus]) return TOKENS[campus];
+  const token=randomToken();
+  const{db,doc,setDoc}=window._fb;
+  await setDoc(doc(db,'weekly_tokens',campus),{campus,token,createdAt:new Date().toISOString()});
+  await setDoc(doc(db,'weekly_campus',token),{campus,createdAt:new Date().toISOString()});
+  TOKENS[campus]=token;
+  return token;
+}
+async function loadRuns(){
+  const{db,collection,getDocs}=window._fb;
+  try{const snap=await getDocs(collection(db,'weekly_runs'));RUNS=[];snap.forEach(d=>RUNS.push(d.data()));RUNS.sort((a,b)=>b.weekKey.localeCompare(a.weekKey));}catch(e){}
+}
+function fillWeekSelect(){
+  const sel=$('st-week');
+  const cur=sel.value;
+  sel.innerHTML=RUNS.map(r=>`<option value="${r.weekKey}">${fmtMD(r.weekKey)} ~ ${fmtMD(r.end||r.weekKey)}</option>`).join('');
+  if(cur&&RUNS.some(r=>r.weekKey===cur)) sel.value=cur;
+}
+
+// ══════════════════════════════════════
+// 분석
+// ══════════════════════════════════════
+function buildLeaveIndex(){
+  // key: campusGroupKey|normName|date → [types]
+  const idx=new Map();
+  LEAVES.forEach(l=>{
+    const g=groupKey(normCampus(l.campus)||l.campus);
+    const k=`${g}|${normName(baseNameOf(l.name))}|${l.date}`;
+    if(!idx.has(k)) idx.set(k,[]);
+    idx.get(k).push(l.type);
+  });
+  return idx;
+}
+function leavesFor(idx,campus,per,date){
+  const g=groupKey(campus);
+  const names=new Set([normName(baseNameOf(per.payName||'')),normName(baseNameOf(per.attendName||''))].filter(Boolean));
+  const out=[];
+  names.forEach(n=>{const v=idx.get(`${g}|${n}|${date}`);if(v) out.push(...v);});
+  return out;
+}
+function isFullDayLeave(type){const t=String(type||'');if(/반차|반반차|half|quarter/i.test(t)) return false;return true;}
+
+window.runAnalysis=function(){
+  if(!WEEK) return;
+  const validFiles=FILES.filter(f=>f.campus);
+  if(!validFiles.length){showToast('CAPS 파일을 먼저 올리세요','err');return;}
+  if(FILES.some(f=>!f.campus)){showToast('캠퍼스가 인식되지 않은 파일이 있습니다. 표에서 캠퍼스를 지정하세요','err');return;}
+  // ATTEND[campus][month] = persons
+  const ATTEND={};
+  validFiles.forEach(f=>{if(!ATTEND[f.campus])ATTEND[f.campus]={};ATTEND[f.campus][f.month]=f.persons;});
+  const lvIdx=buildLeaveIndex();
+  const R={soe:[],check:[],auto:[],unmatched:[],excluded:[],warnings:[],campuses:[]};
+  const fileCampuses=new Set(Object.keys(ATTEND));
+  // 분석 대상 캠퍼스 = CAPS 파일이 올라온 캠퍼스 (수지 그룹은 합쳐서)
+  const targetGroups=new Set([...fileCampuses].map(groupKey));
+  const minMin=Math.round((CONFIG.minHours||8)*60);
+
+  targetGroups.forEach(gk=>{
+    const group=campusGroup(gk);
+    const persons=group.flatMap(c=>(PERSONS[c]||[]).map(p=>({...p,_campus:c})));
+    if(!persons.length){R.warnings.push(`${gk}: 인원 마스터에 등록된 사람이 없습니다 (전체 근로자 관리에서 급여대장을 먼저 올리세요)`);}
+    // 월별 CAPS 존재 확인
+    WEEK.months.forEach(m=>{
+      const has=group.some(c=>ATTEND[c]&&ATTEND[c][m]);
+      if(!has) R.warnings.push(`${gk}: ${+m.slice(5)}월 CAPS 파일이 없어 해당 월 날짜는 판정하지 않았습니다`);
+    });
+    // CAPS 이름 → 기록 (그룹 내 모든 캠퍼스·월 합침)
+    const capsByName=new Map(); // name → {month:{ci,co}}
+    group.forEach(c=>{Object.entries(ATTEND[c]||{}).forEach(([m,list])=>{list.forEach(p=>{
+      if(!capsByName.has(p.name)) capsByName.set(p.name,{});
+      const slot=capsByName.get(p.name);
+      if(!slot[m]) slot[m]={ci:{},co:{}};
+      Object.assign(slot[m].ci,p.ci);Object.assign(slot[m].co,p.co);
+    });});});
+    const masterAttendNames=new Set(persons.map(p=>p.attendName).filter(Boolean));
+    // CAPS에만 있는 이름
+    capsByName.forEach((_,name)=>{
+      if(!masterAttendNames.has(name)){
+        // 급여대장 이름과 정규화 일치하면 힌트
+        const cand=persons.find(p=>normName(baseNameOf(p.payName))===normName(name));
+        R.unmatched.push({campus:gk,name,why:'CAPS에는 있는데 마스터에 출퇴근 이름으로 등록되지 않음',hint:cand?`급여대장 "${cand.payName}"과 이름 일치 → 인원관리에서 매칭`:''});
+      }
+    });
+    persons.forEach(per=>{
+      const campus=per._campus;
+      const pos=classifyPos(per.posOverride||'',per.divOverride||'');
+      const base={campus,group:gk,name:per.attendName||'',payName:per.payName||'',position:per.posOverride||'',posClass:pos};
+      if(per.ignored){return;}
+      if(SKIP_POSITIONS.includes(per.posOverride||'')){R.excluded.push({...base,date:'',why:'제외 직책'});return;}
+      if(per.isLeave){R.excluded.push({...base,date:'',why:'휴직자'});return;}
+      if(!per.attendName){R.unmatched.push({campus:gk,name:per.payName,why:'마스터에 출퇴근 이름이 지정되지 않음 (인원관리에서 매칭 필요)',hint:''});return;}
+      const caps=capsByName.get(per.attendName);
+      const nw=(NONWORK[campus]&&NONWORK[campus][per.attendName])||[];
+      WEEK.dates.forEach(date=>{
+        const m=date.slice(0,7), d=+date.slice(8,10), dow=dowOf(date);
+        const monthLoaded=group.some(c=>ATTEND[c]&&ATTEND[c][m]);
+        if(!monthLoaded) return;
+        if(isHoliday(date)){R.excluded.push({...base,date,why:'공휴일'});return;}
+        if(per.hireDate&&parseYMD(per.hireDate)&&date<parseYMD(per.hireDate)){R.excluded.push({...base,date,why:'입사 전'});return;}
+        if(per.leaveDate&&parseYMD(per.leaveDate)&&date>parseYMD(per.leaveDate)){R.excluded.push({...base,date,why:'퇴사 후'});return;}
+        if(nw.includes(dow)){R.excluded.push({...base,date,why:'비근무요일'});return;}
+        const rec=caps&&caps[m]?caps[m]:null;
+        const ci=rec?rec.ci[d]:undefined, co=rec?rec.co[d]:undefined;
+        const lv=leavesFor(lvIdx,campus,per,date);
+        if(ci&&co){
+          const a=parseTime(ci), b=parseTime(co);
+          if(a!=null&&b!=null){
+            const dur=b-a;
+            if(dur>=0&&dur<minMin) R.check.push({...base,date,ci,co,hours:(dur/60).toFixed(1),leave:lv.join(', ')});
+          }
+          return;
+        }
+        const kind=!caps?'absent_all':(ci?'ci_only':(co?'co_only':'none'));
+        if(lv.length&&lv.every(isFullDayLeave)){R.auto.push({...base,date,kind,leave:lv.join(', ')});return;}
+        R.soe.push({...base,date,kind,ci:ci||'',co:co||'',hint:lv.length?`연차시스템: ${lv.join(', ')} 승인`:''});
+      });
+    });
+    R.campuses.push(gk);
+  });
+  RESULTS=R;
+  $('sb-soe').textContent=R.soe.length;
+  $('n-soe').textContent=R.soe.length;$('n-check').textContent=R.check.length;$('n-auto').textContent=R.auto.length;$('n-unmatched').textContent=R.unmatched.length;$('n-excluded').textContent=R.excluded.length;
+  $('result-warn').innerHTML=R.warnings.length?`<div class="warn-box">${R.warnings.map(esc).join('<br>')}</div>`:'';
+  $('result-week').textContent=`${fmtMD(WEEK.start)} ~ ${fmtMD(WEEK.end)}`;
+  $('result-empty').style.display='none';$('result-body').style.display='block';
+  $('analyze-hint').textContent=`분석 완료: 소명 필요 ${R.soe.length}건 · 확인 필요 ${R.check.length}건 · 연차 자동종결 ${R.auto.length}건`;
+  rTab='soe'; rCampus='';
+  renderResults();
+  switchTab('result');
+};
+
+function renderResults(){
+  if(!RESULTS) return;
+  document.querySelectorAll('#result-body .scard').forEach(c=>c.classList.toggle('active',c.getAttribute('onclick').includes(`'${rTab}'`)));
+  $('check-filter-wrap').style.display=rTab==='check'?'inline':'none';
+  const list=RESULTS[rTab]||[];
+  const counts={};
+  list.forEach(r=>{counts[r.campus]=(counts[r.campus]||0)+1;});
+  const camps=sortCampuses(RESULTS.campuses);
+  $('result-campus-list').innerHTML=`<div class="rc-item ${rCampus===''?'active':''}" onclick="rCampus='';renderResults()"><span>전체</span><span class="rc-cnt">${list.length}</span></div>`+
+    camps.map(c=>`<div class="rc-item ${rCampus===c?'active':''}" onclick="rCampus='${esc(c)}';renderResults()"><span>${esc(c)}</span><span class="rc-cnt">${counts[c]||0}</span></div>`).join('');
+  renderResultTable();
+}
+window.renderResultTable=function(){
+  let list=(RESULTS[rTab]||[]).filter(r=>!rCampus||r.campus===rCampus);
+  if(rTab==='check'&&$('chk-no-short').checked) list=list.filter(r=>!SHORT_POS.has(r.posClass));
+  const el=$('result-content');
+  if(!list.length){el.innerHTML='<div class="empty"><div class="icon">✅</div><h3>해당 없음</h3></div>';return;}
+  const cols={
+    soe:['캠퍼스','이름','직책','날짜','상태','출근','퇴근','연차 힌트'],
+    check:['캠퍼스','이름','직책','날짜','출근','퇴근','체류시간','연차'],
+    auto:['캠퍼스','이름','직책','날짜','기록','연차 종류'],
+    unmatched:['캠퍼스','이름','사유','안내'],
+    excluded:['캠퍼스','이름','직책','날짜','제외 사유'],
+  }[rTab];
+  const row=r=>({
+    soe:[r.campus,r.name,r.position,fmtMD(r.date),`<span class="chip chip-red">${KIND_LABEL[r.kind]}</span>`,r.ci,r.co,r.hint],
+    check:[r.campus,r.name,r.position,fmtMD(r.date),r.ci,r.co,`<b>${r.hours}h</b>`,r.leave],
+    auto:[r.campus,r.name,r.position,fmtMD(r.date),KIND_LABEL[r.kind],`<span class="chip chip-teal">${esc(r.leave)}</span>`],
+    unmatched:[r.campus,r.name,r.why,r.hint],
+    excluded:[r.campus,r.name,r.position,r.date?fmtMD(r.date):'(전체)',r.why],
+  })[rTab];
+  el.innerHTML=`<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${list.map(r=>`<tr>${row(r).map(v=>`<td>${v==null?'':(String(v).startsWith('<')?v:esc(v))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+};
+window.exportResultsXlsx=function(){
+  if(!RESULTS) return;
+  const wb=XLSX.utils.book_new();
+  const add=(name,rows)=>{if(rows.length) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),name);};
+  add('소명필요',RESULTS.soe.map(r=>({캠퍼스:r.campus,이름:r.name,급여대장이름:r.payName,직책:r.position,날짜:r.date,상태:KIND_LABEL[r.kind],출근:r.ci,퇴근:r.co,연차힌트:r.hint})));
+  add('확인필요',RESULTS.check.map(r=>({캠퍼스:r.campus,이름:r.name,직책:r.position,날짜:r.date,출근:r.ci,퇴근:r.co,체류시간:r.hours,연차:r.leave})));
+  add('연차자동종결',RESULTS.auto.map(r=>({캠퍼스:r.campus,이름:r.name,직책:r.position,날짜:r.date,기록:KIND_LABEL[r.kind],연차:r.leave})));
+  add('미매칭',RESULTS.unmatched.map(r=>({캠퍼스:r.campus,이름:r.name,사유:r.why,안내:r.hint})));
+  add('제외',RESULTS.excluded.map(r=>({캠퍼스:r.campus,이름:r.name,직책:r.position,날짜:r.date,사유:r.why})));
+  XLSX.writeFile(wb,`주간근태_${WEEK.start}_분석.xlsx`);
+};
+
+// ══════════════════════════════════════
+// 소명요청 발행
+// ══════════════════════════════════════
+window.publishRequests=async function(){
+  if(!RESULTS||!canEdit()) return;
+  if(!RESULTS.soe.length){showToast('소명 필요 건이 없습니다','err');return;}
+  const byCampus={};
+  RESULTS.soe.forEach(r=>{(byCampus[r.campus]=byCampus[r.campus]||[]).push(r);});
+  const camps=Object.keys(byCampus);
+  if(!confirm(`${fmtMD(WEEK.start)}~${fmtMD(WEEK.end)} 소명요청 ${RESULTS.soe.length}건을 ${camps.length}개 캠퍼스 링크에 올립니다.\n이미 올라간 건은 회신 내용을 유지하고, 이번 분석에서 사라진 미회신 건은 삭제합니다.\n진행할까요?`)) return;
+  const{db,doc,collection,getDocs,query,where,writeBatch}=window._fb;
+  const btn=$('btn-publish'); btn.disabled=true;
+  let created=0,kept=0,removed=0;
+  try{
+    for(const campus of camps){
+      const token=await ensureToken(campus);
+      const col=collection(db,'weekly_campus',token,'items');
+      const snap=await getDocs(query(col,where('weekKey','==',WEEK.key)));
+      const existing=new Map(); snap.forEach(d=>existing.set(d.id,d.data()));
+      const wanted=new Set();
+      let batch=writeBatch(db), n=0;
+      const flush=async()=>{if(n){await batch.commit();batch=writeBatch(db);n=0;}};
+      for(const r of byCampus[campus]){
+        const id=itemId(WEEK.key,r.date,r.name);
+        wanted.add(id);
+        if(existing.has(id)){kept++;continue;}
+        batch.set(doc(col,id),{
+          weekKey:WEEK.key,weekStart:WEEK.start,weekEnd:WEEK.end,campus,name:r.name,payName:r.payName,position:r.position,
+          date:r.date,dow:DOW_KO[dowOf(r.date)],kind:r.kind,ci:r.ci||'',co:r.co||'',hint:r.hint||'',
+          status:'open',reason:'',memo:'',evidence:[],createdAt:new Date().toISOString(),createdBy:currentUser.email
+        });
+        created++; n++;
+        if(n>=400) await flush();
+      }
+      for(const [id,data] of existing){
+        if(!wanted.has(id)&&data.status==='open'){batch.delete(doc(col,id));removed++;n++;if(n>=400) await flush();}
+      }
+      await flush();
+    }
+    // 주차 기록
+    const summary={};
+    camps.forEach(c=>{summary[c]={soe:byCampus[c].length};});
+    RESULTS.campuses.forEach(c=>{if(!summary[c]) summary[c]={soe:0};summary[c].check=RESULTS.check.filter(x=>x.campus===c).length;summary[c].auto=RESULTS.auto.filter(x=>x.campus===c).length;summary[c].unmatched=RESULTS.unmatched.filter(x=>x.campus===c).length;});
+    const{setDoc}=window._fb;
+    await setDoc(doc(db,'weekly_runs',WEEK.key),{weekKey:WEEK.key,start:WEEK.start,end:WEEK.end,campuses:summary,total:RESULTS.soe.length,publishedAt:new Date().toISOString(),publishedBy:currentUser.email},{merge:true});
+    await loadRuns(); fillWeekSelect();
+    showToast(`발행 완료: 신규 ${created} · 유지 ${kept} · 삭제 ${removed}`,'ok');
+    $('st-week').value=WEEK.key;
+    await loadWeekItems(WEEK.key);
+    switchTab('status');
+  }catch(e){showToast('발행 실패: '+e.message,'err');console.error(e);}
+  btn.disabled=false;
+};
+
+// ══════════════════════════════════════
+// 소명 현황
+// ══════════════════════════════════════
+window.loadWeekItems=async function(weekKey){
+  if(!weekKey) return;
+  const{db,collection,getDocs,query,where}=window._fb;
+  ITEMS=[];
+  $('st-content').innerHTML='<div class="empty">불러오는 중…</div>';
+  try{
+    for(const [campus,token] of Object.entries(TOKENS)){
+      const snap=await getDocs(query(collection(db,'weekly_campus',token,'items'),where('weekKey','==',weekKey)));
+      snap.forEach(d=>ITEMS.push({id:d.id,token,...d.data()}));
+    }
+  }catch(e){showToast('소명 현황 불러오기 실패: '+e.message,'err');}
+  ITEMS.sort((a,b)=>a.campus.localeCompare(b.campus,'ko')||a.name.localeCompare(b.name,'ko')||a.date.localeCompare(b.date));
+  $('sb-open').textContent=ITEMS.filter(i=>i.status==='open'||i.status==='rejected').length;
+  renderStatus();
+};
+window.renderStatus=function(){
+  const has=ITEMS.length>0;
+  $('st-split').style.display=has?'flex':'none';
+  $('st-empty').style.display=has?'none':'block';
+  if(!has){$('st-summary').innerHTML='';return;}
+  const camps=sortCampuses([...new Set(ITEMS.map(i=>i.campus))]);
+  const cnt=(c,st)=>ITEMS.filter(i=>(!c||i.campus===c)&&(!st||i.status===st)).length;
+  const done=ITEMS.filter(i=>i.status==='approved').length;
+  $('st-summary').innerHTML=`<div class="sum-row">
+    <div class="scard gray"><div class="num">${ITEMS.length}</div><div class="lbl">발행</div></div>
+    <div class="scard red"><div class="num">${cnt('','open')}</div><div class="lbl">미회신</div></div>
+    <div class="scard" style="--c:var(--blue)"><div class="num" style="color:var(--blue)">${cnt('','replied')}</div><div class="lbl">회신됨 · 검토 대기</div></div>
+    <div class="scard orange"><div class="num">${cnt('','rejected')}</div><div class="lbl">반려 (재회신 대기)</div></div>
+    <div class="scard teal"><div class="num">${done}</div><div class="lbl">승인 (종결)</div></div>
+  </div>
+  <div class="progress" style="margin:-8px 0 14px"><div style="width:${ITEMS.length?Math.round(done/ITEMS.length*100):0}%"></div></div>`;
+  $('st-campus-list').innerHTML=`<div class="rc-item ${stCampus===''?'active':''}" onclick="stCampus='';renderStatus()"><span>전체</span><span class="rc-cnt">${cnt('','open')+cnt('','rejected')}/${ITEMS.length}</span></div>`+
+    camps.map(c=>`<div class="rc-item ${stCampus===c?'active':''}" onclick="stCampus='${esc(c)}';renderStatus()"><span>${esc(c)}</span><span class="rc-cnt">${cnt(c,'open')+cnt(c,'rejected')}/${cnt(c)}</span></div>`).join('');
+  const f=$('st-filter').value, q=$('st-search').value.trim().toLowerCase();
+  const list=ITEMS.filter(i=>(!stCampus||i.campus===stCampus)&&(!f||i.status===f)&&(!q||i.name.toLowerCase().includes(q)||(i.payName||'').toLowerCase().includes(q)));
+  const toolbar=stCampus?`<div class="fbar" style="padding:12px 14px 0;margin-bottom:0"><button class="btn btn-ghost btn-sm" onclick="copyCampusMail('${esc(stCampus)}')">✉️ ${esc(stCampus)} 요청 메일 복사</button><button class="btn btn-ghost btn-sm" onclick="copyLink('${esc(stCampus)}')">🔗 링크 복사</button></div>`:'';
+  if(!list.length){$('st-content').innerHTML=toolbar+'<div class="empty"><div class="icon">✅</div><h3>해당 없음</h3></div>';return;}
+  $('st-content').innerHTML=toolbar+`<table><thead><tr><th>캠퍼스</th><th>이름</th><th>날짜</th><th>기록</th><th>사유</th><th>메모</th><th>증빙</th><th>상태</th><th>처리</th></tr></thead><tbody>${
+    list.map(i=>{
+      const idx=ITEMS.indexOf(i);
+      const ev=(i.evidence||[]).map((e,k)=>`<img class="thumb" src="${e.data}" onclick="openEvidence(${idx},${k})" title="${esc(e.name||'')}">`).join('');
+      const act=canEdit()?(
+        i.status==='approved'?`<button class="btn btn-ghost btn-sm" onclick="reopenItem(${idx})">↩ 되돌림</button>`:
+        `<button class="btn btn-teal btn-sm" onclick="approveItem(${idx})">✅ 승인</button> <button class="btn btn-danger btn-sm" onclick="rejectItem(${idx})">반려</button> <button class="btn btn-ghost btn-sm" onclick="hqEditItem(${idx})">✏️</button>`
+      ):'';
+      return `<tr>
+        <td>${esc(i.campus)}</td><td><b>${esc(i.name)}</b>${i.payName&&i.payName!==i.name?`<div class="hint">${esc(i.payName)}</div>`:''}</td>
+        <td class="mono">${fmtMD(i.date)}</td>
+        <td><span class="chip chip-red">${KIND_LABEL[i.kind]||i.kind}</span>${i.hint?`<div class="hint">${esc(i.hint)}</div>`:''}</td>
+        <td>${esc(i.reason||'')}${i.nonworkRepeat?' <span class="chip chip-gray">매주</span>':''}</td>
+        <td style="max-width:220px;font-size:12px">${esc(i.memo||'')}${i.reviewNote?`<div class="hint" style="color:var(--orange)">반려: ${esc(i.reviewNote)}</div>`:''}</td>
+        <td>${ev||'<span class="hint">-</span>'}</td>
+        <td><span class="status-${i.status}">${STATUS_LABEL[i.status]||i.status}</span>${i.repliedAt?`<div class="hint">${i.repliedAt.slice(5,16).replace('T',' ')}</div>`:''}</td>
+        <td style="white-space:nowrap">${act}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+};
+async function updateItem(item,patch){
+  const{db,doc,updateDoc}=window._fb;
+  await updateDoc(doc(db,'weekly_campus',item.token,'items',item.id),patch);
+  Object.assign(item,patch);
+}
+window.approveItem=async function(idx){
+  const it=ITEMS[idx];
+  if(!it.reason){showToast('사유가 비어 있습니다. ✏️로 사유를 먼저 넣으세요','err');return;}
+  let repeat=false;
+  if(it.reason==='비근무요일'){repeat=confirm(`${it.name} ${it.dow}요일을 매주 비근무요일로 등록할까요?\n(다음 주부터 이 요일 빈칸은 자동 제외)`);}
+  try{
+    await updateItem(it,{status:'approved',reviewedAt:new Date().toISOString(),reviewedBy:currentUser.email,reviewNote:'',nonworkRepeat:repeat});
+    if(repeat){
+      const dow=dowOf(it.date);
+      NONWORK[it.campus]=NONWORK[it.campus]||{};
+      const arr=NONWORK[it.campus][it.name]||[];
+      if(!arr.includes(dow)) arr.push(dow);
+      NONWORK[it.campus][it.name]=arr.sort();
+      await saveNonworkCampus(it.campus);
+    }
+    renderStatus();
+  }catch(e){showToast('처리 실패: '+e.message,'err');}
+};
+window.rejectItem=async function(idx){
+  const it=ITEMS[idx];
+  const note=prompt('반려 사유 (원장에게 표시됩니다)',it.reviewNote||'');
+  if(note===null) return;
+  try{await updateItem(it,{status:'rejected',reviewedAt:new Date().toISOString(),reviewedBy:currentUser.email,reviewNote:note});renderStatus();}
+  catch(e){showToast('처리 실패: '+e.message,'err');}
+};
+window.reopenItem=async function(idx){
+  const it=ITEMS[idx];
+  if(!confirm('승인을 취소하고 회신됨 상태로 되돌릴까요?')) return;
+  try{await updateItem(it,{status:it.reason?'replied':'open',reviewedAt:'',reviewNote:''});renderStatus();}
+  catch(e){showToast('처리 실패: '+e.message,'err');}
+};
+window.hqEditItem=function(idx){
+  const it=ITEMS[idx];
+  $('modal-box').innerHTML=`<h3 style="margin-bottom:12px">✏️ 본사 직접 입력 — ${esc(it.campus)} ${esc(it.name)} ${fmtMD(it.date)}</h3>
+    <div class="hint" style="margin-bottom:10px">원장이 전화·메일로 알려준 사유를 본사가 대신 입력할 때 씁니다.</div>
+    <div class="fbar"><select id="m-reason" style="min-width:220px"><option value="">사유 선택</option>${REASONS.map(r=>`<option ${it.reason===r?'selected':''}>${r}</option>`).join('')}</select></div>
+    <textarea id="m-memo" style="min-height:80px;font-family:var(--sans)" placeholder="메모">${esc(it.memo||'')}</textarea>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-ghost" onclick="closeModal()">취소</button><button class="btn btn-primary" onclick="hqSaveItem(${idx})">저장 (회신됨으로)</button></div>`;
+  $('modal').classList.add('show');
+};
+window.hqSaveItem=async function(idx){
+  const it=ITEMS[idx];
+  const reason=$('m-reason').value, memo=$('m-memo').value.trim();
+  if(!reason){showToast('사유를 선택하세요','err');return;}
+  try{await updateItem(it,{reason,memo,status:'replied',repliedAt:new Date().toISOString(),repliedBy:'HQ:'+currentUser.email});closeModal();renderStatus();}
+  catch(e){showToast('저장 실패: '+e.message,'err');}
+};
+window.openEvidence=function(idx,k){
+  const it=ITEMS[idx]; const e=(it.evidence||[])[k]; if(!e) return;
+  $('modal-box').innerHTML=`<div class="kv"><b>캠퍼스</b><span>${esc(it.campus)}</span><b>이름</b><span>${esc(it.name)}</span><b>날짜</b><span>${fmtMD(it.date)}</span><b>사유</b><span>${esc(it.reason||'')}</span><b>메모</b><span>${esc(it.memo||'')}</span></div>
+    <img src="${e.data}"><div class="hint" style="text-align:center">${esc(e.name||'')}</div>
+    <div style="margin-top:12px;text-align:right"><button class="btn btn-ghost" onclick="closeModal()">닫기</button></div>`;
+  $('modal').classList.add('show');
+};
+window.closeModal=function(){$('modal').classList.remove('show');};
+window.exportStatusXlsx=function(){
+  if(!ITEMS.length) return;
+  const rows=ITEMS.map(i=>({주차:i.weekKey,캠퍼스:i.campus,이름:i.name,급여대장이름:i.payName,직책:i.position,날짜:i.date,요일:i.dow,기록:KIND_LABEL[i.kind]||i.kind,연차힌트:i.hint,사유:i.reason,메모:i.memo,증빙수:(i.evidence||[]).length,상태:STATUS_LABEL[i.status]||i.status,회신시각:i.repliedAt||'',검토자:i.reviewedBy||'',반려사유:i.reviewNote||''}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'소명현황');
+  const paper=ITEMS.filter(i=>/지류/.test(i.reason||'')).map(i=>({캠퍼스:i.campus,이름:i.name,급여대장이름:i.payName,날짜:i.date,사유:i.reason,메모:i.memo,상태:STATUS_LABEL[i.status]}));
+  if(paper.length) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(paper),'지류연차(시스템반영확인)');
+  XLSX.writeFile(wb,`주간근태_${ITEMS[0].weekKey}_소명현황.xlsx`);
+};
+
+// ══════════════════════════════════════
+// 캠퍼스 링크 / 메일
+// ══════════════════════════════════════
+function linkFor(campus){
+  const token=TOKENS[campus]; if(!token) return '';
+  const base=location.href.replace(/[^\/]*$/,'');
+  return `${base}weekly_reply.html?t=${token}`;
+}
+window.renderLinks=function(){
+  const camps=sortCampuses([...new Set([...Object.keys(PERSONS),...Object.keys(TOKENS)])]);
+  $('links-body').innerHTML=camps.map(c=>`<tr>
+    <td><b>${esc(c)}</b></td>
+    <td class="mono" style="word-break:break-all">${TOKENS[c]?esc(linkFor(c)):'<span class="hint">아직 발급 안 됨 (소명요청 발행 시 자동 생성)</span>'}</td>
+    <td style="white-space:nowrap">${TOKENS[c]?`<button class="btn btn-ghost btn-sm" onclick="copyLink('${esc(c)}')">📋 복사</button> `:''}${canEdit()?`<button class="btn btn-ghost btn-sm" onclick="issueToken('${esc(c)}')">${TOKENS[c]?'🔄 재발급':'➕ 발급'}</button>`:''}</td>
+  </tr>`).join('')||'<tr><td colspan="3" class="hint">인원 마스터에 캠퍼스가 없습니다</td></tr>';
+};
+window.copyLink=function(campus){
+  const l=linkFor(campus); if(!l){showToast('링크가 아직 없습니다','err');return;}
+  navigator.clipboard.writeText(l).then(()=>showToast(`${campus} 링크 복사됨`,'ok'));
+};
+window.issueToken=async function(campus){
+  if(!canEdit()) return;
+  if(TOKENS[campus]&&!confirm(`${campus} 링크를 재발급합니다. 이전 링크는 즉시 사용할 수 없고, 이전 링크 아래의 소명 내역도 새 링크에서는 보이지 않습니다.\n계속할까요?`)) return;
+  try{
+    const{db,doc,setDoc,deleteDoc}=window._fb;
+    const old=TOKENS[campus];
+    delete TOKENS[campus];
+    await ensureToken(campus);
+    if(old){try{await deleteDoc(doc(db,'weekly_campus',old));}catch(e){}}
+    renderLinks(); showToast(`${campus} 링크 발급됨`,'ok');
+  }catch(e){showToast('발급 실패: '+e.message,'err');}
+};
+window.copyCampusMail=function(campus){
+  const list=ITEMS.filter(i=>i.campus===campus&&(i.status==='open'||i.status==='rejected'));
+  const wk=ITEMS[0]?`${fmtMD(ITEMS[0].weekStart)} ~ ${fmtMD(ITEMS[0].weekEnd)}`:'';
+  const byName={};
+  list.forEach(i=>{(byName[i.name]=byName[i.name]||[]).push(`${fmtMD(i.date)} ${KIND_LABEL[i.kind]}${i.status==='rejected'?' [반려: '+(i.reviewNote||'')+']':''}`);});
+  const body=`[주간 근태 소명 요청] ${campus} · ${wk}
+
+원장님, 아래 ${list.length}건은 CAPS 출퇴근 기록이 없거나 한쪽만 있어 사유 확인이 필요합니다.
+연차관리 시스템에 승인된 전일 연차는 이미 제외했습니다.
+아래 링크에서 건별로 사유를 선택하고, 지류 연차신청서·근무 확인 자료가 있으면 사진으로 첨부해 주세요.
+
+▶ 소명 입력: ${linkFor(campus)}
+
+${Object.entries(byName).map(([n,ds])=>`• ${n}: ${ds.join(', ')}`).join('\n')}
+
+※ 회신 기한: 이번 주 목요일
+※ 모든 건에 사유가 들어가야 종결됩니다. 비근무요일은 "비근무요일"을 선택하면 다음 주부터 자동 제외됩니다.
+인사팀 드림`;
+  navigator.clipboard.writeText(body).then(()=>showToast('메일 본문 복사됨','ok'));
+};
+
+// ══════════════════════════════════════
+// 기준 관리 (비근무요일)
+// ══════════════════════════════════════
+window.renderSettings=function(){
+  const sel=$('nw-campus');
+  const camps=sortCampuses(Object.keys(PERSONS));
+  const cur=sel.value;
+  sel.innerHTML=camps.map(c=>`<option ${c===cur?'selected':''}>${c}</option>`).join('');
+  renderNonwork();
+};
+window.renderNonwork=function(){
+  const campus=$('nw-campus').value; if(!campus){$('nw-body').innerHTML='';return;}
+  const q=$('nw-search').value.trim().toLowerCase(), only=$('nw-only').checked;
+  const map=NONWORK[campus]||{};
+  const list=(PERSONS[campus]||[]).filter(p=>p.attendName&&!p.ignored).filter(p=>!q||p.attendName.toLowerCase().includes(q)||(p.payName||'').toLowerCase().includes(q)).filter(p=>!only||(map[p.attendName]||[]).length);
+  $('nw-body').innerHTML=list.map(p=>{
+    const arr=map[p.attendName]||[];
+    return `<tr><td><b>${esc(p.attendName)}</b></td><td>${esc(p.payName||'')}</td><td>${esc(p.posOverride||'')}</td><td><span class="dow-box">${[1,2,3,4,5].map(d=>`<label class="${arr.includes(d)?'on':''}"><input type="checkbox" ${arr.includes(d)?'checked':''} onchange="toggleNonwork('${esc(campus)}','${esc(p.attendName)}',${d},this.checked)">${DOW_KO[d]}</label>`).join('')}</span></td></tr>`;
+  }).join('')||'<tr><td colspan="4" class="hint">해당 없음</td></tr>';
+};
+window.toggleNonwork=function(campus,name,dow,on){
+  NONWORK[campus]=NONWORK[campus]||{};
+  let arr=NONWORK[campus][name]||[];
+  arr=on?[...new Set([...arr,dow])].sort():arr.filter(d=>d!==dow);
+  if(arr.length) NONWORK[campus][name]=arr; else delete NONWORK[campus][name];
+  renderNonwork();
+};
+window.saveNonwork=async function(){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  const campus=$('nw-campus').value; if(!campus) return;
+  try{await saveNonworkCampus(campus);showToast(`${campus} 비근무요일 저장됨`,'ok');}catch(e){showToast('저장 실패: '+e.message,'err');}
+};
+
+// ══════════════════════════════════════
+// 주차 기록
+// ══════════════════════════════════════
+window.renderHistory=function(){
+  if(!RUNS.length){$('history-list').innerHTML='<div class="empty"><div class="icon">💾</div><h3>발행된 주차가 없습니다</h3></div>';return;}
+  $('history-list').innerHTML=`<div class="twrap"><table><thead><tr><th>주차</th><th>소명 발행</th><th>캠퍼스</th><th>발행일시</th><th></th></tr></thead><tbody>${
+    RUNS.map(r=>`<tr><td class="mono"><b>${fmtMD(r.start)} ~ ${fmtMD(r.end)}</b></td><td class="mono">${r.total}건</td><td class="hint">${Object.entries(r.campuses||{}).filter(([c,v])=>v.soe).map(([c,v])=>`${c} ${v.soe}`).join(' · ')}</td><td class="mono">${(r.publishedAt||'').slice(0,16).replace('T',' ')}</td><td><button class="btn btn-ghost btn-sm" onclick="$('st-week').value='${r.weekKey}';loadWeekItems('${r.weekKey}');switchTab('status')">📨 소명 현황</button></td></tr>`).join('')}</tbody></table></div>`;
+};
+</script>
+</body>
+</html>
