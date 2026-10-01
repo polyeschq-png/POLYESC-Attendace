@@ -343,6 +343,8 @@ const CAMPUS_ALIASES = {
 };
 const MERGE_GROUPS = [['수지','수지2']];
 const SKIP_POSITIONS = ['본부장','본사'];
+// POLY안전선생님은 CAPS 근태체크가 어려워 주간 점검에서 제외하고 별도 관리 (추후 총무지원팀과 연계)
+const isSafetyTeacher = pos => /안전/.test(String(pos||''));
 const POS_MAP = [
   {key:'원장',      match:['원장']},
   {key:'부원장',    match:['부원장']},
@@ -527,6 +529,7 @@ function renderRuleBox(){
   · 출근·퇴근 둘 다 찍혀 있으면 통과. 하나라도 없으면 <b>소명 필요</b> (비율 기준 없음, 건별로 사유가 들어가야 종결)<br>
   · 빈칸이어도 연차관리 시스템에 <b>전일 연차(연차휴가·경조/기타)</b>가 승인돼 있으면 자동 종결. 반차·반반차는 힌트만 표시하고 소명 필요<br>
   · 공휴일·입사 전·퇴사 후·휴직자·제외직책(본부장·본사)·지정된 비근무요일은 제외<br>
+  · <b>POLY안전선생님은 점검 대상에서 제외</b> — 별도 관리 (추후 총무지원팀과 연계하여 실제 근무 여부 확인)<br>
   · 둘 다 찍혀 있어도 체류시간이 <b>${CONFIG.minHours}시간 미만</b>이면 "확인 필요" (정규직 09:00~18:00 = 9시간, 1시간 여유)`;
 }
 
@@ -831,6 +834,7 @@ window.runAnalysis=function(){
       const base={campus,group:gk,name:per.attendName||'',payName:per.payName||'',position:per.posOverride||'',posClass:pos};
       if(per.ignored){return;}
       if(SKIP_POSITIONS.includes(per.posOverride||'')){R.excluded.push({...base,date:'',why:'제외 직책'});return;}
+      if(isSafetyTeacher(per.posOverride)){R.excluded.push({...base,date:'',why:'안전선생님 (별도 관리 · 총무지원팀 연계)'});return;}
       if(per.isLeave){R.excluded.push({...base,date:'',why:'휴직자'});return;}
       if(!per.attendName){R.unmatched.push({campus:gk,name:per.payName,why:'마스터에 출퇴근 이름이 지정되지 않음 (인원관리에서 매칭 필요)',hint:''});return;}
       const caps=capsByName.get(per.attendName);
