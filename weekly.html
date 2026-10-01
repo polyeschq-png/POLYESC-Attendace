@@ -947,17 +947,22 @@ window.publishRequests=async function(){
       for(const r of byCampus[campus]){
         const id=itemId(WEEK.key,r.date,r.name);
         wanted.add(id);
-        if(existing.has(id)){kept++;continue;}
+        // 사진은 건 문서와 분리된 "{id}__ev" 문서에 저장 (목록을 읽을 때 사진까지 내려받지 않도록).
+        // 같은 items 컬렉션에 두는 이유: 원장 페이지가 로그인 없이 update만 할 수 있는 기존 규칙을 그대로 쓰기 위해.
+        // weekKey/status 필드가 없어서 주차·상태 조회에는 걸리지 않음. 발행 시 본사가 미리 만들어 둠(merge → 기존 사진 유지).
+        batch.set(doc(col,id+'__ev'),{type:'evidence',itemId:id,evWeek:WEEK.key,campus},{merge:true});
+        n++;
+        if(existing.has(id)){kept++;if(n>=400) await flush();continue;}
         batch.set(doc(col,id),{
           weekKey:WEEK.key,weekStart:WEEK.start,weekEnd:WEEK.end,campus,name:r.name,payName:r.payName,position:r.position,
           date:r.date,dow:DOW_KO[dowOf(r.date)],kind:r.kind,ci:r.ci||'',co:r.co||'',hint:r.hint||'',
-          status:'open',reason:'',memo:'',evidence:[],createdAt:new Date().toISOString(),createdBy:currentUser.email
+          status:'open',reason:'',memo:'',evidenceCount:0,createdAt:new Date().toISOString(),createdBy:currentUser.email
         });
         created++; n++;
         if(n>=400) await flush();
       }
       for(const [id,data] of existing){
-        if(!wanted.has(id)&&data.status==='open'){batch.delete(doc(col,id));removed++;n++;if(n>=400) await flush();}
+        if(!wanted.has(id)&&data.status==='open'){batch.delete(doc(col,id));batch.delete(doc(col,id+'__ev'));removed++;n+=2;if(n>=400) await flush();}
       }
       await flush();
     }
@@ -987,7 +992,7 @@ window.loadWeekItems=async function(weekKey){
   try{
     for(const [campus,token] of Object.entries(TOKENS)){
       const snap=await getDocs(query(collection(db,'weekly_campus',token,'items'),where('weekKey','==',weekKey)));
-      snap.forEach(d=>ITEMS.push({id:d.id,token,...d.data()}));
+      snap.forEach(d=>{const data=d.data();if(data.type==='evidence') return;ITEMS.push({id:d.id,token,...data});});
     }
   }catch(e){showToast('소명 현황 불러오기 실패: '+e.message,'err');}
   ITEMS.sort((a,b)=>a.campus.localeCompare(b.campus,'ko')||a.name.localeCompare(b.name,'ko')||a.date.localeCompare(b.date));
@@ -1019,7 +1024,8 @@ window.renderStatus=function(){
   $('st-content').innerHTML=toolbar+`<table><thead><tr><th>캠퍼스</th><th>이름</th><th>날짜</th><th>기록</th><th>사유</th><th>메모</th><th>증빙</th><th>상태</th><th>처리</th></tr></thead><tbody>${
     list.map(i=>{
       const idx=ITEMS.indexOf(i);
-      const ev=(i.evidence||[]).map((e,k)=>`<img class="thumb" src="${e.data}" onclick="openEvidence(${idx},${k})" title="${esc(e.name||'')}">`).join('');
+      const evN=i.evidenceCount||(i.evidence||[]).length;
+      const ev=evN?`<button class="btn btn-ghost btn-sm" onclick="openEvidence(${idx})">📎 ${evN}장</button>`:(i.evidenceCleared?'<span class="hint">정리됨</span>':'');
       const act=canEdit()?(
         i.status==='approved'?`<button class="btn btn-ghost btn-sm" onclick="reopenItem(${idx})">↩ 되돌림</button>`:
         `<button class="btn btn-teal btn-sm" onclick="approveItem(${idx})">✅ 승인</button> <button class="btn btn-danger btn-sm" onclick="rejectItem(${idx})">반려</button> <button class="btn btn-ghost btn-sm" onclick="hqEditItem(${idx})">✏️</button>`
@@ -1088,17 +1094,56 @@ window.hqSaveItem=async function(idx){
   try{await updateItem(it,{reason,memo,status:'replied',repliedAt:new Date().toISOString(),repliedBy:'HQ:'+currentUser.email});closeModal();renderStatus();}
   catch(e){showToast('저장 실패: '+e.message,'err');}
 };
-window.openEvidence=function(idx,k){
-  const it=ITEMS[idx]; const e=(it.evidence||[])[k]; if(!e) return;
-  $('modal-box').innerHTML=`<div class="kv"><b>캠퍼스</b><span>${esc(it.campus)}</span><b>이름</b><span>${esc(it.name)}</span><b>날짜</b><span>${fmtMD(it.date)}</span><b>사유</b><span>${esc(it.reason||'')}</span><b>메모</b><span>${esc(it.memo||'')}</span></div>
-    <img src="${e.data}"><div class="hint" style="text-align:center">${esc(e.name||'')}</div>
-    <div style="margin-top:12px;text-align:right"><button class="btn btn-ghost" onclick="closeModal()">닫기</button></div>`;
+// 사진은 눌렀을 때만 "{id}__ev" 문서에서 내려받음 (한 번 받은 건 캐시)
+const EVCACHE={};
+window.openEvidence=async function(idx){
+  const it=ITEMS[idx];
+  const head=`<div class="kv"><b>캠퍼스</b><span>${esc(it.campus)}</span><b>이름</b><span>${esc(it.name)}</span><b>날짜</b><span>${fmtMD(it.date)}</span><b>사유</b><span>${esc(it.reason||'')}</span><b>메모</b><span>${esc(it.memo||'')}</span></div>`;
+  $('modal-box').innerHTML=head+'<div class="empty">사진 불러오는 중…</div>';
   $('modal').classList.add('show');
+  let imgs=EVCACHE[it.id];
+  if(!imgs){
+    try{
+      const{db,doc,getDoc}=window._fb;
+      const s=await getDoc(doc(db,'weekly_campus',it.token,'items',it.id+'__ev'));
+      imgs=s.exists()?(s.data().images||[]):[];
+    }catch(e){imgs=[];}
+    if(!imgs.length&&(it.evidence||[]).length) imgs=it.evidence; // 초기 버전(건 안에 사진 내장) 호환
+    EVCACHE[it.id]=imgs;
+  }
+  $('modal-box').innerHTML=head+(imgs.length?imgs.map(e=>`<img src="${e.data}"><div class="hint" style="text-align:center;margin-bottom:10px">${esc(e.name||'')}</div>`).join(''):'<div class="empty">첨부된 사진이 없습니다</div>')+
+    `<div style="margin-top:12px;text-align:right"><button class="btn btn-ghost" onclick="closeModal()">닫기</button></div>`;
+};
+// 승인 완료 건의 사진만 삭제해 저장 용량 회수 (글자 기록·엑셀은 그대로)
+window.cleanupEvidence=async function(weekKey){
+  if(!canEdit()) return;
+  if(!confirm(`${fmtMD(weekKey)} 주차의 "승인 완료" 건에 첨부된 사진을 모두 삭제합니다.\n사유·메모·승인 기록은 남고 사진만 지워집니다. 되돌릴 수 없습니다.\n진행할까요?`)) return;
+  const{db,doc,collection,getDocs,query,where,writeBatch}=window._fb;
+  let cleared=0;
+  try{
+    for(const [campus,token] of Object.entries(TOKENS)){
+      const col=collection(db,'weekly_campus',token,'items');
+      const snap=await getDocs(query(col,where('weekKey','==',weekKey),where('status','==','approved')));
+      let batch=writeBatch(db),n=0;
+      for(const d of snap.docs){
+        const it=d.data();
+        if(!(it.evidenceCount>0)&&!(it.evidence||[]).length) continue;
+        batch.set(doc(col,d.id+'__ev'),{images:[],clearedAt:new Date().toISOString()},{merge:true});
+        batch.update(doc(col,d.id),{evidenceCount:0,evidence:[],evidenceCleared:true});
+        delete EVCACHE[d.id];
+        cleared++;n+=2;
+        if(n>=400){await batch.commit();batch=writeBatch(db);n=0;}
+      }
+      if(n) await batch.commit();
+    }
+    showToast(`사진 정리 완료: ${cleared}건`,'ok');
+    if($('st-week').value===weekKey) loadWeekItems(weekKey);
+  }catch(e){showToast('정리 실패: '+e.message,'err');}
 };
 window.closeModal=function(){$('modal').classList.remove('show');};
 window.exportStatusXlsx=function(){
   if(!ITEMS.length) return;
-  const rows=ITEMS.map(i=>({주차:i.weekKey,캠퍼스:i.campus,이름:i.name,급여대장이름:i.payName,직책:i.position,날짜:i.date,요일:i.dow,기록:KIND_LABEL[i.kind]||i.kind,연차힌트:i.hint,사유:i.reason,메모:i.memo,증빙수:(i.evidence||[]).length,상태:STATUS_LABEL[i.status]||i.status,회신시각:i.repliedAt||'',검토자:i.reviewedBy||'',반려사유:i.reviewNote||''}));
+  const rows=ITEMS.map(i=>({주차:i.weekKey,캠퍼스:i.campus,이름:i.name,급여대장이름:i.payName,직책:i.position,날짜:i.date,요일:i.dow,기록:KIND_LABEL[i.kind]||i.kind,연차힌트:i.hint,사유:i.reason,메모:i.memo,증빙수:i.evidenceCount||(i.evidence||[]).length,증빙정리:i.evidenceCleared?'Y':'',상태:STATUS_LABEL[i.status]||i.status,회신시각:i.repliedAt||'',검토자:i.reviewedBy||'',반려사유:i.reviewNote||''}));
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'소명현황');
   const paper=ITEMS.filter(i=>/지류/.test(i.reason||'')).map(i=>({캠퍼스:i.campus,이름:i.name,급여대장이름:i.payName,날짜:i.date,사유:i.reason,메모:i.memo,상태:STATUS_LABEL[i.status]}));
@@ -1197,8 +1242,9 @@ window.saveNonwork=async function(){
 // ══════════════════════════════════════
 window.renderHistory=function(){
   if(!RUNS.length){$('history-list').innerHTML='<div class="empty"><div class="icon">💾</div><h3>발행된 주차가 없습니다</h3></div>';return;}
-  $('history-list').innerHTML=`<div class="twrap"><table><thead><tr><th>주차</th><th>소명 발행</th><th>캠퍼스</th><th>발행일시</th><th></th></tr></thead><tbody>${
-    RUNS.map(r=>`<tr><td class="mono"><b>${fmtMD(r.start)} ~ ${fmtMD(r.end)}</b></td><td class="mono">${r.total}건</td><td class="hint">${Object.entries(r.campuses||{}).filter(([c,v])=>v.soe).map(([c,v])=>`${c} ${v.soe}`).join(' · ')}</td><td class="mono">${(r.publishedAt||'').slice(0,16).replace('T',' ')}</td><td><button class="btn btn-ghost btn-sm" onclick="$('st-week').value='${r.weekKey}';loadWeekItems('${r.weekKey}');switchTab('status')">📨 소명 현황</button></td></tr>`).join('')}</tbody></table></div>`;
+  $('history-list').innerHTML=`<div class="info-box">사진은 무료 요금제 저장 한도(1GB)를 차지합니다. 검토가 끝난 주차는 <b>🧹 사진 정리</b>로 승인 완료 건의 사진만 지워 용량을 회수하세요. 사유·메모·승인 기록과 엑셀은 그대로 남습니다.</div>
+  <div class="twrap"><table><thead><tr><th>주차</th><th>소명 발행</th><th>캠퍼스</th><th>발행일시</th><th></th></tr></thead><tbody>${
+    RUNS.map(r=>`<tr><td class="mono"><b>${fmtMD(r.start)} ~ ${fmtMD(r.end)}</b></td><td class="mono">${r.total}건</td><td class="hint">${Object.entries(r.campuses||{}).filter(([c,v])=>v.soe).map(([c,v])=>`${c} ${v.soe}`).join(' · ')}</td><td class="mono">${(r.publishedAt||'').slice(0,16).replace('T',' ')}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="$('st-week').value='${r.weekKey}';loadWeekItems('${r.weekKey}');switchTab('status')">📨 소명 현황</button> ${canEdit()?`<button class="btn btn-ghost btn-sm" onclick="cleanupEvidence('${r.weekKey}')">🧹 사진 정리</button>`:''}</td></tr>`).join('')}</tbody></table></div>`;
 };
 </script>
 </body>

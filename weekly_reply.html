@@ -7,11 +7,11 @@
 <link rel="icon" type="image/png" href="Poly_Emblem_Blue_B.png">
 <script type="module">
   import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
-  import{getFirestore,doc,getDoc,updateDoc,collection,getDocs}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
+  import{getFirestore,doc,getDoc,updateDoc,collection,getDocs,query,where}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
   const CFG={apiKey:"AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",authDomain:"polyesc-attendance.firebaseapp.com",projectId:"polyesc-attendance",storageBucket:"polyesc-attendance.firebasestorage.app",messagingSenderId:"430669631304",appId:"1:430669631304:web:eb06ac4ba8d1d5108fed7d"};
   const app=initializeApp(CFG);
   const db=getFirestore(app);
-  window._fb={db,doc,getDoc,updateDoc,collection,getDocs};
+  window._fb={db,doc,getDoc,updateDoc,collection,getDocs,query,where};
   window._fbReady=true;
 </script>
 <style>
@@ -44,7 +44,7 @@ select:focus,input:focus{border-color:var(--green-dk)}
 .hint{font-size:12px;color:var(--text3)}
 .rej{font-size:13px;color:var(--orange);background:#fff4ed;border-radius:6px;padding:6px 9px;margin-bottom:8px}
 .row{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
-.thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
 .thumb{position:relative;width:64px;height:64px}
 .thumb img{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
 .thumb .x{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid #fff}
@@ -54,7 +54,7 @@ select:focus,input:focus{border-color:var(--green-dk)}
 .footer .prog{flex:1;font-size:13px;color:var(--text2)}
 .bar{height:6px;background:var(--bg);border-radius:99px;overflow:hidden;border:1px solid var(--border);margin-top:4px}
 .bar>div{height:100%;background:var(--teal)}
-.toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%) translateY(40px);background:#1e2a3a;color:#fff;padding:10px 16px;border-radius:99px;font-size:13px;opacity:0;transition:all .3s;z-index:99;white-space:nowrap}
+.toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%) translateY(40px);background:#1e2a3a;color:#fff;padding:10px 16px;border-radius:99px;font-size:13px;opacity:0;transition:all .3s;z-index:99;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .done-toggle{font-size:13px;color:var(--text2);cursor:pointer;text-decoration:underline;margin:4px 2px 10px}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center;padding:10px}
@@ -74,7 +74,7 @@ select:focus,input:focus{border-color:var(--green-dk)}
   </div>
   <div class="info" id="guide" style="display:none">
     CAPS 출퇴근 기록이 없거나 한쪽만 있는 날입니다. 건마다 <b>사유를 선택</b>하고 저장해 주세요.
-    지류 연차신청서·근무 확인 자료(사진)가 있으면 첨부하면 검토가 빨라집니다.
+    지류 연차신청서·근무 확인 자료(사진)가 있으면 첨부하면 검토가 빨라집니다 (건당 2장).
     본사 승인까지 끝나야 종결됩니다. 반려된 건은 사유를 고쳐 다시 저장하세요.
   </div>
   <div id="list"></div>
@@ -91,12 +91,13 @@ const REASONS=['지류 연차 (연차신청서)','반차·반반차','CAPS 미�
 const KIND_LABEL={none:'기록 없음',ci_only:'퇴근 누락',co_only:'출근 누락',absent_all:'CAPS에 이름 없음'};
 const STATUS_LABEL={open:'미회신',replied:'회신 완료 · 본사 검토 중',approved:'승인 (종결)',rejected:'반려 · 다시 회신 필요'};
 const DOW_KO=['일','월','화','수','목','금','토'];
-const MAX_IMG=3, MAX_ITEM_BYTES=800*1024;
+const MAX_IMG=2, MAX_EV_BYTES=600*1024, RECENT_WEEKS=8;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 let TOKEN='',CAMPUS='',ITEMS=[],showDone=false;
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600);}
 function fmtMD(s){const [y,m,d]=s.split('-').map(Number);return `${m}/${d}(${DOW_KO[new Date(y,m-1,d).getDay()]})`;}
+function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 
 window.addEventListener('DOMContentLoaded',()=>{
   TOKEN=new URLSearchParams(location.search).get('t')||'';
@@ -115,16 +116,23 @@ async function init(){
   $('h-title').textContent=`${CAMPUS} 주간 근태 소명`;
   await loadItems();
 }
+// 최근 8주 + (그보다 오래됐어도) 미회신·반려 건만 읽음. 사진 문서("__ev")는 weekKey/status가 없어 여기 걸리지 않음 → 누를 때만 내려받음
 async function loadItems(){
-  const{db,collection,getDocs}=window._fb;
-  ITEMS=[];
-  const snap=await getDocs(collection(db,'weekly_campus',TOKEN,'items'));
-  snap.forEach(d=>ITEMS.push({id:d.id,...d.data(),_reason:d.data().reason||'',_memo:d.data().memo||'',_ev:(d.data().evidence||[]).slice(),_dirty:false}));
+  const{db,collection,getDocs,query,where}=window._fb;
+  const col=collection(db,'weekly_campus',TOKEN,'items');
+  const cut=new Date(); cut.setDate(cut.getDate()-7*RECENT_WEEKS);
+  const [recent,open]=await Promise.all([
+    getDocs(query(col,where('weekKey','>=',ymd(cut)))),
+    getDocs(query(col,where('status','in',['open','rejected']))),
+  ]);
+  const map=new Map();
+  [recent,open].forEach(snap=>snap.forEach(d=>{const x=d.data();if(x.type==='evidence'||!x.weekKey) return;map.set(d.id,x);}));
+  ITEMS=[...map.entries()].map(([id,x])=>({id,...x,_reason:x.reason||'',_memo:x.memo||'',_ev:[],_evLoaded:!(x.evidenceCount>0),_evTouched:false,_dirty:false}));
   const weeks=[...new Set(ITEMS.map(i=>i.weekKey))].sort().reverse();
   if(!weeks.length){$('h-sub').textContent='소명 요청 없음';$('msg').innerHTML='<div class="info">현재 소명이 필요한 건이 없습니다.</div>';return;}
   const sel=$('week-sel');
   const cur=sel.value;
-  sel.innerHTML=weeks.map(w=>{const it=ITEMS.find(i=>i.weekKey===w);const open=ITEMS.filter(i=>i.weekKey===w&&(i.status==='open'||i.status==='rejected')).length;return `<option value="${w}">${fmtMD(it.weekStart||w)} ~ ${fmtMD(it.weekEnd||w)} ${open?`· 미회신 ${open}건`:'· 완료'}</option>`;}).join('');
+  sel.innerHTML=weeks.map(w=>{const it=ITEMS.find(i=>i.weekKey===w);const o=ITEMS.filter(i=>i.weekKey===w&&(i.status==='open'||i.status==='rejected')).length;return `<option value="${w}">${fmtMD(it.weekStart||w)} ~ ${fmtMD(it.weekEnd||w)} ${o?`· 미회신 ${o}건`:'· 완료'}</option>`;}).join('');
   const firstOpen=weeks.find(w=>ITEMS.some(i=>i.weekKey===w&&(i.status==='open'||i.status==='rejected')));
   sel.value=(cur&&weeks.includes(cur))?cur:(firstOpen||weeks[0]);
   $('week-card').style.display='block';$('guide').style.display='block';$('footer').style.display='flex';
@@ -156,6 +164,11 @@ function renderList(){
   if(showDone&&hiddenDone) html+=`<div class="done-toggle" onclick="showDone=false;renderList()">승인 완료 숨기기</div>`;
   $('list').innerHTML=html||'<div class="info">이 주차는 모두 종결되었습니다.</div>';
 }
+function evBlock(i,idx,editable){
+  if(!i._evLoaded) return `<div class="thumbs"><span class="chip chip-gray">📎 사진 ${i.evidenceCount}장</span><button class="btn btn-ghost btn-sm" onclick="loadEv(${idx})">보기</button></div>`;
+  if(!i._ev.length) return '';
+  return `<div class="thumbs">${i._ev.map((e,k)=>`<div class="thumb"><img src="${e.data}" onclick="viewImg(${idx},${k})">${editable?`<div class="x" onclick="removeImg(${idx},${k})">×</div>`:''}</div>`).join('')}</div>`;
+}
 function renderItem(i){
   const idx=ITEMS.indexOf(i);
   const ro=i.status==='approved';
@@ -164,7 +177,7 @@ function renderItem(i){
     <div class="item-top"><span class="date">${fmtMD(i.date)}</span><span class="chip chip-red">${KIND_LABEL[i.kind]||i.kind}</span>${i.ci?`<span class="hint">출근 ${esc(i.ci)}</span>`:''}${i.co?`<span class="hint">퇴근 ${esc(i.co)}</span>`:''}<span style="flex:1"></span><span class="chip ${chip}">${STATUS_LABEL[i.status]||i.status}</span></div>
     ${i.hint?`<div class="hint" style="margin-bottom:6px">ℹ️ ${esc(i.hint)}</div>`:''}
     ${i.status==='rejected'&&i.reviewNote?`<div class="rej">↩ 본사 반려: ${esc(i.reviewNote)}</div>`:''}
-    ${ro?`<div style="font-size:14px"><b>${esc(i.reason)}</b>${i.memo?` · ${esc(i.memo)}`:''}</div>${(i.evidence||[]).length?`<div class="thumbs">${i.evidence.map((e,k)=>`<div class="thumb"><img src="${e.data}" onclick="viewImg(${idx},${k})"></div>`).join('')}</div>`:''}`:
+    ${ro?`<div style="font-size:14px"><b>${esc(i.reason)}</b>${i.memo?` · ${esc(i.memo)}`:''}</div>${evBlock(i,idx,false)}`:
     `<select onchange="setField(${idx},'_reason',this.value)"><option value="">▼ 사유 선택</option>${REASONS.map(r=>`<option ${i._reason===r?'selected':''}>${r}</option>`).join('')}</select>
     <div class="row"><input type="text" placeholder="메모 (예: 9/29 연차신청서 제출, 외근 장소 등)" value="${esc(i._memo)}" oninput="setField(${idx},'_memo',this.value)"></div>
     <div class="row">
@@ -173,34 +186,45 @@ function renderItem(i){
       <span style="flex:1"></span>
       <button class="btn btn-primary btn-sm" onclick="saveItem(${idx})">${i._dirty?'💾 저장':'✔ 저장됨'}</button>
     </div>
-    ${i._ev.length?`<div class="thumbs">${i._ev.map((e,k)=>`<div class="thumb"><img src="${e.data}" onclick="viewImg(${idx},${k},true)"><div class="x" onclick="removeImg(${idx},${k})">×</div></div>`).join('')}</div>`:''}`}
+    ${evBlock(i,idx,true)}`}
   </div>`;
 }
 window.setField=function(idx,f,v){ITEMS[idx][f]=v;ITEMS[idx]._dirty=true;const b=document.querySelector(`#it-${idx} .btn-primary`);if(b)b.textContent='💾 저장';};
-window.viewImg=function(idx,k,draft){const e=draft?ITEMS[idx]._ev[k]:ITEMS[idx].evidence[k];if(!e)return;$('modal-img').src=e.data;$('modal').classList.add('show');};
-window.removeImg=function(idx,k){ITEMS[idx]._ev.splice(k,1);ITEMS[idx]._dirty=true;renderList();};
+window.viewImg=function(idx,k){const e=ITEMS[idx]._ev[k];if(!e)return;$('modal-img').src=e.data;$('modal').classList.add('show');};
+window.removeImg=function(idx,k){ITEMS[idx]._ev.splice(k,1);ITEMS[idx]._dirty=true;ITEMS[idx]._evTouched=true;renderList();};
+window.loadEv=async function(idx){
+  const it=ITEMS[idx]; if(it._evLoaded) return;
+  try{
+    const{db,doc,getDoc}=window._fb;
+    const s=await getDoc(doc(db,'weekly_campus',TOKEN,'items',it.id+'__ev'));
+    it._ev=s.exists()?(s.data().images||[]).slice():[];
+  }catch(e){toast('사진 불러오기 실패');return;}
+  it._evLoaded=true; renderList();
+};
 window.addImages=async function(idx,input){
   const files=Array.from(input.files); input.value='';
   const it=ITEMS[idx];
+  if(!it._evLoaded) await loadEv(idx);
   for(const f of files){
     if(it._ev.length>=MAX_IMG){toast(`사진은 ${MAX_IMG}장까지 첨부할 수 있습니다`);break;}
     try{const data=await resizeImage(f);it._ev.push({name:f.name,data,addedAt:new Date().toISOString()});}
     catch(e){toast('이미지 처리 실패: '+f.name);}
   }
-  it._dirty=true; renderList();
+  it._dirty=true; it._evTouched=true; renderList();
 };
+// 1024px · 화질 60%부터 줄여 장당 200KB 이내 (연차신청서 글씨가 읽히는 수준)
 function resizeImage(file){
   return new Promise((res,rej)=>{
     const url=URL.createObjectURL(file);
     const img=new Image();
     img.onload=()=>{
       URL.revokeObjectURL(url);
-      let w=img.width,h=img.height; const MAX=1280;
+      let w=img.width,h=img.height; const MAX=1024;
       if(w>MAX||h>MAX){const r=Math.min(MAX/w,MAX/h);w=Math.round(w*r);h=Math.round(h*r);}
       const c=document.createElement('canvas');c.width=w;c.height=h;
       c.getContext('2d').drawImage(img,0,0,w,h);
-      let q=0.72,out=c.toDataURL('image/jpeg',q);
-      while(out.length>300*1024&&q>0.35){q-=0.1;out=c.toDataURL('image/jpeg',q);}
+      let q=0.6,out=c.toDataURL('image/jpeg',q);
+      while(out.length>200*1024&&q>0.35){q-=0.1;out=c.toDataURL('image/jpeg',q);}
       res(out);
     };
     img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('load'));};
@@ -209,16 +233,21 @@ function resizeImage(file){
 }
 async function persist(it){
   const{db,doc,updateDoc}=window._fb;
-  const size=it._ev.reduce((a,e)=>a+e.data.length,0);
-  if(size>MAX_ITEM_BYTES) throw new Error('첨부 용량이 너무 큽니다. 사진 수를 줄여 주세요');
-  await updateDoc(doc(db,'weekly_campus',TOKEN,'items',it.id),{reason:it._reason,memo:it._memo,evidence:it._ev,status:'replied',repliedAt:new Date().toISOString(),repliedBy:'campus'});
-  it.reason=it._reason;it.memo=it._memo;it.evidence=it._ev.slice();it.status='replied';it._dirty=false;
+  if(it._evTouched){
+    const size=it._ev.reduce((a,e)=>a+e.data.length,0);
+    if(size>MAX_EV_BYTES) throw new Error('첨부 용량이 너무 큽니다. 사진 수를 줄여 주세요');
+    try{ await updateDoc(doc(db,'weekly_campus',TOKEN,'items',it.id+'__ev'),{images:it._ev,updatedAt:new Date().toISOString()}); }
+    catch(e){ throw new Error('사진 저장 실패 — 인사팀에 이 주차 소명요청을 다시 발행해 달라고 요청해 주세요'); }
+  }
+  await updateDoc(doc(db,'weekly_campus',TOKEN,'items',it.id),{reason:it._reason,memo:it._memo,evidenceCount:it._evLoaded?it._ev.length:(it.evidenceCount||0),status:'replied',repliedAt:new Date().toISOString(),repliedBy:'campus'});
+  it.reason=it._reason;it.memo=it._memo;it.status='replied';it._dirty=false;it._evTouched=false;
+  if(it._evLoaded) it.evidenceCount=it._ev.length;
 }
 window.saveItem=async function(idx){
   const it=ITEMS[idx];
   if(!it._reason){toast('사유를 선택해 주세요');return;}
   try{await persist(it);toast('저장되었습니다');renderList();}
-  catch(e){toast('저장 실패: '+e.message);}
+  catch(e){toast(e.message);}
 };
 window.saveAll=async function(){
   const wk=$('week-sel').value;
