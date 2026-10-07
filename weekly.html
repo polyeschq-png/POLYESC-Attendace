@@ -134,6 +134,7 @@ textarea{width:100%;min-height:120px;font-family:var(--mono);font-size:12px;line
   <div class="sb-section">
     <div class="sb-label">메뉴</div>
     <div class="sb-item active" data-tab="upload" onclick="switchTab('upload')"><span class="sb-icon">📁</span>주차·파일</div>
+    <div class="sb-item" data-tab="match" onclick="switchTab('match')"><span class="sb-icon">👥</span>미매칭 연동<span class="sb-cnt" id="sb-match">0</span></div>
     <div class="sb-item" data-tab="result" onclick="switchTab('result')"><span class="sb-icon">📊</span>분석 결과<span class="sb-cnt" id="sb-soe">0</span></div>
     <div class="sb-item" data-tab="status" onclick="switchTab('status')"><span class="sb-icon">📨</span>소명 현황<span class="sb-cnt" id="sb-open">0</span></div>
     <div class="sb-item" data-tab="links" onclick="switchTab('links')"><span class="sb-icon">🔗</span>캠퍼스 링크</div>
@@ -181,6 +182,7 @@ textarea{width:100%;min-height:120px;font-family:var(--mono);font-size:12px;line
         <p>파일명에 캠퍼스명이 있어야 자동 인식됩니다 (예: 광교_9월.xlsx). 주가 두 달에 걸치면 두 달 파일을 모두 올리세요.</p>
       </div>
       <div id="file-table" style="margin-top:12px"></div>
+      <div id="match-notice"></div>
     </div>
 
     <div class="card">
@@ -208,6 +210,12 @@ textarea{width:100%;min-height:120px;font-family:var(--mono);font-size:12px;line
     <button class="btn btn-primary" id="btn-analyze" onclick="runAnalysis()">🔍 분석 실행</button>
     <span class="hint" style="margin-left:10px" id="analyze-hint"></span>
   </div>
+</div>
+
+<!-- ═══════════ 미매칭 연동 ═══════════ -->
+<div class="panel" id="panel-match">
+  <div id="match-empty" class="card"><div class="empty"><div class="icon">👥</div><h3>CAPS 파일을 먼저 올리세요</h3><p>주차·파일 탭에서 CAPS 파일을 올리면 분석 실행 전에도 미매칭 인원이 여기에 바로 나타납니다.</p></div></div>
+  <div id="match-body" style="display:none"></div>
 </div>
 
 <!-- ═══════════ 분석 결과 ═══════════ -->
@@ -391,6 +399,7 @@ let ITEMS = [];           // 소명 현황 현재 주차 항목
 let RUNS = [];
 let currentUser=null, ROLE='report';
 let rTab='soe', rCampus='', stCampus='';
+let MATCH=null;           // 미매칭 계산 결과 (분석 실행과 무관하게 CAPS 파일·마스터로 바로 계산)
 
 // ══════════════════════════════════════
 // 공통 헬퍼
@@ -456,6 +465,7 @@ window.switchTab=function(tab){
   if(tab==='links') renderLinks();
   if(tab==='settings') renderSettings();
   if(tab==='history') renderHistory();
+  if(tab==='match') refreshMatchUI();
 };
 window.switchRTab=function(t){rTab=t;renderResults();};
 
@@ -652,7 +662,7 @@ function parseAttendSheet(rows){
 }
 function renderFileTable(){
   const el=$('file-table');
-  if(!FILES.length){el.innerHTML='<div class="hint">올린 파일 없음</div>';return;}
+  if(!FILES.length){el.innerHTML='<div class="hint">올린 파일 없음</div>';refreshMatchUI();return;}
   const months=WEEK?WEEK.months:[];
   const campOpts=sortCampuses([...new Set(Object.values(CAMPUS_ALIASES))]);
   el.innerHTML=`<div class="twrap"><table><thead><tr><th>파일</th><th>캠퍼스</th><th>월</th><th>인원</th><th></th></tr></thead><tbody>${
@@ -665,6 +675,7 @@ function renderFileTable(){
       <td><button class="btn btn-ghost btn-sm" onclick="FILES.splice(${i},1);renderFileTable()">✖</button></td>
     </tr>`).join('')}</tbody></table></div>
     <div class="hint" style="margin-top:6px">캠퍼스 ${new Set(FILES.filter(f=>f.campus).map(f=>f.campus)).size}개 · 마스터 캠퍼스 ${Object.keys(PERSONS).length}개</div>`;
+  refreshMatchUI();
 }
 
 // ══════════════════════════════════════
@@ -833,6 +844,10 @@ window.runAnalysis=function(opts={}){
   const validFiles=FILES.filter(f=>f.campus);
   if(!validFiles.length){showToast('CAPS 파일을 먼저 올리세요','err');return;}
   if(FILES.some(f=>!f.campus)){showToast('캠퍼스가 인식되지 않은 파일이 있습니다. 표에서 캠퍼스를 지정하세요','err');return;}
+  if(!opts.keepTab){
+    const U=calcUnmatched(), n=U.noAttend.length+U.capsOnly.length;
+    if(n&&!confirm(`미매칭 ${n}명(급여대장 ${U.noAttend.length}명 · CAPS ${U.capsOnly.length}명)은 판정에서 제외됩니다.\n그래도 분석할까요?\n\n[취소]를 누르면 미매칭 연동 탭으로 이동합니다.`)){switchTab('match');return;}
+  }
   // ATTEND[campus][month] = persons
   const ATTEND={};
   validFiles.forEach(f=>{if(!ATTEND[f.campus])ATTEND[f.campus]={};ATTEND[f.campus][f.month]=f.persons;});
@@ -919,7 +934,7 @@ window.runAnalysis=function(opts={}){
   RESULTS=R;
   $('sb-soe').textContent=R.soe.length;
   $('n-soe').textContent=R.soe.length;$('n-check').textContent=R.check.length;$('n-auto').textContent=R.auto.length;$('n-unmatched').textContent=R.unmatched.length;$('n-excluded').textContent=R.excluded.length;
-  $('result-warn').innerHTML=R.warnings.length?`<div class="warn-box">${R.warnings.map(esc).join('<br>')}</div>`:'';
+  $('result-warn').innerHTML=(R.unmatched.length?`<div class="warn-box" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">⚠ <b>판정 제외 인원 ${R.unmatched.length}명</b> — 미매칭 상태라 아래 소명·확인 목록에 반영되지 않았습니다.<button class="btn btn-primary btn-sm" onclick="switchTab('match')">미매칭 연동하기</button></div>`:'')+(R.warnings.length?`<div class="warn-box">${R.warnings.map(esc).join('<br>')}</div>`:'');
   $('result-week').textContent=`${fmtMD(WEEK.start)} ~ ${fmtMD(WEEK.end)}`;
   $('result-empty').style.display='none';$('result-body').style.display='block';
   $('analyze-hint').textContent=`분석 완료: 소명 필요 ${R.soe.length}건 · 확인 필요 ${R.check.length}건 · 연차 자동종결 ${R.auto.length}건`;
@@ -947,6 +962,7 @@ window.matchAssign=async function(campus,payName,attendName){
   p.attendName=attendName; p.matchType='manual';
   try{await savePersonsCampus(campus);showToast(`${payName} ↔ ${attendName} 연결 저장`,'ok');}
   catch(e){p.attendName=null;showToast('저장 실패: '+e.message,'err');return;}
+  refreshMatchUI();
   runAnalysis({keepTab:true});
 };
 window.matchFromSelect=function(sel,campus,payName){
@@ -965,6 +981,137 @@ window.matchIgnore=async function(campus,attendName){
   PERSONS[campus].push({payName:attendName,attendName,matchType:'ignored',ignored:true,note:'주간점검 무시처리',campus,posOverride:'',divOverride:'',isLeave:false,hireDate:'',leaveDate:''});
   try{await savePersonsCampus(campus);showToast(`${attendName} 무시 처리`,'ok');}
   catch(e){PERSONS[campus].pop();showToast('저장 실패: '+e.message,'err');return;}
+  refreshMatchUI();
+  runAnalysis({keepTab:true});
+};
+
+// ══════════════════════════════════════
+// 미매칭 연동 탭 (분석 실행 없이 CAPS 파일 + 마스터만으로 바로 계산)
+// ══════════════════════════════════════
+function calcUnmatched(){
+  const out={groups:[],noAttend:[],capsOnly:[],capsNames:{},freeMaster:{}};
+  const ATT={};
+  FILES.filter(f=>f.campus).forEach(f=>{(ATT[f.campus]=ATT[f.campus]||{})[f.month]=f.persons;});
+  [...new Set(Object.keys(ATT).map(groupKey))].forEach(gk=>{
+    const group=campusGroup(gk);
+    const persons=group.flatMap(c=>(PERSONS[c]||[]).map(p=>({...p,_campus:c})));
+    const capsCampus={};
+    group.forEach(c=>{Object.values(ATT[c]||{}).forEach(list=>list.forEach(p=>{if(!capsCampus[p.name]) capsCampus[p.name]=c;}));});
+    const masterAttendNames=new Set(persons.map(p=>p.attendName).filter(Boolean));
+    const capsNames=Object.keys(capsCampus).filter(n=>!masterAttendNames.has(n)).sort((a,b)=>a.localeCompare(b,'ko'));
+    out.groups.push(gk);
+    out.capsNames[gk]=capsNames;
+    out.freeMaster[gk]=persons.filter(p=>!p.attendName&&!p.ignored&&p.payName).map(p=>({campus:p._campus,payName:p.payName,position:p.posOverride||''}));
+    capsNames.forEach(name=>{
+      const cand=persons.find(p=>!p.attendName&&!p.ignored&&normName(baseNameOf(p.payName))===normName(name));
+      out.capsOnly.push({group:gk,campus:capsCampus[name]||gk,name,cand:cand?{campus:cand._campus,payName:cand.payName}:null});
+    });
+    persons.forEach(per=>{
+      if(per.ignored||per.attendName||per.isLeave) return;
+      if(SKIP_POSITIONS.includes(per.posOverride||'')||isSafetyTeacher(per.posOverride)) return;
+      const cand=capsNames.find(n=>normName(n)===normName(baseNameOf(per.payName)));
+      out.noAttend.push({group:gk,campus:per._campus,payName:per.payName||'',position:per.posOverride||'',cand:cand||''});
+    });
+  });
+  return out;
+}
+// 이름이 정확히 일치하는 연결 후보 (동명이인처럼 후보가 겹치면 제외 → 직접 선택)
+function collectSuggested(U){
+  const raw=[];
+  U.noAttend.forEach(r=>{if(r.cand) raw.push({group:r.group,campus:r.campus,payName:r.payName,attendName:r.cand});});
+  U.capsOnly.forEach(r=>{if(r.cand) raw.push({group:r.group,campus:r.cand.campus,payName:r.cand.payName,attendName:r.name});});
+  const byA=new Map(), byP=new Map(), keyOf=p=>`${p.campus}|${p.payName}|${p.attendName}`;
+  raw.forEach(p=>{
+    const a=`${p.group}|${p.attendName}`, pk=`${p.campus}|${p.payName}`;
+    if(!byA.has(a)) byA.set(a,new Set()); byA.get(a).add(keyOf(p));
+    if(!byP.has(pk)) byP.set(pk,new Set()); byP.get(pk).add(keyOf(p));
+  });
+  const seen=new Set(), pairs=[];
+  raw.forEach(p=>{
+    const k=keyOf(p); if(seen.has(k)) return; seen.add(k);
+    if(byA.get(`${p.group}|${p.attendName}`).size>1||byP.get(`${p.campus}|${p.payName}`).size>1) return;
+    pairs.push(p);
+  });
+  return pairs;
+}
+function refreshMatchUI(){
+  MATCH=calcUnmatched();
+  const n=MATCH.noAttend.length+MATCH.capsOnly.length;
+  const b=$('sb-match');
+  if(b){b.textContent=n;b.style.background=n?'var(--red)':'';b.style.color=n?'#fff':'';}
+  const nt=$('match-notice');
+  if(nt){
+    nt.innerHTML=n?`<div class="warn-box" style="margin:12px 0 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">⚠ <b>미매칭 ${n}명</b> — 연결하기 전에는 판정에서 빠집니다.<button class="btn btn-primary btn-sm" onclick="switchTab('match')">미매칭 연동하러 가기</button></div>`
+      :(FILES.some(f=>f.campus)?'<div class="hint" style="margin-top:8px">✅ 미매칭 없음</div>':'');
+  }
+  renderMatchPanel();
+}
+function renderMatchPanel(){
+  const U=MATCH||calcUnmatched();
+  const has=FILES.some(f=>f.campus);
+  $('match-empty').style.display=has?'none':'block';
+  $('match-body').style.display=has?'block':'none';
+  if(!has) return;
+  const edit=canEdit();
+  const total=U.noAttend.length+U.capsOnly.length;
+  const sug=collectSuggested(U).length;
+  const opt=(v,label,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(label)}</option>`;
+  let html=`<div class="card">
+    <div class="fbar" style="margin-bottom:0">
+      <span style="font-weight:700">${total?`미매칭 ${total}명`:'✅ 미매칭 없음'}</span>
+      ${total?`<span class="chip chip-purple">① 급여대장 ${U.noAttend.length}</span><span class="chip chip-purple">② CAPS ${U.capsOnly.length}</span>`:''}
+      <span style="flex:1"></span>
+      ${edit&&sug?`<button class="btn btn-primary" onclick="matchAllSuggested()">✨ 이름 일치 ${sug}건 한 번에 연결</button>`:''}
+    </div>
+    <div class="hint" style="margin-top:8px">${total?'① 급여대장에는 있는데 CAPS 이름이 없는 사람과 ② CAPS에만 있는 이름은 연결하기 전까지 판정에서 빠집니다. 연결하면 마스터에 저장되고 다음 주부터 자동으로 맞습니다. 이름이 비슷해도 자동으로 묶지 않으니 직접 골라 주세요.':'올린 CAPS 파일의 모든 이름이 마스터와 연결되어 있습니다. 주차·파일 탭에서 분석을 실행하세요.'}</div>
+  </div>`;
+  const clean=[];
+  sortCampuses(U.groups).forEach(gk=>{
+    const na=U.noAttend.filter(r=>r.group===gk), co=U.capsOnly.filter(r=>r.group===gk);
+    if(!na.length&&!co.length){clean.push(gk);return;}
+    html+=`<div class="card"><div class="card-title">${esc(gk)} <span class="chip chip-purple">${na.length+co.length}</span></div>`;
+    if(na.length){
+      const names=U.capsNames[gk]||[];
+      html+=`<div class="hint" style="margin-bottom:6px">① 급여대장에 있는데 CAPS 이름이 없는 사람 (${na.length}명)</div><div class="twrap" style="margin-bottom:14px"><table><thead><tr><th>급여대장 이름</th><th>직책</th><th>CAPS 이름 고르기</th></tr></thead><tbody>${na.map(r=>{
+        const sel=edit?`<select class="match-sel ${r.cand?'ok':''}" onchange="matchFromSelect(this,'${esc(r.campus)}','${esc(r.payName)}')">${opt('','▼ 선택',!r.cand)}${names.map(n=>opt(n,n,n===r.cand)).join('')}${opt('__custom','(직접 입력…)',false)}</select>${r.cand?` <button class="btn btn-primary btn-sm" onclick="matchAssign('${esc(r.campus)}','${esc(r.payName)}','${esc(r.cand)}')">✔ "${esc(r.cand)}" 연결</button>`:''}`:'<span class="hint">권한 없음</span>';
+        return `<tr><td><b>${esc(r.payName)}</b>${r.campus!==gk?` <span class="hint">· ${esc(r.campus)}</span>`:''}</td><td>${esc(r.position)}</td><td>${sel}</td></tr>`;}).join('')}</tbody></table></div>`;
+    }
+    if(co.length){
+      const cands=U.freeMaster[gk]||[];
+      html+=`<div class="hint" style="margin-bottom:6px">② CAPS에는 있는데 마스터에 없는 이름 (${co.length}명)</div><div class="twrap"><table><thead><tr><th>CAPS 이름</th><th>급여대장 사람 고르기</th><th></th></tr></thead><tbody>${co.map(r=>{
+        const cv=r.cand?`${r.cand.campus}|${r.cand.payName}`:'';
+        const sel=edit?`<select class="match-sel ${r.cand?'ok':''}" onchange="matchCapsToMaster(this,'${esc(r.name)}')">${opt('','▼ 선택',!r.cand)}${cands.map(c=>opt(`${c.campus}|${c.payName}`,`${c.payName}${c.position?' ('+c.position+')':''}${c.campus!==gk?' · '+c.campus:''}`,`${c.campus}|${c.payName}`===cv)).join('')}</select>${r.cand?` <button class="btn btn-primary btn-sm" onclick="matchAssign('${esc(r.cand.campus)}','${esc(r.cand.payName)}','${esc(r.name)}')">✔ "${esc(r.cand.payName)}" 연결</button>`:''}`:'<span class="hint">권한 없음</span>';
+        return `<tr><td><b>${esc(r.name)}</b>${r.campus!==gk?` <span class="hint">· ${esc(r.campus)}</span>`:''}</td><td>${sel}</td><td>${edit?`<button class="btn btn-ghost btn-sm" onclick="matchIgnore('${esc(r.campus)}','${esc(r.name)}')">점검 대상 아님</button>`:''}</td></tr>`;}).join('')}</tbody></table></div>`;
+    }
+    html+='</div>';
+  });
+  if(clean.length) html+=`<div class="hint">✅ 이상 없는 캠퍼스: ${clean.map(esc).join(', ')}</div>`;
+  $('match-body').innerHTML=html;
+}
+window.matchAllSuggested=async function(){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  const pairs=collectSuggested(calcUnmatched());
+  if(!pairs.length){showToast('연결할 추천 건이 없습니다','err');return;}
+  if(!confirm(`이름이 정확히 일치하는 ${pairs.length}건을 마스터에 연결합니다.\n(동명이인 등 후보가 겹치는 건은 제외되며 직접 선택해야 합니다)\n진행할까요?`)) return;
+  const byC={};
+  pairs.forEach(({campus,payName,attendName})=>{
+    const p=(PERSONS[campus]||[]).find(x=>x.payName===payName&&!x.attendName&&!x.ignored);
+    if(!p||attendNameInUse(groupKey(campus),attendName)) return;
+    p.attendName=attendName; p.matchType='manual';
+    (byC[campus]=byC[campus]||[]).push(p);
+  });
+  const saved=new Set(); let ok=0;
+  for(const c of Object.keys(byC)){
+    try{await savePersonsCampus(c);saved.add(c);ok+=byC[c].length;}
+    catch(e){
+      Object.keys(byC).filter(x=>!saved.has(x)).forEach(x=>byC[x].forEach(p=>{p.attendName=null;}));
+      showToast(`${c} 저장 실패: ${e.message}`+(ok?` (앞선 ${ok}건은 저장됨)`:''),'err');
+      refreshMatchUI();
+      return;
+    }
+  }
+  showToast(`${ok}건 연결 저장`,'ok');
+  refreshMatchUI();
   runAnalysis({keepTab:true});
 };
 
@@ -1042,7 +1189,7 @@ window.publishRequests=async function(){
   const byCampus={};
   RESULTS.soe.forEach(r=>{(byCampus[r.campus]=byCampus[r.campus]||[]).push(r);});
   const camps=Object.keys(byCampus);
-  if(!confirm(`${fmtMD(WEEK.start)}~${fmtMD(WEEK.end)} 소명요청 ${RESULTS.soe.length}건을 ${camps.length}개 캠퍼스 링크에 올립니다.\n이미 올라간 건은 회신 내용을 유지하고, 이번 분석에서 사라진 미회신 건은 삭제합니다.\n진행할까요?`)) return;
+  if(!confirm(`${RESULTS.unmatched.length?`⚠ 미매칭 ${RESULTS.unmatched.length}명은 판정에서 제외된 상태입니다.\n\n`:''}${fmtMD(WEEK.start)}~${fmtMD(WEEK.end)} 소명요청 ${RESULTS.soe.length}건을 ${camps.length}개 캠퍼스 링크에 올립니다.\n이미 올라간 건은 회신 내용을 유지하고, 이번 분석에서 사라진 미회신 건은 삭제합니다.\n진행할까요?`)) return;
   const{db,doc,collection,getDocs,query,where,writeBatch}=window._fb;
   const btn=$('btn-publish'); btn.disabled=true;
   let created=0,kept=0,removed=0;
