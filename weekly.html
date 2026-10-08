@@ -1125,6 +1125,17 @@ window.assignUnsorted=function(name,campus){
   moveUnsorted([{name,campus}]);
   showToast(`${name} → ${campus} 지정`,'ok');
 };
+window.ignoreUnsorted=async function(name,campus){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  if(!campus){showToast('무시 처리를 기록할 캠퍼스를 먼저 선택하세요','err');return;}
+  if(!confirm(`"${name}"을(를) 점검 대상이 아닌 이름으로 표시할까요?\n(외부 인력·본사 직원 등. ${campus} 마스터에 "무시"로 기록되어 전체 근로자 분석에서도 제외됩니다)\n\n신규 입사자라면 누르지 마세요.`)) return;
+  const r=await applyMatchOps([],[{campus,attendName:name}]);
+  if(!r) return;
+  if(!r.ignores){showToast('이미 다른 사람에게 연결된 이름이라 처리하지 못했습니다','err');return;}
+  moveUnsorted([{name,campus}]); // 미분류에서 빼고 해당 캠퍼스(무시 처리됨)로 이동
+  showToast(`${name} 무시 처리 (${campus})`,'ok');
+  runAnalysis({keepTab:true});
+};
 window.assignUnsortedAll=function(){
   if(!canEdit()){showToast('권한이 없습니다','err');return;}
   const U=MATCH||calcUnmatched();
@@ -1142,9 +1153,9 @@ function matchGroupHtml(U,gk,edit){
     const rows=co.map(r=>({r,inf:unsortedInfo(r.name)}));
     const sugN=rows.filter(x=>x.inf.guess).length;
     return `<div class="card-title" style="margin:16px 14px 6px">캠퍼스를 정하지 못한 이름 <span class="chip chip-purple">${co.length}</span>${edit&&sugN?` <button class="btn btn-primary btn-sm" onclick="assignUnsortedAll()">✨ 추천 캠퍼스 ${sugN}건 한 번에 지정</button>`:''}</div>
-    <div class="hint" style="margin:0 14px 8px">전체 파일에서 마스터에 연결된 이름이 없어 캠퍼스를 알 수 없는 사람입니다. 캠퍼스를 지정하면 그 캠퍼스의 ② 목록으로 옮겨져 급여대장 이름과 연결할 수 있습니다. 급여대장에 같은 이름이 한 캠퍼스에만 있으면 그 캠퍼스가 미리 선택됩니다. 판정에서는 지정하기 전까지 제외됩니다.</div>
+    <div class="hint" style="margin:0 14px 8px">전체 파일에서 마스터에 연결된 이름이 없어 캠퍼스를 알 수 없는 사람입니다. 캠퍼스를 지정하면 그 캠퍼스의 ② 목록으로 옮겨져 급여대장 이름과 연결할 수 있습니다. 급여대장에 같은 이름이 한 캠퍼스에만 있으면 그 캠퍼스가 미리 선택됩니다. 판정에서는 지정하기 전까지 제외됩니다. 외부 인력·본사 직원처럼 점검 대상이 아닌 이름은 캠퍼스를 고른 뒤 "점검 대상 아님"을 누르세요 (신규 입사자에게는 누르지 마세요).</div>
     <table><thead><tr><th>CAPS 이름</th><th>사유</th><th>캠퍼스 지정</th></tr></thead><tbody>${rows.map(({r,inf})=>{
-      const sel=edit?`<select class="match-sel ${inf.guess?'ok':''}"><option value="">▼ 선택</option>${camps.map(c=>`<option value="${esc(c)}" ${c===inf.guess?'selected':''}>${esc(c)}</option>`).join('')}</select> <button class="btn btn-primary btn-sm" onclick="assignUnsorted('${esc(r.name)}',this.previousElementSibling.value)">✔ 지정</button>`:'<span class="hint">권한 없음</span>';
+      const sel=edit?`<select class="match-sel ${inf.guess?'ok':''}"><option value="">▼ 선택</option>${camps.map(c=>`<option value="${esc(c)}" ${c===inf.guess?'selected':''}>${esc(c)}</option>`).join('')}</select> <button class="btn btn-primary btn-sm" onclick="assignUnsorted('${esc(r.name)}',this.parentElement.querySelector('select').value)">✔ 지정</button> <button class="btn btn-ghost btn-sm" onclick="ignoreUnsorted('${esc(r.name)}',this.parentElement.querySelector('select').value)">점검 대상 아님</button>`:'<span class="hint">권한 없음</span>';
       return `<tr><td><b>${esc(r.name)}</b></td><td class="hint">${esc(inf.why)}</td><td>${sel}</td></tr>`;}).join('')}</tbody></table>`;
   }
   const na=U.noAttend.filter(r=>r.group===gk), co=U.capsOnly.filter(r=>r.group===gk);
