@@ -563,7 +563,7 @@ async function restoreWeekInputs(){
     const files=[];
     snap.forEach(d=>{const x=d.data();files.push({name:x.name,campus:x.campus,month:x.month,persons:x.persons||[],saved:true});});
     const lv=await getDoc(doc(db,'weekly_leaves',WEEK.key));
-    FILES=files;
+    FILES=files.map(f=>f.campus==='미분류'?{...f,persons:f.persons.filter(p=>!files.some(o=>o.campus!=='미분류'&&o.month===f.month&&o.persons.some(q=>q.name===p.name)))}:f).filter(f=>f.campus!=='미분류'||f.persons.length);
     LEAVES=lv.exists()?(lv.data().leaves||[]):[];
     RESULTS=null; $('result-empty').style.display='block'; $('result-body').style.display='none'; $('sb-soe').textContent='0';
     renderFileTable();
@@ -610,10 +610,11 @@ window.loadCapsFiles=function(input){
         const parsed=parseAttendSheet(rows);
         if(!parsed.persons.length){showToast(`${file.name}: 인원 0명 — 파일 형식을 확인하세요 (${parsed.error||''})`,'err');return;}
         const month=detectMonthFromFilename(file.name)||(WEEK?WEEK.months[WEEK.months.length-1]:'');
+        if(!campus){splitCombinedFile(file.name,month,parsed.persons);return;}
         FILES=FILES.filter(f=>!(f.campus===campus&&f.month===month&&campus));
-        FILES.push({name:file.name,campus:campus||'',month,persons:parsed.persons,saved:false});
+        FILES.push({name:file.name,campus,month,persons:parsed.persons,saved:false});
         renderFileTable();
-        showToast(`${campus||'캠퍼스 미인식'} ${parsed.persons.length}명 로드`,campus?'ok':'err');
+        showToast(`${campus} ${parsed.persons.length}명 로드`,'ok');
       }catch(err){showToast(`${file.name} 읽기 실패: ${err.message}`,'err');}
     };
     reader.readAsArrayBuffer(file);
@@ -663,6 +664,51 @@ function parseAttendSheet(rows){
   }
   return {persons};
 }
+// ── 전체 인원이 한 파일에 든 CAPS 파일: 마스터(workers_persons)의 출퇴근 이름으로 캠퍼스를 나눔 ──
+// 마스터에 연결된 이름(attendName)이 정확히 일치하고 한 캠퍼스에만 있을 때만 자동 분류. 그 외는 '미분류'로 남겨 직접 지정.
+function classifyCapsNames(persons){
+  const idx=new Map();
+  Object.entries(PERSONS).forEach(([c,list])=>list.forEach(p=>{
+    if(!p.attendName) return;
+    if(!idx.has(p.attendName)) idx.set(p.attendName,new Set());
+    idx.get(p.attendName).add(c);
+  }));
+  return persons.map(p=>{
+    const set=idx.get(p.name);
+    if(!set) return {p,campus:''};
+    const groups=new Set([...set].map(groupKey));
+    return {p,campus:groups.size===1?[...set][0]:''};
+  });
+}
+function splitCombinedFile(fileName,month,persons){
+  const cls=classifyCapsNames(persons);
+  const classified=cls.filter(x=>x.campus);
+  const groups=new Set(classified.map(x=>groupKey(x.campus)));
+  const put=(campus,list,label)=>{
+    FILES=FILES.filter(f=>!(f.campus===campus&&f.month===month));
+    FILES.push({name:fileName+label,campus,month,persons:list,saved:false});
+  };
+  if(groups.size===0){ // 마스터와 연결된 이름이 없음 → 기존처럼 표에서 캠퍼스를 직접 지정
+    FILES.push({name:fileName,campus:'',month,persons:persons,saved:false});
+    renderFileTable();
+    showToast(`${fileName}: 캠퍼스 미인식 (표에서 캠퍼스를 지정하세요)`,'err');
+    return;
+  }
+  if(groups.size===1){ // 한 캠퍼스(그룹)만 확인됨 → 캠퍼스별 파일로 보고 통째로 그 캠퍼스에 넣음
+    const cnt={}; classified.forEach(x=>{cnt[x.campus]=(cnt[x.campus]||0)+1;});
+    const c=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+    put(c,persons,'');
+    renderFileTable();
+    showToast(`${c} ${persons.length}명 로드 (마스터 기준으로 캠퍼스 인식)`,'ok');
+    return;
+  }
+  const by={};
+  cls.forEach(x=>{const c=x.campus||'미분류';(by[c]=by[c]||[]).push(x.p);});
+  Object.entries(by).forEach(([c,list])=>put(c,list,` → ${c}`));
+  renderFileTable();
+  const un=(by['미분류']||[]).length, n=Object.keys(by).filter(c=>c!=='미분류').length;
+  showToast(`${fileName}: ${n}개 캠퍼스로 자동 분류`+(un?` · 분류 못 한 ${un}명은 미매칭 연동 탭에서 캠퍼스를 지정하세요`:''),un?'err':'ok');
+}
 function renderFileTable(){
   const el=$('file-table');
   if(!FILES.length){el.innerHTML='<div class="hint">올린 파일 없음</div>';refreshMatchUI();return;}
@@ -672,12 +718,12 @@ function renderFileTable(){
     FILES.map((f,i)=>`<tr class="file-row">
       <td class="mono">${esc(f.name)} ${f.saved?'<span class="chip chip-teal">저장본</span>':'<span class="chip chip-yellow">새 파일</span>'}</td>
       <td><select onchange="FILES[${i}].campus=this.value;renderFileTable()" ${f.campus?'':'style="border-color:var(--red)"'}>
-        <option value="">(미인식)</option>${campOpts.map(c=>`<option ${f.campus===c?'selected':''}>${c}</option>`).join('')}</select></td>
+        <option value="">(미인식)</option>${f.campus==='미분류'?'<option selected>미분류</option>':''}${campOpts.map(c=>`<option ${f.campus===c?'selected':''}>${c}</option>`).join('')}</select></td>
       <td><select onchange="FILES[${i}].month=this.value">${months.map(m=>`<option value="${m}" ${f.month===m?'selected':''}>${+m.slice(5)}월</option>`).join('')}${months.includes(f.month)?'':`<option value="${f.month}" selected>${f.month}</option>`}</select></td>
       <td class="mono">${f.persons.length}명</td>
       <td><button class="btn btn-ghost btn-sm" onclick="FILES.splice(${i},1);renderFileTable()">✖</button></td>
     </tr>`).join('')}</tbody></table></div>
-    <div class="hint" style="margin-top:6px">캠퍼스 ${new Set(FILES.filter(f=>f.campus).map(f=>f.campus)).size}개 · 마스터 캠퍼스 ${Object.keys(PERSONS).length}개</div>`;
+    <div class="hint" style="margin-top:6px">캠퍼스 ${new Set(FILES.filter(f=>f.campus&&f.campus!=='미분류').map(f=>f.campus)).size}개 · 마스터 캠퍼스 ${Object.keys(PERSONS).length}개</div>`;
   refreshMatchUI();
 }
 
@@ -865,11 +911,11 @@ window.runAnalysis=function(opts={}){
   targetGroups.forEach(gk=>{
     const group=campusGroup(gk);
     const persons=group.flatMap(c=>(PERSONS[c]||[]).map(p=>({...p,_campus:c})));
-    if(!persons.length){R.warnings.push(`${gk}: 인원 마스터에 등록된 사람이 없습니다 (전체 근로자 관리에서 급여대장을 먼저 올리세요)`);}
+    if(!persons.length&&gk!=='미분류'){R.warnings.push(`${gk}: 인원 마스터에 등록된 사람이 없습니다 (전체 근로자 관리에서 급여대장을 먼저 올리세요)`);}
     // 월별 CAPS 존재 확인
     WEEK.months.forEach(m=>{
       const has=group.some(c=>ATTEND[c]&&ATTEND[c][m]);
-      if(!has) R.warnings.push(`${gk}: ${+m.slice(5)}월 CAPS 파일이 없어 해당 월 날짜는 판정하지 않았습니다`);
+      if(!has&&gk!=='미분류') R.warnings.push(`${gk}: ${+m.slice(5)}월 CAPS 파일이 없어 해당 월 날짜는 판정하지 않았습니다`);
     });
     // CAPS 이름 → 기록 (그룹 내 모든 캠퍼스·월 합침)
     const capsByName=new Map(); // name → {month:{ci,co}}
@@ -932,7 +978,7 @@ window.runAnalysis=function(opts={}){
         R.soe.push({...base,date,kind,ci:ci||'',co:co||'',hint:lv.length?`연차시스템: ${lv.join(', ')} 승인`:''});
       });
     });
-    R.campuses.push(gk);
+    if(gk!=='미분류') R.campuses.push(gk);
   });
   RESULTS=R;
   $('sb-soe').textContent=R.soe.length;
@@ -1049,7 +1095,58 @@ function refreshMatchUI(){
   }
   renderMatchPanel();
 }
+// 전체 파일에서 캠퍼스를 못 정한 이름: 사유와 추천 캠퍼스(급여대장에 같은 이름이 한 캠퍼스에만 있을 때)
+function unsortedInfo(name){
+  const own=new Set();
+  Object.entries(PERSONS).forEach(([c,l])=>l.forEach(p=>{if(p.attendName===name) own.add(c);}));
+  if(own.size>1) return {why:'여러 캠퍼스에 같은 출퇴근 이름이 연결되어 있음',guess:''};
+  const k=normName(baseNameOf(name)), pc=new Set();
+  Object.entries(PERSONS).forEach(([c,l])=>l.forEach(p=>{if(!p.attendName&&!p.ignored&&p.payName&&normName(baseNameOf(p.payName))===k) pc.add(c);}));
+  const gs=new Set([...pc].map(groupKey));
+  return {why:'마스터에 연결된 이름이 없음',guess:gs.size===1?[...pc][0]:''};
+}
+function moveUnsorted(pairs){ // pairs:[{name,campus}] → 미분류 항목을 해당 캠퍼스 파일로 옮김
+  const want=new Map(pairs.map(x=>[x.name,x.campus]));
+  FILES.filter(f=>f.campus==='미분류').forEach(f=>{
+    f.persons=f.persons.filter(p=>{
+      const c=want.get(p.name); if(!c) return true;
+      let dest=FILES.find(x=>x.campus===c&&x.month===f.month);
+      if(!dest){dest={name:`${f.name.split(' → ')[0]} → ${c}`,campus:c,month:f.month,persons:[],saved:false};FILES.push(dest);}
+      dest.persons.push(p); dest.saved=false;
+      return false;
+    });
+  });
+  FILES=FILES.filter(f=>f.campus!=='미분류'||f.persons.length);
+  renderFileTable();
+}
+window.assignUnsorted=function(name,campus){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  if(!campus){showToast('캠퍼스를 선택하세요','err');return;}
+  moveUnsorted([{name,campus}]);
+  showToast(`${name} → ${campus} 지정`,'ok');
+};
+window.assignUnsortedAll=function(){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  const U=MATCH||calcUnmatched();
+  const pairs=U.capsOnly.filter(r=>r.group==='미분류').map(r=>({name:r.name,campus:unsortedInfo(r.name).guess})).filter(x=>x.campus);
+  if(!pairs.length){showToast('추천할 캠퍼스가 없습니다','err');return;}
+  if(!confirm(`급여대장 이름이 한 캠퍼스에만 있는 ${pairs.length}명의 캠퍼스를 한 번에 지정합니다.\n(이후 해당 캠퍼스 ② 목록에서 급여대장 연결을 확인하세요)\n진행할까요?`)) return;
+  moveUnsorted(pairs);
+  showToast(`${pairs.length}명 캠퍼스 지정`,'ok');
+};
 function matchGroupHtml(U,gk,edit){
+  if(gk==='미분류'){
+    const co=U.capsOnly.filter(r=>r.group===gk);
+    if(!co.length) return '<div class="empty"><div class="icon">✅</div><h3>캠퍼스를 못 정한 이름이 없습니다</h3></div>';
+    const camps=sortCampuses([...new Set([...Object.values(CAMPUS_ALIASES),...Object.keys(PERSONS)])].filter(c=>c&&c!=='미분류'));
+    const rows=co.map(r=>({r,inf:unsortedInfo(r.name)}));
+    const sugN=rows.filter(x=>x.inf.guess).length;
+    return `<div class="card-title" style="margin:16px 14px 6px">캠퍼스를 정하지 못한 이름 <span class="chip chip-purple">${co.length}</span>${edit&&sugN?` <button class="btn btn-primary btn-sm" onclick="assignUnsortedAll()">✨ 추천 캠퍼스 ${sugN}건 한 번에 지정</button>`:''}</div>
+    <div class="hint" style="margin:0 14px 8px">전체 파일에서 마스터에 연결된 이름이 없어 캠퍼스를 알 수 없는 사람입니다. 캠퍼스를 지정하면 그 캠퍼스의 ② 목록으로 옮겨져 급여대장 이름과 연결할 수 있습니다. 급여대장에 같은 이름이 한 캠퍼스에만 있으면 그 캠퍼스가 미리 선택됩니다. 판정에서는 지정하기 전까지 제외됩니다.</div>
+    <table><thead><tr><th>CAPS 이름</th><th>사유</th><th>캠퍼스 지정</th></tr></thead><tbody>${rows.map(({r,inf})=>{
+      const sel=edit?`<select class="match-sel ${inf.guess?'ok':''}"><option value="">▼ 선택</option>${camps.map(c=>`<option value="${esc(c)}" ${c===inf.guess?'selected':''}>${esc(c)}</option>`).join('')}</select> <button class="btn btn-primary btn-sm" onclick="assignUnsorted('${esc(r.name)}',this.previousElementSibling.value)">✔ 지정</button>`:'<span class="hint">권한 없음</span>';
+      return `<tr><td><b>${esc(r.name)}</b></td><td class="hint">${esc(inf.why)}</td><td>${sel}</td></tr>`;}).join('')}</tbody></table>`;
+  }
   const na=U.noAttend.filter(r=>r.group===gk), co=U.capsOnly.filter(r=>r.group===gk);
   if(!na.length&&!co.length) return '<div class="empty"><div class="icon">✅</div><h3>이 캠퍼스는 모두 연결되어 있습니다</h3></div>';
   const opt=(v,label,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(label)}</option>`;
@@ -1078,7 +1175,7 @@ function renderMatchPanel(){
   const edit=canEdit();
   const total=U.noAttend.length+U.capsOnly.length;
   const sug=collectSuggested(U).length;
-  const groups=sortCampuses(U.groups);
+  const groups=[...U.groups.filter(g=>g==='미분류'),...sortCampuses(U.groups.filter(g=>g!=='미분류'))];
   const cntOf=gk=>U.noAttend.filter(r=>r.group===gk).length+U.capsOnly.filter(r=>r.group===gk).length;
   if(mCampus===null||(mCampus!==''&&!groups.includes(mCampus))) mCampus=groups.find(g=>cntOf(g))||'';
   const summary=`<div class="card">
@@ -1154,7 +1251,7 @@ window.downloadMatchTemplate=function(){
   sug.forEach(p=>{sugPay.set(`${p.group}|${p.campus}|${p.payName}`,p.attendName);sugAtt.set(`${p.group}|${p.attendName}`,p.payName);});
   const HDR=['캠퍼스','구분','급여대장 이름','CAPS 이름','직책',MATCH_IGN_HDR];
   const rows=[], ref=[];
-  sortCampuses(U.groups).forEach(gk=>{
+  sortCampuses(U.groups.filter(g=>g!=='미분류')).forEach(gk=>{
     const na=U.noAttend.filter(r=>r.group===gk), co=U.capsOnly.filter(r=>r.group===gk);
     if(!na.length&&!co.length) return;
     na.forEach(r=>rows.push({'캠퍼스':gk,'구분':'① 급여대장 → CAPS 이름 입력','급여대장 이름':r.payName,'CAPS 이름':sugPay.get(`${gk}|${r.campus}|${r.payName}`)||'','직책':r.position,[MATCH_IGN_HDR]:''}));
@@ -1162,6 +1259,7 @@ window.downloadMatchTemplate=function(){
     const caps=U.capsNames[gk]||[], pays=U.freeMaster[gk]||[], n=Math.max(caps.length,pays.length);
     for(let i=0;i<n;i++) ref.push({'캠퍼스':gk,'CAPS 이름 (미연결)':caps[i]||'','급여대장 이름 (미연결)':pays[i]?pays[i].payName:'','직책':pays[i]?pays[i].position:''});
   });
+  if(!rows.length){showToast('템플릿에 담을 미매칭이 없습니다 (캠퍼스 미분류 이름은 먼저 캠퍼스를 지정하세요)','err');return;}
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.json_to_sheet(rows,{header:HDR});
   ws['!cols']=[{wch:12},{wch:28},{wch:20},{wch:20},{wch:14},{wch:38}];
