@@ -215,6 +215,7 @@ textarea{width:100%;min-height:120px;font-family:var(--mono);font-size:12px;line
 <!-- ═══════════ 미매칭 연동 ═══════════ -->
 <div class="panel" id="panel-match">
   <div id="match-empty" class="card"><div class="empty"><div class="icon">👥</div><h3>CAPS 파일을 먼저 올리세요</h3><p>주차·파일 탭에서 CAPS 파일을 올리면 분석 실행 전에도 미매칭 인원이 여기에 바로 나타납니다.</p></div></div>
+  <input type="file" id="match-tpl-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadMatchTemplate(this)">
   <div id="match-body" style="display:none"></div>
 </div>
 
@@ -400,6 +401,8 @@ let RUNS = [];
 let currentUser=null, ROLE='report';
 let rTab='soe', rCampus='', stCampus='';
 let MATCH=null;           // 미매칭 계산 결과 (분석 실행과 무관하게 CAPS 파일·마스터로 바로 계산)
+let mCampus=null;         // 미매칭 연동 탭에서 선택한 캠퍼스 ('' = 전체, null = 자동 선택)
+let MATCH_PENDING=null;   // 템플릿 업로드 미리보기 중인 항목
 
 // ══════════════════════════════════════
 // 공통 헬퍼
@@ -1046,8 +1049,28 @@ function refreshMatchUI(){
   }
   renderMatchPanel();
 }
+function matchGroupHtml(U,gk,edit){
+  const na=U.noAttend.filter(r=>r.group===gk), co=U.capsOnly.filter(r=>r.group===gk);
+  if(!na.length&&!co.length) return '<div class="empty"><div class="icon">✅</div><h3>이 캠퍼스는 모두 연결되어 있습니다</h3></div>';
+  const opt=(v,label,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(label)}</option>`;
+  let html='';
+  if(na.length){
+    const names=U.capsNames[gk]||[];
+    html+=`<div class="card-title" style="margin:16px 14px 6px">① 급여대장에 있는데 CAPS 이름이 없는 사람 <span class="chip chip-purple">${na.length}</span></div><table><thead><tr><th>급여대장 이름</th><th>직책</th><th>CAPS 이름 고르기</th></tr></thead><tbody>${na.map(r=>{
+      const sel=edit?`<select class="match-sel ${r.cand?'ok':''}" onchange="matchFromSelect(this,'${esc(r.campus)}','${esc(r.payName)}')">${opt('','▼ 선택',!r.cand)}${names.map(n=>opt(n,n,n===r.cand)).join('')}${opt('__custom','(직접 입력…)',false)}</select>${r.cand?` <button class="btn btn-primary btn-sm" onclick="matchAssign('${esc(r.campus)}','${esc(r.payName)}','${esc(r.cand)}')">✔ "${esc(r.cand)}" 연결</button>`:''}`:'<span class="hint">권한 없음</span>';
+      return `<tr><td><b>${esc(r.payName)}</b>${r.campus!==gk?` <span class="hint">· ${esc(r.campus)}</span>`:''}</td><td>${esc(r.position)}</td><td>${sel}</td></tr>`;}).join('')}</tbody></table>`;
+  }
+  if(co.length){
+    const cands=U.freeMaster[gk]||[];
+    html+=`<div class="card-title" style="margin:20px 14px 6px">② CAPS에는 있는데 마스터에 없는 이름 <span class="chip chip-purple">${co.length}</span></div><table><thead><tr><th>CAPS 이름</th><th>급여대장 사람 고르기</th><th></th></tr></thead><tbody>${co.map(r=>{
+      const cv=r.cand?`${r.cand.campus}|${r.cand.payName}`:'';
+      const sel=edit?`<select class="match-sel ${r.cand?'ok':''}" onchange="matchCapsToMaster(this,'${esc(r.name)}')">${opt('','▼ 선택',!r.cand)}${cands.map(c=>opt(`${c.campus}|${c.payName}`,`${c.payName}${c.position?' ('+c.position+')':''}${c.campus!==gk?' · '+c.campus:''}`,`${c.campus}|${c.payName}`===cv)).join('')}</select>${r.cand?` <button class="btn btn-primary btn-sm" onclick="matchAssign('${esc(r.cand.campus)}','${esc(r.cand.payName)}','${esc(r.name)}')">✔ "${esc(r.cand.payName)}" 연결</button>`:''}`:'<span class="hint">권한 없음</span>';
+      return `<tr><td><b>${esc(r.name)}</b>${r.campus!==gk?` <span class="hint">· ${esc(r.campus)}</span>`:''}</td><td>${sel}</td><td>${edit?`<button class="btn btn-ghost btn-sm" onclick="matchIgnore('${esc(r.campus)}','${esc(r.name)}')">점검 대상 아님</button>`:''}</td></tr>`;}).join('')}</tbody></table>`;
+  }
+  return html;
+}
 function renderMatchPanel(){
-  const U=MATCH||calcUnmatched();
+  const U=MATCH||(MATCH=calcUnmatched());
   const has=FILES.some(f=>f.campus);
   $('match-empty').style.display=has?'none':'block';
   $('match-body').style.display=has?'block':'none';
@@ -1055,62 +1078,203 @@ function renderMatchPanel(){
   const edit=canEdit();
   const total=U.noAttend.length+U.capsOnly.length;
   const sug=collectSuggested(U).length;
-  const opt=(v,label,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(label)}</option>`;
-  let html=`<div class="card">
+  const groups=sortCampuses(U.groups);
+  const cntOf=gk=>U.noAttend.filter(r=>r.group===gk).length+U.capsOnly.filter(r=>r.group===gk).length;
+  if(mCampus===null||(mCampus!==''&&!groups.includes(mCampus))) mCampus=groups.find(g=>cntOf(g))||'';
+  const summary=`<div class="card">
     <div class="fbar" style="margin-bottom:0">
       <span style="font-weight:700">${total?`미매칭 ${total}명`:'✅ 미매칭 없음'}</span>
       ${total?`<span class="chip chip-purple">① 급여대장 ${U.noAttend.length}</span><span class="chip chip-purple">② CAPS ${U.capsOnly.length}</span>`:''}
       <span style="flex:1"></span>
-      ${edit&&sug?`<button class="btn btn-primary" onclick="matchAllSuggested()">✨ 이름 일치 ${sug}건 한 번에 연결</button>`:''}
+      ${total?`<button class="btn btn-ghost btn-sm" onclick="downloadMatchTemplate()">⬇ 템플릿 다운로드</button>`:''}
+      ${edit&&total?`<button class="btn btn-ghost btn-sm" onclick="$('match-tpl-file').click()">⬆ 템플릿 업로드</button>`:''}
+      ${edit&&sug?`<button class="btn btn-primary btn-sm" onclick="matchAllSuggested()">✨ 이름 일치 ${sug}건 한 번에 연결</button>`:''}
     </div>
-    <div class="hint" style="margin-top:8px">${total?'① 급여대장에는 있는데 CAPS 이름이 없는 사람과 ② CAPS에만 있는 이름은 연결하기 전까지 판정에서 빠집니다. 연결하면 마스터에 저장되고 다음 주부터 자동으로 맞습니다. 이름이 비슷해도 자동으로 묶지 않으니 직접 골라 주세요.':'올린 CAPS 파일의 모든 이름이 마스터와 연결되어 있습니다. 주차·파일 탭에서 분석을 실행하세요.'}</div>
+    <div class="hint" style="margin-top:8px">${total?'① 급여대장에는 있는데 CAPS 이름이 없는 사람과 ② CAPS에만 있는 이름은 연결하기 전까지 판정에서 빠집니다. 왼쪽에서 캠퍼스를 골라 하나씩 연결하거나, 템플릿(엑셀)을 내려받아 이름을 채운 뒤 올리면 한 번에 연결할 수 있습니다. 이름이 비슷해도 자동으로 묶지 않으니 직접 확인해 주세요.':'올린 CAPS 파일의 모든 이름이 마스터와 연결되어 있습니다. 주차·파일 탭에서 분석을 실행하세요.'}</div>
   </div>`;
-  const clean=[];
-  sortCampuses(U.groups).forEach(gk=>{
-    const na=U.noAttend.filter(r=>r.group===gk), co=U.capsOnly.filter(r=>r.group===gk);
-    if(!na.length&&!co.length){clean.push(gk);return;}
-    html+=`<div class="card"><div class="card-title">${esc(gk)} <span class="chip chip-purple">${na.length+co.length}</span></div>`;
-    if(na.length){
-      const names=U.capsNames[gk]||[];
-      html+=`<div class="hint" style="margin-bottom:6px">① 급여대장에 있는데 CAPS 이름이 없는 사람 (${na.length}명)</div><div class="twrap" style="margin-bottom:14px"><table><thead><tr><th>급여대장 이름</th><th>직책</th><th>CAPS 이름 고르기</th></tr></thead><tbody>${na.map(r=>{
-        const sel=edit?`<select class="match-sel ${r.cand?'ok':''}" onchange="matchFromSelect(this,'${esc(r.campus)}','${esc(r.payName)}')">${opt('','▼ 선택',!r.cand)}${names.map(n=>opt(n,n,n===r.cand)).join('')}${opt('__custom','(직접 입력…)',false)}</select>${r.cand?` <button class="btn btn-primary btn-sm" onclick="matchAssign('${esc(r.campus)}','${esc(r.payName)}','${esc(r.cand)}')">✔ "${esc(r.cand)}" 연결</button>`:''}`:'<span class="hint">권한 없음</span>';
-        return `<tr><td><b>${esc(r.payName)}</b>${r.campus!==gk?` <span class="hint">· ${esc(r.campus)}</span>`:''}</td><td>${esc(r.position)}</td><td>${sel}</td></tr>`;}).join('')}</tbody></table></div>`;
-    }
-    if(co.length){
-      const cands=U.freeMaster[gk]||[];
-      html+=`<div class="hint" style="margin-bottom:6px">② CAPS에는 있는데 마스터에 없는 이름 (${co.length}명)</div><div class="twrap"><table><thead><tr><th>CAPS 이름</th><th>급여대장 사람 고르기</th><th></th></tr></thead><tbody>${co.map(r=>{
-        const cv=r.cand?`${r.cand.campus}|${r.cand.payName}`:'';
-        const sel=edit?`<select class="match-sel ${r.cand?'ok':''}" onchange="matchCapsToMaster(this,'${esc(r.name)}')">${opt('','▼ 선택',!r.cand)}${cands.map(c=>opt(`${c.campus}|${c.payName}`,`${c.payName}${c.position?' ('+c.position+')':''}${c.campus!==gk?' · '+c.campus:''}`,`${c.campus}|${c.payName}`===cv)).join('')}</select>${r.cand?` <button class="btn btn-primary btn-sm" onclick="matchAssign('${esc(r.cand.campus)}','${esc(r.cand.payName)}','${esc(r.name)}')">✔ "${esc(r.cand.payName)}" 연결</button>`:''}`:'<span class="hint">권한 없음</span>';
-        return `<tr><td><b>${esc(r.name)}</b>${r.campus!==gk?` <span class="hint">· ${esc(r.campus)}</span>`:''}</td><td>${sel}</td><td>${edit?`<button class="btn btn-ghost btn-sm" onclick="matchIgnore('${esc(r.campus)}','${esc(r.name)}')">점검 대상 아님</button>`:''}</td></tr>`;}).join('')}</tbody></table></div>`;
-    }
-    html+='</div>';
+  const left=`<div class="rc-item ${mCampus===''?'active':''}" onclick="mCampus='';renderMatchPanel()"><span>전체</span><span class="rc-cnt">${total}</span></div>`+
+    groups.map(g=>{const n=cntOf(g);return `<div class="rc-item ${mCampus===g?'active':''}" onclick="mCampus='${esc(g)}';renderMatchPanel()"><span>${esc(g)}</span><span class="rc-cnt" ${n&&mCampus!==g?'style="color:var(--red);font-weight:700"':''}>${n||'✓'}</span></div>`;}).join('');
+  const right=mCampus===''
+    ?(groups.filter(cntOf).map(g=>`<div style="padding:14px 14px 0;font-weight:700;font-size:14px">${esc(g)}</div>`+matchGroupHtml(U,g,edit)).join('')||'<div class="empty"><div class="icon">✅</div><h3>미매칭 없음</h3></div>')
+    :matchGroupHtml(U,mCampus,edit);
+  $('match-body').innerHTML=summary+`<div class="split"><div class="split-left">${left}</div><div class="split-right">${right}</div></div>`;
+}
+
+// ── 연결/무시 일괄 적용 (추천 일괄 연결·템플릿 업로드 공용) ──
+// pairs:[{campus,payName,attendName}]  ignores:[{campus,attendName}]  → 성공 시 {pairs,ignores}, 저장 실패 시 null
+async function applyMatchOps(pairs,ignores){
+  const byC={};
+  const slot=c=>(byC[c]=byC[c]||{assigned:[],added:[]});
+  pairs.forEach(({campus,payName,attendName})=>{
+    const p=(PERSONS[campus]||[]).find(x=>x.payName===payName&&!x.attendName&&!x.ignored);
+    if(!p||attendNameInUse(groupKey(campus),attendName)) return;
+    p.attendName=attendName; p.matchType='manual';
+    slot(campus).assigned.push(p);
   });
-  if(clean.length) html+=`<div class="hint">✅ 이상 없는 캠퍼스: ${clean.map(esc).join(', ')}</div>`;
-  $('match-body').innerHTML=html;
+  (ignores||[]).forEach(({campus,attendName})=>{
+    if(attendNameInUse(groupKey(campus),attendName)) return;
+    const e={payName:attendName,attendName,matchType:'ignored',ignored:true,note:'주간점검 무시처리',campus,posOverride:'',divOverride:'',isLeave:false,hireDate:'',leaveDate:''};
+    (PERSONS[campus]=PERSONS[campus]||[]).push(e);
+    slot(campus).added.push(e);
+  });
+  const saved=new Set(); let np=0, ni=0;
+  for(const c of Object.keys(byC)){
+    try{await savePersonsCampus(c);saved.add(c);np+=byC[c].assigned.length;ni+=byC[c].added.length;}
+    catch(e){
+      Object.keys(byC).filter(x=>!saved.has(x)).forEach(x=>{
+        byC[x].assigned.forEach(p=>{p.attendName=null;});
+        byC[x].added.forEach(en=>{const i=PERSONS[x].indexOf(en);if(i>=0) PERSONS[x].splice(i,1);});
+      });
+      showToast(`${c} 저장 실패: ${e.message}`+(np+ni?` (앞선 ${np+ni}건은 저장됨)`:''),'err');
+      refreshMatchUI();
+      return null;
+    }
+  }
+  return {pairs:np,ignores:ni};
 }
 window.matchAllSuggested=async function(){
   if(!canEdit()){showToast('권한이 없습니다','err');return;}
   const pairs=collectSuggested(calcUnmatched());
   if(!pairs.length){showToast('연결할 추천 건이 없습니다','err');return;}
   if(!confirm(`이름이 정확히 일치하는 ${pairs.length}건을 마스터에 연결합니다.\n(동명이인 등 후보가 겹치는 건은 제외되며 직접 선택해야 합니다)\n진행할까요?`)) return;
-  const byC={};
-  pairs.forEach(({campus,payName,attendName})=>{
-    const p=(PERSONS[campus]||[]).find(x=>x.payName===payName&&!x.attendName&&!x.ignored);
-    if(!p||attendNameInUse(groupKey(campus),attendName)) return;
-    p.attendName=attendName; p.matchType='manual';
-    (byC[campus]=byC[campus]||[]).push(p);
+  const r=await applyMatchOps(pairs,[]);
+  if(!r) return;
+  showToast(`${r.pairs}건 연결 저장`,'ok');
+  refreshMatchUI();
+  runAnalysis({keepTab:true});
+};
+
+// ── 템플릿 다운로드 / 업로드 ──
+const MATCH_IGN_HDR='점검 대상 아님 (CAPS 이름만 있는 줄에 O)';
+window.downloadMatchTemplate=function(){
+  const U=MATCH||calcUnmatched();
+  if(!(U.noAttend.length+U.capsOnly.length)){showToast('내려받을 미매칭이 없습니다','err');return;}
+  // 이름이 정확히 일치하는 안전한 후보는 미리 채워 둠 (틀리면 고치거나 지우면 됨)
+  const sug=collectSuggested(U), sugPay=new Map(), sugAtt=new Map();
+  sug.forEach(p=>{sugPay.set(`${p.group}|${p.campus}|${p.payName}`,p.attendName);sugAtt.set(`${p.group}|${p.attendName}`,p.payName);});
+  const HDR=['캠퍼스','구분','급여대장 이름','CAPS 이름','직책',MATCH_IGN_HDR];
+  const rows=[], ref=[];
+  sortCampuses(U.groups).forEach(gk=>{
+    const na=U.noAttend.filter(r=>r.group===gk), co=U.capsOnly.filter(r=>r.group===gk);
+    if(!na.length&&!co.length) return;
+    na.forEach(r=>rows.push({'캠퍼스':gk,'구분':'① 급여대장 → CAPS 이름 입력','급여대장 이름':r.payName,'CAPS 이름':sugPay.get(`${gk}|${r.campus}|${r.payName}`)||'','직책':r.position,[MATCH_IGN_HDR]:''}));
+    co.forEach(r=>rows.push({'캠퍼스':gk,'구분':'② CAPS → 급여대장 이름 입력','급여대장 이름':sugAtt.get(`${gk}|${r.name}`)||'','CAPS 이름':r.name,'직책':'',[MATCH_IGN_HDR]:''}));
+    const caps=U.capsNames[gk]||[], pays=U.freeMaster[gk]||[], n=Math.max(caps.length,pays.length);
+    for(let i=0;i<n;i++) ref.push({'캠퍼스':gk,'CAPS 이름 (미연결)':caps[i]||'','급여대장 이름 (미연결)':pays[i]?pays[i].payName:'','직책':pays[i]?pays[i].position:''});
   });
-  const saved=new Set(); let ok=0;
-  for(const c of Object.keys(byC)){
-    try{await savePersonsCampus(c);saved.add(c);ok+=byC[c].length;}
-    catch(e){
-      Object.keys(byC).filter(x=>!saved.has(x)).forEach(x=>byC[x].forEach(p=>{p.attendName=null;}));
-      showToast(`${c} 저장 실패: ${e.message}`+(ok?` (앞선 ${ok}건은 저장됨)`:''),'err');
-      refreshMatchUI();
-      return;
-    }
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(rows,{header:HDR});
+  ws['!cols']=[{wch:12},{wch:28},{wch:20},{wch:20},{wch:14},{wch:38}];
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:HDR.length-1}})};
+  XLSX.utils.book_append_sheet(wb,ws,'미매칭 연동');
+  const guide=XLSX.utils.aoa_to_sheet([
+    ['미매칭 연동 템플릿 작성 방법'],
+    [''],
+    ['1. "미매칭 연동" 시트의 ① 줄은 급여대장 이름이 적혀 있습니다. 같은 줄 "CAPS 이름" 칸에 해당 사람의 CAPS 이름을 입력하세요.'],
+    ['2. ② 줄은 CAPS 이름이 적혀 있습니다. 같은 줄 "급여대장 이름" 칸에 해당 사람의 급여대장 이름을 입력하세요.'],
+    ['3. 이름이 정확히 일치하는 건은 미리 채워져 있습니다. 틀렸으면 고치거나 지우세요. 동명이인처럼 후보가 겹치는 건은 비어 있으니 직접 입력하세요.'],
+    ['4. 외부 인력·퇴사자처럼 점검 대상이 아닌 CAPS 이름은 ② 줄 맨 오른쪽 칸에 O를 적으세요.'],
+    ['5. 비워 둔 줄은 건너뜁니다. 캠퍼스·구분·직책 칸은 수정하지 마세요. (캠퍼스 칸 필터로 캠퍼스별로 모아 볼 수 있습니다)'],
+    ['6. "참고 이름 목록" 시트에서 캠퍼스별 미연결 CAPS 이름과 급여대장 이름을 복사해 쓸 수 있습니다.'],
+    ['7. 저장한 뒤 미매칭 연동 탭의 "템플릿 업로드"로 올리면 적용 전에 미리보기로 확인할 수 있습니다.'],
+  ]);
+  guide['!cols']=[{wch:130}];
+  XLSX.utils.book_append_sheet(wb,guide,'작성 방법');
+  const wr=XLSX.utils.json_to_sheet(ref,{header:['캠퍼스','CAPS 이름 (미연결)','급여대장 이름 (미연결)','직책']});
+  wr['!cols']=[{wch:12},{wch:22},{wch:24},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,wr,'참고 이름 목록');
+  XLSX.writeFile(wb,`미매칭연동_템플릿_${WEEK?WEEK.start:''}.xlsx`);
+};
+function parseMatchTemplate(rows){
+  let hi=-1;
+  for(let i=0;i<Math.min(8,rows.length);i++){
+    const c=rows[i].map(x=>String(x||'').trim());
+    if(c.some(x=>/급여대장/.test(x))&&c.some(x=>/CAPS/i.test(x))){hi=i;break;}
   }
-  showToast(`${ok}건 연결 저장`,'ok');
+  if(hi<0) return {error:'템플릿 형식이 아닙니다 ("급여대장 이름", "CAPS 이름" 열을 찾지 못했습니다)'};
+  const hdr=rows[hi].map(x=>String(x||'').trim());
+  const ci=hdr.findIndex(h=>/^캠퍼스/.test(h)), pi=hdr.findIndex(h=>/급여대장/.test(h)), ai=hdr.findIndex(h=>/^CAPS/i.test(h)), ii=hdr.findIndex(h=>/점검 대상 아님|무시/.test(h));
+  if(ci<0||pi<0||ai<0) return {error:'템플릿 형식이 아닙니다 (캠퍼스 / 급여대장 이름 / CAPS 이름 열 필요)'};
+  const U=calcUnmatched();
+  // 이름이 정확히 같으면 그것, 아니면 괄호·공백을 뺀 이름이 하나로 특정될 때만 인정
+  const pick=(list,name,get)=>{
+    let hit=list.filter(x=>get(x)===name); if(hit.length===1) return hit[0]; if(hit.length>1) return null;
+    const n=normName(baseNameOf(name)); hit=list.filter(x=>normName(baseNameOf(get(x)))===n);
+    return hit.length===1?hit[0]:null;
+  };
+  const items=[], seenPay=new Set(), seenAtt=new Set(), seenPair=new Set();
+  let skipped=0, dups=0;
+  for(let i=hi+1;i<rows.length;i++){
+    const r=rows[i];
+    const cRaw=String(r[ci]||'').trim();
+    const pay=String(r[pi]||'').trim().replace(/\s+/g,' ');
+    const att=String(r[ai]||'').trim().replace(/\s+/g,' ');
+    const ign=ii>=0&&/^(o|y|yes|x|1|✔|✓|무시|예)$/i.test(String(r[ii]||'').trim());
+    if(!cRaw&&!pay&&!att) continue;
+    if(!ign&&!(pay&&att)){skipped++;continue;}
+    const it={row:i+1,payName:pay,attendName:att,ignore:ign,status:'err',msg:'',group:'',campus:cRaw};
+    items.push(it);
+    const gk=groupKey(normCampus(cRaw)||cRaw);
+    it.group=gk; it.campus=gk;
+    if(!U.groups.includes(gk)){it.msg='이번에 올린 CAPS 파일에 없는 캠퍼스';continue;}
+    if(ign){
+      const cap=pick(U.capsOnly.filter(x=>x.group===gk),att,x=>x.name);
+      if(!att||!cap){it.msg='이번 CAPS 파일에 없거나 이미 연결된 이름 (오타 확인)';continue;}
+      if(seenAtt.has(`${gk}|${cap.name}`)){it.msg='같은 CAPS 이름이 여러 줄에 있습니다';continue;}
+      seenAtt.add(`${gk}|${cap.name}`);
+      Object.assign(it,{status:'ok',campus:cap.campus,attendName:cap.name,payName:''});
+      continue;
+    }
+    const ph=pick(U.freeMaster[gk]||[],pay,c=>c.payName);
+    if(!ph){it.msg='급여대장에서 연결 가능한 이름이 아님 (오타이거나 이미 연결됨)';continue;}
+    const an=pick(U.capsNames[gk]||[],att,n=>n);
+    if(!an){it.msg='이번 CAPS 파일에 없거나 이미 연결된 이름 (오타 확인)';continue;}
+    const pairKey=`${gk}|${ph.campus}|${ph.payName}|${an}`;
+    if(seenPair.has(pairKey)){dups++;items.pop();continue;}
+    if(seenPay.has(`${ph.campus}|${ph.payName}`)||seenAtt.has(`${gk}|${an}`)){it.msg='같은 이름이 여러 줄에 서로 다르게 지정됨';continue;}
+    seenPair.add(pairKey); seenPay.add(`${ph.campus}|${ph.payName}`); seenAtt.add(`${gk}|${an}`);
+    Object.assign(it,{status:'ok',campus:ph.campus,payName:ph.payName,attendName:an});
+  }
+  return {items,skipped,dups};
+}
+window.loadMatchTemplate=function(input){
+  const file=input.files[0]; input.value='';
+  if(!file) return;
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const sn=wb.SheetNames.includes('미매칭 연동')?'미매칭 연동':wb.SheetNames[0];
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:false,defval:''});
+      const res=parseMatchTemplate(rows);
+      if(res.error){showToast(res.error,'err');return;}
+      if(!res.items.length){showToast(`적용할 입력이 없습니다 (입력 없음 ${res.skipped}건)`,'err');return;}
+      showMatchPreview(res);
+    }catch(err){showToast('템플릿 읽기 실패: '+err.message,'err');}
+  };
+  reader.readAsArrayBuffer(file);
+};
+function showMatchPreview(res){
+  const ok=res.items.filter(x=>x.status==='ok'), bad=res.items.filter(x=>x.status!=='ok');
+  MATCH_PENDING=res.items;
+  const rowsHtml=[...bad,...ok].map(it=>`<tr>
+    <td class="mono">${it.row}</td><td>${esc(it.group)}</td><td>${esc(it.payName)||'<span class="hint">-</span>'}</td><td>${esc(it.attendName)}</td>
+    <td>${it.status==='ok'?(it.ignore?'<span class="chip chip-gray">점검 대상 아님</span>':'<span class="chip chip-teal">연결</span>'):`<span class="chip chip-red">${esc(it.msg)}</span>`}</td></tr>`).join('');
+  $('modal-box').innerHTML=`<div class="card-title">📥 템플릿 적용 미리보기</div>
+    <div class="fbar"><span class="chip chip-teal">적용 ${ok.length}건</span>${bad.length?`<span class="chip chip-red">오류 ${bad.length}건 (제외)</span>`:''}<span class="hint">입력 없음 ${res.skipped}건은 건너뜀${res.dups?` · 중복 ${res.dups}건은 하나로 합침`:''}</span></div>
+    ${bad.length?'<div class="warn-box">오류 건은 적용되지 않습니다. 템플릿을 고쳐 다시 올리거나, 적용 후 화면에서 직접 연결하세요.</div>':''}
+    <div class="twrap" style="max-height:50vh"><table><thead><tr><th>행</th><th>캠퍼스</th><th>급여대장 이름</th><th>CAPS 이름</th><th>결과</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    <div class="fbar" style="margin:14px 0 0;justify-content:flex-end"><button class="btn btn-ghost" onclick="closeModal()">취소</button><button class="btn btn-primary" ${ok.length?'':'disabled'} onclick="applyMatchTemplate()">${ok.length}건 적용</button></div>`;
+  $('modal').classList.add('show');
+}
+window.applyMatchTemplate=async function(){
+  const items=MATCH_PENDING; closeModal(); MATCH_PENDING=null;
+  if(!items||!canEdit()) return;
+  const ok=items.filter(x=>x.status==='ok');
+  const r=await applyMatchOps(ok.filter(x=>!x.ignore).map(x=>({campus:x.campus,payName:x.payName,attendName:x.attendName})),ok.filter(x=>x.ignore).map(x=>({campus:x.campus,attendName:x.attendName})));
+  if(!r) return;
+  showToast(`연결 ${r.pairs}건${r.ignores?` · 점검 대상 아님 ${r.ignores}건`:''} 저장`,'ok');
   refreshMatchUI();
   runAnalysis({keepTab:true});
 };
