@@ -1894,6 +1894,7 @@ function runAnalysis() {
   }
 
   resPage=1; cctvPage=1; unrePage=1; earlyoutPage=1;
+  applyCctvState();
   updateSummary();
   renderResultTable();
   renderCCTVTable();
@@ -2100,6 +2101,9 @@ function rerunAnalysis() {
       checkIn:row.checkIn, checkOut:row.checkOut, type:'earlyout', typeLabel:'조퇴',
       note:`근무 ${hrs}`, baseCI:baseCIStr||'-', workMins });
   }
+
+  // CCTV 확인 상태 복원
+  applyCctvState();
 
   // UI 갱신
   console.log('[rerunAnalysis] RESULTS:', RESULTS.length, 'short:', RESULTS.filter(r=>r.type==='short').length, 'late:', RESULTS.filter(r=>r.type==='late').length);
@@ -2471,11 +2475,11 @@ function renderCCTVTable() {
         <td class="mono">${r.date}</td>
         <td><span class="chip chip-red">${r.note}</span></td>
         <td><label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input type="checkbox" ${r.cctvChecked?'checked':''} onchange="RESULTS[${realIdx}].cctvChecked=this.checked;renderCCTVTable();updateSummary();">
+          <input type="checkbox" ${r.cctvChecked?'checked':''} onchange="RESULTS[${realIdx}].cctvChecked=this.checked;saveCctvState();renderCCTVTable();updateSummary();">
           <span style="font-size:12px;">${r.cctvChecked?'완료':'미확인'}</span>
         </label></td>
         <td><input type="text" value="${r.cctvMemo||''}" placeholder="메모" style="width:180px;"
-            onchange="RESULTS[${realIdx}].cctvMemo=this.value"></td>
+            onchange="RESULTS[${realIdx}].cctvMemo=this.value;saveCctvState();"></td>
       </tr>`;
     }).join('');
   }
@@ -2647,6 +2651,36 @@ function exportCSV() {
 // ══════════════════════════════════════
 // STATE (localStorage)
 // ══════════════════════════════════════
+
+// ══════════════════════════════════════
+// CCTV 확인 상태 — 별도 localStorage 저장/로드
+// ══════════════════════════════════════
+function saveCctvState() {
+  const map = {};
+  RESULTS.filter(r => r.type === 'cctv').forEach(r => {
+    if (r.cctvChecked || r.cctvMemo) {
+      const key = r.campus + '|' + r.name + '|' + r.date;
+      map[key] = { checked: r.cctvChecked, memo: r.cctvMemo };
+    }
+  });
+  try { localStorage.setItem('att_cctv', JSON.stringify(map)); } catch(e) {}
+}
+
+function loadCctvState() {
+  try { return JSON.parse(localStorage.getItem('att_cctv') || '{}'); } catch(e) { return {}; }
+}
+
+function applyCctvState() {
+  const map = loadCctvState();
+  RESULTS.filter(r => r.type === 'cctv').forEach(r => {
+    const key = r.campus + '|' + r.name + '|' + r.date;
+    if (map[key]) {
+      r.cctvChecked = map[key].checked || false;
+      r.cctvMemo    = map[key].memo    || '';
+    }
+  });
+}
+
 function saveState() {
   console.log('[saveState] RAW_DATA:', RAW_DATA.length, 'RESULTS:', RESULTS.length);
   // Firebase 연동 시 설정도 동기화 — 로드 완료 후에만
@@ -3374,6 +3408,7 @@ async function loadHistoryRecord(monthKey) {
   const saveBtn = document.getElementById('save-history-btn');
   if (saveBtn) saveBtn.style.display = (window._campusRole==='owner') ? 'inline-flex' : 'none';
   refreshReport();
+  applyCctvState();
   showToast(`📂 ${monthKey} 기록 불러옴`, 'ok');
 }
 
