@@ -2961,50 +2961,145 @@ function setReceipt(campus, monthKey, field, value) {
 function downloadReportExcel() {
   if (!RESULTS.length) { showToast('분석 결과가 없습니다','err'); return; }
 
-  const monthKey = getReportMonthKey();
+  const monthKey = getReportMonthKey(); // 현재 분석월 예: "2026-09"
   const campuses = sortCampuses(
     [...new Set([...RESULTS.map(r=>r.campus), ...EMPLOYEES.map(e=>e.campus)])]
     .filter(ca=>MANAGED_CAMPUSES.has(ca))
   );
 
-  // 캠퍼스별 지각자 횟수 집계
+  // ── 현재 월 지각 집계 ──
   const lateMap = {}; // lateMap[campus][name] = 횟수
   RESULTS.filter(r => r.type === 'late').forEach(r => {
     if (!lateMap[r.campus]) lateMap[r.campus] = {};
     lateMap[r.campus][r.name] = (lateMap[r.campus][r.name] || 0) + 1;
   });
 
-  const HDR_BG = '#1E3A5F';
-  const HDR_FG = '#FFFFFF';
-  const RED_BG = '#FF7C80';
-  const hdrCell = (txt) =>
-    `<td style="background:${HDR_BG};color:${HDR_FG};font-weight:bold;text-align:center;border:1px solid #aaa;padding:5px 10px;">${txt}</td>`;
+  // ── 징계 단계 계산 ──
+  // 9월(2026-09)부터 시작. 현재 월 포함 과거 월별 기록에서
+  // 매월 2회 이상 지각이면 연속 카운트 → 단계 결정
+  const DISCIPLINE_START = '2026-09';
+  const DISCIPLINE_LABELS = ['경고','1차 징계','2차 징계','3차 징계','4차 징계','5차 징계'];
 
-  // 데이터 행 생성 (캠퍼스별 지각자 목록)
-  let rows = '';
-  campuses.forEach(campus => {
-    const entries = Object.entries(lateMap[campus] || {})
-      .sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],'ko')); // 횟수 내림차순, 동일시 가나다
-    if (!entries.length) return;
+  // 과거 기록 (HISTORY) + 현재 월 합산
+  // monthKey 오름차순 정렬, DISCIPLINE_START 이후만
+  const allMonths = [...HISTORY]
+    .filter(h => h.monthKey >= DISCIPLINE_START && h.monthKey < monthKey)
+    .sort((a,b) => a.monthKey.localeCompare(b.monthKey));
 
-    entries.forEach(([name, cnt], i) => {
-      const isRed = cnt >= 2;
-      const nameBg  = isRed ? `background:${RED_BG};font-weight:bold;` : '';
-      const cntBg   = isRed ? `background:${RED_BG};font-weight:bold;` : '';
-      rows += '<tr>';
-      // 캠퍼스 셀: 첫 행만 출력, rowspan으로 병합
-      if (i === 0) {
-        rows += `<td rowspan="${entries.length}" style="background:#EBF0FA;font-weight:bold;text-align:center;border:1px solid #aaa;padding:5px 10px;vertical-align:middle;">${campus}</td>`;
+  // 인원별 연속 월 2회 이상 지각 카운트
+  // {name: 연속 개월 수} — 현재 월 직전까지
+  const streakMap = {}; // streakMap[name] = 연속 개월수 (현재월 직전)
+
+  // 모든 과거 월을 순서대로 처리
+  allMonths.forEach(rec => {
+    const monthLate = {}; // 이 월의 name별 지각 횟수
+    (rec.results||[]).filter(r=>r.type==='late').forEach(r=>{
+      monthLate[r.name] = (monthLate[r.name]||0)+1;
+    });
+    // 2회 이상이면 streak 증가, 아니면 리셋
+    // 전체 등장 인원 기준으로 처리
+    const allNames = new Set([...Object.keys(streakMap), ...Object.keys(monthLate)]);
+    allNames.forEach(name => {
+      if ((monthLate[name]||0) >= 2) {
+        streakMap[name] = (streakMap[name]||0) + 1;
+      } else {
+        // 지각 2회 미만이면 연속 끊김 → 리셋
+        if (streakMap[name]) streakMap[name] = 0;
       }
-      rows += `<td style="border:1px solid #aaa;padding:5px 10px;${nameBg}">${name}</td>`;
-      rows += `<td style="border:1px solid #aaa;padding:5px 10px;text-align:center;${cntBg}">${cnt}회</td>`;
-      rows += '</tr>';
     });
   });
 
-  if (!rows) { showToast('지각 인원이 없습니다','err'); return; }
+  // 현재 월 2회 이상 지각자 → 징계 단계 결정
+  // streak(직전까지 연속 개월) 기준: 0→경고, 1→1차, 2→2차 ...
+  const disciplineList = []; // [{campus, name, cnt, streak, label}]
+  campuses.forEach(campus => {
+    const entries = Object.entries(lateMap[campus]||{})
+      .filter(([,cnt]) => cnt >= 2)
+      .sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],'ko'));
+    entries.forEach(([name, cnt]) => {
+      const streak = streakMap[name] || 0;
+      const labelIdx = Math.min(streak, DISCIPLINE_LABELS.length-1);
+      disciplineList.push({ campus, name, cnt, streak, label: DISCIPLINE_LABELS[labelIdx] });
+    });
+  });
+
+  // ── 스타일 상수 ──
+  const HDR_BG  = '#FFB800'; // 노란색 헤더 (캡처 기준)
+  const HDR_FG  = '#000000';
+  const RED_BG  = '#FF7C80';
+  const CAM_BG  = '#FFE0B2'; // 캠퍼스 셀 연주황
+  const DISC_HDR_BG = '#FFB800';
+
+  const cs = (bg, fg, bold, align) =>
+    `background:${bg||'#fff'};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:${align||'left'};border:1px solid #aaa;padding:5px 8px;`;
+
+  // ── 표1: 캠퍼스별 지각 현황 ──
+  let t1Head = `<tr>
+    <td style="${cs(HDR_BG,HDR_FG,true,'center')}">캠퍼스</td>
+    <td style="${cs(HDR_BG,HDR_FG,true,'center')}">지각인원</td>
+    <td style="${cs(HDR_BG,HDR_FG,true,'center')}">횟수</td>
+  </tr>`;
+  let t1Body = '';
+  campuses.forEach(campus => {
+    const entries = Object.entries(lateMap[campus]||{})
+      .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'ko'));
+    if (!entries.length) return;
+    entries.forEach(([name,cnt],i) => {
+      const isRed = cnt >= 2;
+      t1Body += '<tr>';
+      if (i===0) {
+        t1Body += `<td rowspan="${entries.length}" style="${cs(CAM_BG,'#000',true,'center')}vertical-align:middle;">${campus}</td>`;
+      }
+      t1Body += `<td style="${cs(isRed?RED_BG:'#fff','#000',isRed,'left')}">${name}</td>`;
+      t1Body += `<td style="${cs(isRed?RED_BG:'#fff','#000',isRed,'center')}">${cnt}회</td>`;
+      t1Body += '</tr>';
+    });
+  });
+
+  // ── 표2: 징계대상 ──
+  // 캠퍼스별 그룹, 총인원 병합
+  let t2Head = `<tr>
+    <td colspan="4" style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">징계대상</td>
+  </tr>
+  <tr>
+    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">캠퍼스</td>
+    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">총인원</td>
+    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">근로자 성명</td>
+    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">징계 단계</td>
+  </tr>`;
+
+  // 캠퍼스별 그룹
+  const discByCampus = {};
+  disciplineList.forEach(d => {
+    if (!discByCampus[d.campus]) discByCampus[d.campus] = [];
+    discByCampus[d.campus].push(d);
+  });
+
+  let t2Body = '';
+  sortCampuses(Object.keys(discByCampus)).forEach(campus => {
+    const members = discByCampus[campus];
+    members.forEach((d,i) => {
+      t2Body += '<tr>';
+      if (i===0) {
+        t2Body += `<td rowspan="${members.length}" style="${cs(CAM_BG,'#000',true,'center')}vertical-align:middle;">${campus}</td>`;
+        t2Body += `<td rowspan="${members.length}" style="${cs(CAM_BG,'#000',true,'center')}vertical-align:middle;">${members.length}</td>`;
+      }
+      t2Body += `<td style="${cs('#fff','#000',false,'left')}">${d.name}</td>`;
+      // 징계 단계: 1차 이상이면 빨간색
+      const isHighLevel = d.streak >= 1;
+      t2Body += `<td style="${cs(isHighLevel?RED_BG:'#fff','#000',isHighLevel,'center')}">${d.label}</td>`;
+      t2Body += '</tr>';
+    });
+  });
+
+  if (!t2Body) {
+    t2Body = `<tr><td colspan="4" style="text-align:center;border:1px solid #aaa;padding:8px;color:#888;">해당 없음</td></tr>`;
+  }
 
   const mm = monthKey ? monthKey.slice(0,7).replace('-','년 ')+'월' : '미정';
+
+  // ── HTML 조합: 두 표를 나란히 (데이터는 2행·2열부터, 1행·1열은 비움, 1열 너비=2) ──
+  // Excel에서 1열 너비=2 구현: colgroup col width="15"(약 2문자 너비)로 지정
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:x="urn:schemas-microsoft-com:office:excel"
     xmlns="http://www.w3.org/TR/REC-html40">
@@ -3013,11 +3108,43 @@ function downloadReportExcel() {
 <x:ExcelWorksheet><x:Name>지각현황</x:Name>
 <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
 </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>
+  td { mso-number-format:"\@"; }
+</style>
 </head><body>
-<table border="1" style="border-collapse:collapse;font-family:맑은 고딕,Arial;font-size:13px;">
-<thead><tr>${hdrCell('캠퍼스')}${hdrCell('지각인원')}${hdrCell('횟수')}</tr></thead>
-<tbody>${rows}</tbody>
-</table></body></html>`;
+<!--
+  레이아웃: 외부 wrapper 테이블로 1행/1열 오프셋 구현
+  - 1열(A열): 너비 2 (약 15px)
+  - 1행: 빈 행
+  - 2행 2열부터 두 표 나란히
+-->
+<table border="0" cellspacing="0" cellpadding="0" style="font-family:맑은 고딕,Arial;font-size:12px;">
+  <colgroup>
+    <col style="width:15px;mso-width-source:userset;mso-width-alt:560;"><!-- A열: 너비=2 -->
+  </colgroup>
+  <!-- 1행: 빈 행 -->
+  <tr><td></td><td></td></tr>
+  <!-- 2행부터: 2열(B열)부터 두 표 -->
+  <tr valign="top">
+    <td></td><!-- A열 비움 -->
+    <td>
+      <!-- 표1: 지각현황 -->
+      <table border="1" style="border-collapse:collapse;">
+        <thead>${t1Head}</thead>
+        <tbody>${t1Body}</tbody>
+      </table>
+    </td>
+    <td width="30"></td>
+    <td>
+      <!-- 표2: 징계대상 -->
+      <table border="1" style="border-collapse:collapse;">
+        <thead>${t2Head}</thead>
+        <tbody>${t2Body}</tbody>
+      </table>
+    </td>
+  </tr>
+</table>
+</body></html>`;
 
   const blob = new Blob(['﻿'+html], {type:'application/vnd.ms-excel;charset=utf-8'});
   const a = document.createElement('a');
