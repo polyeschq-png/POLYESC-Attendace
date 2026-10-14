@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="Poly_Emblem_Blue_B.png">
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, collection, getDocs, orderBy, query }
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, orderBy, query }
     from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
   import { getAuth, signOut, onAuthStateChanged, browserSessionPersistence, setPersistence }
     from "https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js";
@@ -27,7 +27,7 @@
     db      = getFirestore(app);
     auth    = getAuth(app);
     await setPersistence(auth, browserSessionPersistence);
-    window._fb = { db, auth, doc, getDoc, setDoc, collection, getDocs, query, orderBy,
+    window._fb = { db, auth, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, orderBy,
                    signOut, onAuthStateChanged };
     window._fbReady = true;
   } catch(e) {
@@ -1038,6 +1038,7 @@ let RAW_DATA = [];
 let RESULTS = [];
 let UNREGISTERED = []; // 리스트 미등록이지만 근태기록 있는 인원
 let HISTORY = [];     // 누적 분석 기록 [{monthKey, analysedAt, results, summary}]
+let DISCIPLINE_RECORDS = {}; // {monthKey: {name: label}} — Firebase disciplineRecords 컬렉션과 동기화
 let REPORT_RECEIPTS = {}; // 보고서 수신 {monthKey: {campusName: {status, date}}}
 let REPORT_MEMO = {};     // 보고자료 특이사항 {monthKey: string}
 let currentUser = null; // Firebase 로그인 유저
@@ -2980,7 +2981,7 @@ let _discYear = null; // 현재 선택 연도
 
 function renderDisciplinePanel() {
   const DISCIPLINE_START = '2026-09';
-  const DISCIPLINE_LABELS = ['경고','1차 징계','2차 징계','3차 징계','4차 징계','5차 징계'];
+  const DISC_LABELS = ['경고','1차 징계','2차 징계','3차 징계'];
 
   // 이름 파싱: " (" 이전까지만 표시
   const shortName = n => n.includes(' (') ? n.slice(0, n.indexOf(' (')) : n;
@@ -3021,67 +3022,33 @@ function renderDisciplinePanel() {
     .filter(h => h.monthKey.startsWith(_discYear))
     .sort((a,b) => a.monthKey.localeCompare(b.monthKey));
 
-  const months = yearRecs.map(h => h.monthKey); // ["2026-09","2026-10",...]
+  const months = yearRecs.map(h => h.monthKey);
 
-  // ── streak 계산 (DISCIPLINE_START ~ 현재 연도 전체) ──
-  // 모든 HISTORY를 시간순 처리해서 streak 누적
-  const allSorted = (HISTORY || [])
-    .filter(h => h.monthKey >= DISCIPLINE_START)
-    .sort((a,b) => a.monthKey.localeCompare(b.monthKey));
-
-  // month별 streakMap 스냅샷 저장
-  const streakSnapshots = {}; // {monthKey: {name: streak}}
-  const runningStreak = {};
-  allSorted.forEach(rec => {
-    const monthLate = {};
-    (rec.results||[]).filter(r=>r.type==='late').forEach(r=>{
-      monthLate[r.name] = (monthLate[r.name]||0)+1;
-    });
-    const allNames = new Set([...Object.keys(runningStreak), ...Object.keys(monthLate)]);
-    allNames.forEach(name => {
-      if ((monthLate[name]||0) >= 2) {
-        runningStreak[name] = (runningStreak[name]||0) + 1;
-      } else {
-        if (runningStreak[name]) runningStreak[name] = 0;
-      }
-    });
-    streakSnapshots[rec.monthKey] = { ...runningStreak };
-  });
-
-  // ── 월별 징계 대상자 집계 ──
-  // discPerMonth[monthKey] = [{campus, name, label}]
-  const discPerMonth = {};
+  // ── 월별 대상자 집계 (지각 2회 이상) — 배정은 DISCIPLINE_RECORDS에서 읽음 ──
+  // candidatesPerMonth[mk] = [{campus, name, position}]
+  const candidatesPerMonth = {};
   yearRecs.forEach(rec => {
     const monthLate = {};
     (rec.results||[]).filter(r=>r.type==='late').forEach(r=>{
-      if (!monthLate[r.name]) monthLate[r.name] = { campus: r.campus, cnt: 0, position: r.position||'' };
-      monthLate[r.name].cnt++;
+      if (!monthLate[r.name]) monthLate[r.name] = { campus: r.campus, position: r.position||'' };
+      monthLate[r.name].cnt = (monthLate[r.name].cnt||0)+1;
     });
-    // streak는 이 월 처리 후의 값 (streakSnapshots[monthKey])
-    const snap = streakSnapshots[rec.monthKey] || {};
-    const list = [];
-    Object.entries(monthLate).forEach(([name, {campus, cnt, position}]) => {
-      if (cnt >= 2) {
-        const streak = snap[name] || 0; // 이 월까지의 누적 (이 월 포함)
-        const labelIdx = Math.min(streak - 1, DISCIPLINE_LABELS.length - 1); // streak=1→경고(idx0)
-        list.push({ campus, name, position: position||'', label: DISCIPLINE_LABELS[Math.max(0,labelIdx)] });
-      }
-    });
-    discPerMonth[rec.monthKey] = list;
+    candidatesPerMonth[rec.monthKey] = Object.entries(monthLate)
+      .filter(([,v])=>v.cnt>=2)
+      .map(([name,v])=>({ name, campus: v.campus, position: v.position }));
   });
 
-  // ── 누적현황: 인원별 월별 단계 ──
-  // allPersons: {name: campus} — 해당 연도에 한번이라도 등장한 징계대상자
-  const allPersons = {}; // name → {campus, position}
-  Object.values(discPerMonth).forEach(list => {
-    list.forEach(d => { if (!allPersons[d.name]) allPersons[d.name] = { campus: d.campus, position: d.position||'' }; });
-  });
-  // 캠퍼스 순 정렬
-  const personList = Object.entries(allPersons)
-    .sort((a,b) => {
-      const ca = sortCampuses([a[1].campus, b[1].campus]);
-      return ca[0]===a[1].campus ? -1 : 1;
+  // ── 누적현황: 징계 배정된 인원만 (DISCIPLINE_RECORDS 기준) ──
+  // allPersons[name] = {campus, position}
+  const allPersons = {};
+  Object.entries(candidatesPerMonth).forEach(([mk, cands]) => {
+    const assigned = DISCIPLINE_RECORDS[mk] || {};
+    cands.forEach(c => {
+      if (assigned[c.name]) {
+        if (!allPersons[c.name]) allPersons[c.name] = { campus: c.campus, position: c.position };
+      }
     });
+  });
 
   // 월 표시 헬퍼
   const mLabel = mk => parseInt(mk.slice(5,7)) + '월';
@@ -3092,30 +3059,34 @@ function renderDisciplinePanel() {
     '1차 징계':'background:#ffe4e4;color:#dc2626;border:1px solid #f87171;',
     '2차 징계':'background:#fecaca;color:#b91c1c;border:1px solid #ef4444;',
     '3차 징계':'background:#fca5a5;color:#991b1b;border:1px solid #dc2626;',
-    '4차 징계':'background:#f87171;color:#7f1d1d;border:1px solid #b91c1c;',
-    '5차 징계':'background:#ef4444;color:#fff;border:1px solid #dc2626;',
   };
-  const badge = lbl => `<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;${BADGE_STYLES[lbl]||BADGE_STYLES['경고']}">${lbl}</span>`;
+  const badge = lbl => lbl
+    ? `<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;${BADGE_STYLES[lbl]||BADGE_STYLES['경고']}">${lbl}</span>`
+    : '';
 
+  const isOwner = (window._campusRole === 'owner');
   let html = '';
 
   // ── 1. 월별 카드 그리드 ──
   months.forEach(mk => {
-    const list = discPerMonth[mk] || [];
-    if (!list.length) return;
+    const cands = candidatesPerMonth[mk] || [];
+    if (!cands.length) return;
 
     const byCampus = {};
-    list.forEach(d => {
-      if (!byCampus[d.campus]) byCampus[d.campus] = [];
-      byCampus[d.campus].push({ name: d.name, position: d.position||'' });
+    cands.forEach(c => {
+      if (!byCampus[c.campus]) byCampus[c.campus] = [];
+      byCampus[c.campus].push(c);
     });
     const sortedCampuses = sortCampuses(Object.keys(byCampus));
-    const totalPeople = list.length;
+    const assigned = DISCIPLINE_RECORDS[mk] || {};
+    const assignedCount = cands.filter(c=>assigned[c.name]).length;
 
     html += `
-    <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+    <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <span style="background:var(--blue);color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:99px;letter-spacing:.3px;">${mLabel(mk)}</span>
-      <span style="font-size:12px;color:var(--text3);font-weight:500;">캠퍼스 ${sortedCampuses.length}곳 · ${totalPeople}명</span>
+      <span style="font-size:12px;color:var(--text3);font-weight:500;">캠퍼스 ${sortedCampuses.length}곳 · ${cands.length}명</span>
+      ${assignedCount > 0 ? `<span style="font-size:12px;color:var(--green);font-weight:600;">✓ ${assignedCount}명 배정됨</span>` : ''}
+      ${isOwner ? `<button onclick="openDiscAssign('${mk}')" style="margin-left:auto;padding:5px 14px;border:1px solid var(--green);border-radius:6px;background:#fff;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);">⚖ 카테고리 배정</button>` : ''}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:28px;">`;
 
@@ -3125,7 +3096,10 @@ function renderDisciplinePanel() {
       <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:14px 18px;min-width:160px;">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">${campus}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${persons.map(({name,position})=>`<span style="background:#f0f4f8;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:500;color:var(--text);">${shortName(name)}${position?` <span style="color:var(--text3);font-size:11px;">(${position})</span>`:''}</span>`).join('')}
+          ${persons.map(({name,position})=>{
+            const lbl = assigned[name];
+            return `<span style="background:#f0f4f8;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:500;color:var(--text);display:flex;align-items:center;gap:5px;">${shortName(name)}${position?` <span style="color:var(--text3);font-size:11px;">(${position})</span>`:''}${lbl?` ${badge(lbl)}`:''}</span>`;
+          }).join('')}
         </div>
       </div>`;
     });
@@ -3134,6 +3108,11 @@ function renderDisciplinePanel() {
   });
 
   // ── 2. 누적현황 표 ──
+  const personList = Object.entries(allPersons).sort((a,b)=>{
+    const ca = sortCampuses([a[1].campus, b[1].campus]);
+    return ca[0]===a[1].campus ? -1 : 1;
+  });
+
   if (personList.length) {
     const campusGroups = {};
     personList.forEach(([name, {campus, position}]) => {
@@ -3141,19 +3120,18 @@ function renderDisciplinePanel() {
       campusGroups[campus].push({ name, position });
     });
 
-    // section label
     html += `
     <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;margin-top:8px;display:flex;align-items:center;gap:8px;">
       ${_discYear}년 징계 누적현황
       <span style="flex:1;height:1px;background:var(--border);display:block;"></span>
     </div>
     <div style="overflow-x:auto;background:var(--white);border-radius:10px;box-shadow:var(--shadow);border:1px solid var(--border);">
-    <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+    <table style="width:auto;border-collapse:collapse;table-layout:fixed;">
       <thead>
         <tr>
-          <th style="background:#f8fafc;padding:9px 14px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:center;width:90px;border-right:1px solid #e2e8f0;">캠퍼스</th>
-          <th style="background:#f8fafc;padding:9px 14px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:center;width:90px;border-right:2px solid #e2e8f0;">근로자명</th>
-          ${['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'].map(m=>`<th style="background:#f8fafc;padding:9px 14px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:center;width:80px;border-right:1px solid #e2e8f0;">${m}</th>`).join('')}
+          <th style="background:#f8fafc;padding:9px 14px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;border:1px solid #dde2ea;white-space:nowrap;text-align:center;width:90px;">캠퍼스</th>
+          <th style="background:#f8fafc;padding:9px 14px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;border:1px solid #dde2ea;white-space:nowrap;text-align:center;width:100px;">근로자명</th>
+          ${['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'].map(m=>`<th style="background:#f8fafc;padding:9px 10px;font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.4px;border:1px solid #dde2ea;white-space:nowrap;text-align:center;width:90px;">${m}</th>`).join('')}
         </tr>
       </thead>
       <tbody>`;
@@ -3163,13 +3141,13 @@ function renderDisciplinePanel() {
       persons.forEach(({name, position}, ni) => {
         html += '<tr>';
         if (ni===0) {
-          html += `<td rowspan="${persons.length}" style="padding:10px 14px;border-bottom:1px solid #e8c9b0;border-right:2px solid #e8c9b0;background:#fdf0e8;font-weight:700;font-size:13px;color:var(--text);text-align:center;vertical-align:middle;width:90px;">${campus}</td>`;
+          html += `<td rowspan="${persons.length}" style="padding:10px 14px;border:1px solid #dde2ea;background:#fdf0e8;font-weight:700;font-size:13px;color:var(--text);text-align:center;vertical-align:middle;width:90px;">${campus}</td>`;
         }
-        html += `<td style="padding:10px 14px;border-bottom:1px solid #edf0f4;border-right:2px solid #e2e8f0;font-size:13px;text-align:center;width:90px;">${shortName(name)}${position?` <span style="color:var(--text3);font-size:11px;">(${position})</span>`:''}</td>`;
+        html += `<td style="padding:10px 14px;border:1px solid #dde2ea;font-size:13px;text-align:center;width:100px;">${shortName(name)}${position?` <span style="color:var(--text3);font-size:11px;">(${position})</span>`:''}</td>`;
         [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m => {
           const mk = `${_discYear}-${String(m).padStart(2,'0')}`;
-          const entry = (discPerMonth[mk]||[]).find(d=>d.name===name);
-          html += `<td style="padding:10px 14px;border-bottom:1px solid #edf0f4;border-right:1px solid #edf0f4;font-size:13px;text-align:center;vertical-align:middle;width:80px;">${entry ? badge(entry.label) : ''}</td>`;
+          const lbl = (DISCIPLINE_RECORDS[mk]||{})[name];
+          html += `<td style="padding:9px 10px;border:1px solid #dde2ea;font-size:13px;text-align:center;vertical-align:middle;width:90px;overflow:hidden;">${lbl ? badge(lbl) : ''}</td>`;
         });
         html += '</tr>';
       });
@@ -3185,6 +3163,160 @@ function renderDisciplinePanel() {
   }
 
   document.getElementById('disc-body').innerHTML = html;
+}
+
+// ── 징계 배정 모달 ──
+function openDiscAssign(monthKey) {
+  const DISC_LABELS = ['경고','1차 징계','2차 징계','3차 징계'];
+  const shortName = n => n.includes(' (') ? n.slice(0, n.indexOf(' (')) : n;
+
+  const DISCIPLINE_START = '2026-09';
+  const rec = (HISTORY||[]).find(h=>h.monthKey===monthKey);
+  if (!rec) return;
+
+  const monthLate = {};
+  (rec.results||[]).filter(r=>r.type==='late').forEach(r=>{
+    if (!monthLate[r.name]) monthLate[r.name] = { campus: r.campus, position: r.position||'' };
+    monthLate[r.name].cnt = (monthLate[r.name].cnt||0)+1;
+  });
+  const candidates = Object.entries(monthLate)
+    .filter(([,v])=>v.cnt>=2)
+    .map(([name,v])=>({ name, campus: v.campus, position: v.position }));
+
+  const assigned = DISCIPLINE_RECORDS[monthKey] || {};
+  const mLabel = parseInt(monthKey.slice(5,7))+'월';
+
+  // 캠퍼스별 그룹
+  const byCampus = {};
+  candidates.forEach(c=>{
+    if (!byCampus[c.campus]) byCampus[c.campus] = [];
+    byCampus[c.campus].push(c);
+  });
+
+  const BADGE_STYLES = {
+    '경고':    'background:#fff3f3;color:#e53e3e;border:1px solid #fca5a5;',
+    '1차 징계':'background:#ffe4e4;color:#dc2626;border:1px solid #f87171;',
+    '2차 징계':'background:#fecaca;color:#b91c1c;border:1px solid #ef4444;',
+    '3차 징계':'background:#fca5a5;color:#991b1b;border:1px solid #dc2626;',
+  };
+
+  let rowsHtml = '';
+  sortCampuses(Object.keys(byCampus)).forEach(campus => {
+    byCampus[campus].forEach(({name, position}) => {
+      const cur = assigned[name] || '';
+      rowsHtml += `
+      <tr id="disc-row-${CSS.escape(name)}" style="border-bottom:1px solid var(--border);">
+        <td style="padding:10px 12px;width:32px;text-align:center;">
+          <input type="checkbox" class="disc-chk" data-name="${name}" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green);">
+        </td>
+        <td style="padding:10px 12px;font-size:13px;color:var(--text3);">${campus}</td>
+        <td style="padding:10px 12px;font-size:13px;font-weight:500;">${shortName(name)}${position?` <span style="font-size:11px;color:var(--text3);">(${position})</span>`:''}</td>
+        <td style="padding:10px 12px;" id="disc-badge-${CSS.escape(name)}">
+          ${cur ? `<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;${BADGE_STYLES[cur]||''}">${cur}</span>` : '<span style="font-size:12px;color:var(--text3);">미배정</span>'}
+        </td>
+      </tr>`;
+    });
+  });
+
+  const btnStyle = lbl => `padding:7px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);border:1.5px solid;${BADGE_STYLES[lbl]||''}`;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'disc-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+  <div style="background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.2);width:min(600px,94vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:16px;font-weight:700;">⚖ 징계 카테고리 배정</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:2px;">${monthKey.replace('-','년 ')}월 · 대상자 ${candidates.length}명</div>
+      </div>
+      <button onclick="document.getElementById('disc-modal-overlay').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;color:var(--text3);padding:4px 8px;">✕</button>
+    </div>
+    <div style="padding:12px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--text2);font-weight:500;">선택 인원에 적용:</span>
+      ${DISC_LABELS.map(lbl=>`<button onclick="applyDiscLabel('${monthKey}','${lbl}')" style="${btnStyle(lbl)}">${lbl}</button>`).join('')}
+      <button onclick="applyDiscLabel('${monthKey}','')" style="padding:7px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);border:1.5px solid #d0d5dd;background:#f9fafb;color:#667085;">배정 해제</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:#f8fafc;">
+            <th style="padding:9px 12px;font-size:11px;color:var(--text3);font-weight:600;text-align:center;border-bottom:1px solid var(--border);">
+              <input type="checkbox" id="disc-chk-all" onclick="toggleAllDiscChk(this)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--green);">
+            </th>
+            <th style="padding:9px 12px;font-size:11px;color:var(--text3);font-weight:600;text-align:left;border-bottom:1px solid var(--border);">캠퍼스</th>
+            <th style="padding:9px 12px;font-size:11px;color:var(--text3);font-weight:600;text-align:left;border-bottom:1px solid var(--border);">이름</th>
+            <th style="padding:9px 12px;font-size:11px;color:var(--text3);font-weight:600;text-align:left;border-bottom:1px solid var(--border);">현재 배정</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+    <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;">
+      <button onclick="document.getElementById('disc-modal-overlay').remove()" style="padding:8px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);">닫기</button>
+      <button onclick="saveDiscAssign('${monthKey}')" style="padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);">💾 저장</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target===overlay) overlay.remove(); });
+}
+
+function toggleAllDiscChk(master) {
+  document.querySelectorAll('.disc-chk').forEach(c => c.checked = master.checked);
+}
+
+function applyDiscLabel(monthKey, label) {
+  const BADGE_STYLES = {
+    '경고':    'background:#fff3f3;color:#e53e3e;border:1px solid #fca5a5;',
+    '1차 징계':'background:#ffe4e4;color:#dc2626;border:1px solid #f87171;',
+    '2차 징계':'background:#fecaca;color:#b91c1c;border:1px solid #ef4444;',
+    '3차 징계':'background:#fca5a5;color:#991b1b;border:1px solid #dc2626;',
+  };
+  const checked = [...document.querySelectorAll('.disc-chk:checked')];
+  if (!checked.length) { showToast('인원을 먼저 선택해 주세요','err'); return; }
+  if (!DISCIPLINE_RECORDS[monthKey]) DISCIPLINE_RECORDS[monthKey] = {};
+  checked.forEach(chk => {
+    const name = chk.dataset.name;
+    if (label) {
+      DISCIPLINE_RECORDS[monthKey][name] = label;
+    } else {
+      delete DISCIPLINE_RECORDS[monthKey][name];
+    }
+    // 뱃지 즉시 반영
+    const cell = document.getElementById('disc-badge-'+CSS.escape(name));
+    if (cell) {
+      cell.innerHTML = label
+        ? `<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;${BADGE_STYLES[label]||''}">${label}</span>`
+        : '<span style="font-size:12px;color:var(--text3);">미배정</span>';
+    }
+  });
+}
+
+async function saveDiscAssign(monthKey) {
+  if (!window._fbReady || !window._fb) { showToast('Firebase 연결 없음','err'); return; }
+  try {
+    const { db, doc, setDoc } = window._fb;
+    const data = DISCIPLINE_RECORDS[monthKey] || {};
+    await setDoc(doc(db, 'disciplineRecords', monthKey), { assignments: data, updatedAt: new Date().toISOString() });
+    document.getElementById('disc-modal-overlay')?.remove();
+    renderDisciplinePanel();
+    showToast('✅ 징계 배정 저장 완료','ok');
+  } catch(e) {
+    console.error(e);
+    showToast('저장 실패: '+e.message,'err');
+  }
+}
+
+async function loadDisciplineRecords() {
+  if (!window._fbReady || !window._fb) return;
+  try {
+    const { db, collection, getDocs } = window._fb;
+    const snap = await getDocs(collection(db, 'disciplineRecords'));
+    snap.forEach(d => {
+      const data = d.data();
+      if (data.assignments) DISCIPLINE_RECORDS[d.id] = data.assignments;
+    });
+  } catch(e) { console.warn('disciplineRecords 불러오기 실패:', e); }
 }
 
 function downloadReportExcel() {
@@ -3203,52 +3335,18 @@ function downloadReportExcel() {
     lateMap[r.campus][r.name] = (lateMap[r.campus][r.name] || 0) + 1;
   });
 
-  // ── 징계 단계 계산 ──
-  // 9월(2026-09)부터 시작. 현재 월 포함 과거 월별 기록에서
-  // 매월 2회 이상 지각이면 연속 카운트 → 단계 결정
-  const DISCIPLINE_START = '2026-09';
-  const DISCIPLINE_LABELS = ['경고','1차 징계','2차 징계','3차 징계','4차 징계','5차 징계'];
+  // ── 징계 단계: DISCIPLINE_RECORDS에서 현재 월 배정값 참조 ──
+  const assignedThisMonth = DISCIPLINE_RECORDS[monthKey] || {};
 
-  // 과거 기록 (HISTORY) + 현재 월 합산
-  // monthKey 오름차순 정렬, DISCIPLINE_START 이후만
-  const allMonths = [...HISTORY]
-    .filter(h => h.monthKey >= DISCIPLINE_START && h.monthKey < monthKey)
-    .sort((a,b) => a.monthKey.localeCompare(b.monthKey));
-
-  // 인원별 연속 월 2회 이상 지각 카운트
-  // {name: 연속 개월 수} — 현재 월 직전까지
-  const streakMap = {}; // streakMap[name] = 연속 개월수 (현재월 직전)
-
-  // 모든 과거 월을 순서대로 처리
-  allMonths.forEach(rec => {
-    const monthLate = {}; // 이 월의 name별 지각 횟수
-    (rec.results||[]).filter(r=>r.type==='late').forEach(r=>{
-      monthLate[r.name] = (monthLate[r.name]||0)+1;
-    });
-    // 2회 이상이면 streak 증가, 아니면 리셋
-    // 전체 등장 인원 기준으로 처리
-    const allNames = new Set([...Object.keys(streakMap), ...Object.keys(monthLate)]);
-    allNames.forEach(name => {
-      if ((monthLate[name]||0) >= 2) {
-        streakMap[name] = (streakMap[name]||0) + 1;
-      } else {
-        // 지각 2회 미만이면 연속 끊김 → 리셋
-        if (streakMap[name]) streakMap[name] = 0;
-      }
-    });
-  });
-
-  // 현재 월 2회 이상 지각자 → 징계 단계 결정
-  // streak(직전까지 연속 개월) 기준: 0→경고, 1→1차, 2→2차 ...
-  const disciplineList = []; // [{campus, name, cnt, streak, label}]
+  // 현재 월 2회 이상 지각자 목록 + 배정된 단계
+  const disciplineList = []; // [{campus, name, cnt, label}]
   campuses.forEach(campus => {
     const entries = Object.entries(lateMap[campus]||{})
       .filter(([,cnt]) => cnt >= 2)
       .sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],'ko'));
     entries.forEach(([name, cnt]) => {
-      const streak = streakMap[name] || 0;
-      const labelIdx = Math.min(streak, DISCIPLINE_LABELS.length-1);
-      disciplineList.push({ campus, name, cnt, streak, label: DISCIPLINE_LABELS[labelIdx] });
+      const label = assignedThisMonth[name] || ''; // 배정 없으면 빈값
+      disciplineList.push({ campus, name, cnt, label });
     });
   });
 
@@ -3333,7 +3431,7 @@ function downloadReportExcel() {
   } else {
     t2Rows.forEach((row, ri) => {
       const isLastRow   = ri === t2Total - 1;
-      const isHighLevel = row.streak >= 1;
+      const isHighLevel = row.label && row.label !== '경고';
       // rowspan 셀은 그룹 마지막이 표 마지막일 때만 B 2px
       const camEdge  = 'L' + (row.isGroupLast && isLastRow ? 'B' : '');
       const totEdge  = (row.isGroupLast && isLastRow) ? 'B' : '';
@@ -3346,7 +3444,7 @@ function downloadReportExcel() {
         t2Body += `<td rowspan="${row.rowspan}" style="${cs(CAM_BG,'#000',true,'center',totEdge)}vertical-align:middle;">${row.rowspan}</td>`;
       }
       t2Body += `<td style="${cs('#fff','#000',false,'left',nameEdge)}">${row.name}</td>`;
-      t2Body += `<td style="${cs(isHighLevel?RED_BG:'#fff','#000',isHighLevel,'center',discEdge)}">${row.label}</td>`;
+      t2Body += `<td style="${cs(isHighLevel?RED_BG:'#fff','#000',isHighLevel,'center',discEdge)}">${row.label||'미배정'}</td>`;
       t2Body += '</tr>';
     });
   }
@@ -3612,6 +3710,7 @@ function initFirebase() {
       switchTab('history');
       loadHistory();
       loadSettingsFromFirebase();
+      loadDisciplineRecords();
     } else {
       window.location.href = 'index.html';
     }
