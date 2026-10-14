@@ -3588,9 +3588,9 @@ function initFirebase() {
 
       // 권한별 탭 제어
       const CAMPUS_ROLE_TABS = {
-        owner:  ['report','upload','exceptions','result','history','settings'],
-        admin:  ['report','result','history'],
-        report: ['report','history'],
+        owner:  ['report','upload','exceptions','result','history','settings','discipline'],
+        admin:  ['report','result','history','discipline'],
+        report: ['report','history','discipline'],
       };
       const allowed = CAMPUS_ROLE_TABS[role] || CAMPUS_ROLE_TABS['report'];
 
