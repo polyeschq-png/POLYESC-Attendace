@@ -412,6 +412,9 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
     <div class="sb-item" data-tab="settings" onclick="switchTab('settings')">
       <span class="sb-icon">⚙️</span> 기준 관리
     </div>
+    <div class="sb-item" data-tab="discipline" onclick="switchTab('discipline')">
+      <span class="sb-icon">🚨</span> 징계 대상
+    </div>
   </div>
 
   <!-- 사이드바 하단 -->
@@ -818,6 +821,17 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
 
     </div>
 
+    <!-- ════════════ TAB: DISCIPLINE ════════════ -->
+    <div class="panel" id="panel-discipline">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <span style="font-size:15px;font-weight:600;">🚨 징계 대상 누적현황</span>
+        <span style="flex:1;"></span>
+        <!-- 연도 탭 -->
+        <div id="disc-year-tabs" style="display:flex;gap:4px;"></div>
+      </div>
+      <div id="disc-body"></div>
+    </div>
+
     </div><!-- /content -->
   </div><!-- /tab-layout -->
 </div><!-- /main-wrap -->
@@ -1104,7 +1118,8 @@ function switchTab(tab) {
   const titles = {
     upload: '📂 파일 업로드', report: '📊 보고자료',
     exceptions: '📌 특이사항 설정', result: '🔍 분석 결과',
-    history: '💾 월별 기록', settings: '⚙️ 기준 관리'
+    history: '💾 월별 기록', settings: '⚙️ 기준 관리',
+    discipline: '🚨 징계 대상'
   };
   document.getElementById('hdr-tab-title').textContent = titles[tab] || tab;
 
@@ -1131,6 +1146,7 @@ function switchTab(tab) {
   // 탭별 동작
   if (tab === 'report') refreshReport();
   if (tab === 'history') loadHistory();
+  if (tab === 'discipline') renderDisciplinePanel();
   if (tab === 'result') {
     renderResultTable(); renderCCTVTable(); renderUnregisteredTable(); updateSummary();
   }
@@ -2958,6 +2974,216 @@ function setReceipt(campus, monthKey, field, value) {
 // ══════════════════════════════════════
 // REPORT DOWNLOAD: Excel & PDF
 // ══════════════════════════════════════
+// ══════════════════════════════════════════
+// 징계 대상 패널 렌더링
+// ══════════════════════════════════════════
+let _discYear = null; // 현재 선택 연도
+
+function renderDisciplinePanel() {
+  const DISCIPLINE_START = '2026-09';
+  const DISCIPLINE_LABELS = ['경고','1차 징계','2차 징계','3차 징계','4차 징계','5차 징계'];
+
+  // HISTORY에서 DISCIPLINE_START 이후 기록만 수집
+  const validRecs = (HISTORY || []).filter(h => h.monthKey >= DISCIPLINE_START);
+
+  // 연도 목록 추출
+  const years = [...new Set(validRecs.map(h => h.monthKey.slice(0,4)))].sort();
+  if (!years.length) {
+    document.getElementById('disc-year-tabs').innerHTML = '';
+    document.getElementById('disc-body').innerHTML =
+      `<div style="text-align:center;padding:60px 0;color:var(--text3);">
+        <div style="font-size:40px;margin-bottom:12px;">📭</div>
+        <div style="font-size:15px;">아직 징계 대상 기록이 없습니다.</div>
+        <div style="font-size:13px;margin-top:6px;">월별 기록이 쌓이면 자동으로 표시됩니다.</div>
+      </div>`;
+    return;
+  }
+
+  // 연도 탭 선택
+  if (!_discYear || !years.includes(_discYear)) _discYear = years[years.length - 1];
+
+  // 연도 탭 버튼 렌더
+  const tabsEl = document.getElementById('disc-year-tabs');
+  tabsEl.innerHTML = years.map(y =>
+    `<button onclick="_discYear='${y}';renderDisciplinePanel();"
+      style="padding:5px 14px;border-radius:20px;border:1px solid var(--border2);cursor:pointer;font-size:13px;font-weight:600;
+             background:${y===_discYear?'var(--green)':'var(--white)'};
+             color:${y===_discYear?'#fff':'var(--text2)'};">
+      ${y}년
+    </button>`
+  ).join('');
+
+  // 선택 연도 기록
+  const yearRecs = validRecs
+    .filter(h => h.monthKey.startsWith(_discYear))
+    .sort((a,b) => a.monthKey.localeCompare(b.monthKey));
+
+  const months = yearRecs.map(h => h.monthKey); // ["2026-09","2026-10",...]
+
+  // ── streak 계산 (DISCIPLINE_START ~ 현재 연도 전체) ──
+  // 모든 HISTORY를 시간순 처리해서 streak 누적
+  const allSorted = (HISTORY || [])
+    .filter(h => h.monthKey >= DISCIPLINE_START)
+    .sort((a,b) => a.monthKey.localeCompare(b.monthKey));
+
+  // month별 streakMap 스냅샷 저장
+  const streakSnapshots = {}; // {monthKey: {name: streak}}
+  const runningStreak = {};
+  allSorted.forEach(rec => {
+    const monthLate = {};
+    (rec.results||[]).filter(r=>r.type==='late').forEach(r=>{
+      monthLate[r.name] = (monthLate[r.name]||0)+1;
+    });
+    const allNames = new Set([...Object.keys(runningStreak), ...Object.keys(monthLate)]);
+    allNames.forEach(name => {
+      if ((monthLate[name]||0) >= 2) {
+        runningStreak[name] = (runningStreak[name]||0) + 1;
+      } else {
+        if (runningStreak[name]) runningStreak[name] = 0;
+      }
+    });
+    streakSnapshots[rec.monthKey] = { ...runningStreak };
+  });
+
+  // ── 월별 징계 대상자 집계 ──
+  // discPerMonth[monthKey] = [{campus, name, label}]
+  const discPerMonth = {};
+  yearRecs.forEach(rec => {
+    const monthLate = {};
+    (rec.results||[]).filter(r=>r.type==='late').forEach(r=>{
+      if (!monthLate[r.name]) monthLate[r.name] = { campus: r.campus, cnt: 0 };
+      monthLate[r.name].cnt++;
+    });
+    // streak는 이 월 처리 후의 값 (streakSnapshots[monthKey])
+    const snap = streakSnapshots[rec.monthKey] || {};
+    const list = [];
+    Object.entries(monthLate).forEach(([name, {campus, cnt}]) => {
+      if (cnt >= 2) {
+        const streak = snap[name] || 0; // 이 월까지의 누적 (이 월 포함)
+        const labelIdx = Math.min(streak - 1, DISCIPLINE_LABELS.length - 1); // streak=1→경고(idx0)
+        list.push({ campus, name, label: DISCIPLINE_LABELS[Math.max(0,labelIdx)] });
+      }
+    });
+    discPerMonth[rec.monthKey] = list;
+  });
+
+  // ── 누적현황: 인원별 월별 단계 ──
+  // allPersons: {name: campus} — 해당 연도에 한번이라도 등장한 징계대상자
+  const allPersons = {}; // name → campus
+  Object.values(discPerMonth).forEach(list => {
+    list.forEach(d => { if (!allPersons[d.name]) allPersons[d.name] = d.campus; });
+  });
+  // 캠퍼스 순 정렬
+  const personList = Object.entries(allPersons)
+    .sort((a,b) => {
+      const ca = sortCampuses([a[1],b[1]]);
+      return ca[0]===a[1] ? -1 : 1;
+    });
+
+  // 월 표시 헬퍼
+  const mLabel = mk => parseInt(mk.slice(5,7)) + '월';
+
+  // ── 징계 뱃지 스타일 ──
+  const BADGE_STYLES = {
+    '경고':    'background:#fff3f3;color:#e53e3e;border:1px solid #fca5a5;',
+    '1차 징계':'background:#ffe4e4;color:#dc2626;border:1px solid #f87171;',
+    '2차 징계':'background:#fecaca;color:#b91c1c;border:1px solid #ef4444;',
+    '3차 징계':'background:#fca5a5;color:#991b1b;border:1px solid #dc2626;',
+    '4차 징계':'background:#f87171;color:#7f1d1d;border:1px solid #b91c1c;',
+    '5차 징계':'background:#ef4444;color:#fff;border:1px solid #dc2626;',
+  };
+  const badge = lbl => `<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;${BADGE_STYLES[lbl]||BADGE_STYLES['경고']}">${lbl}</span>`;
+
+  let html = '';
+
+  // ── 1. 월별 카드 그리드 ──
+  months.forEach(mk => {
+    const list = discPerMonth[mk] || [];
+    if (!list.length) return;
+
+    const byCampus = {};
+    list.forEach(d => {
+      if (!byCampus[d.campus]) byCampus[d.campus] = [];
+      byCampus[d.campus].push(d.name);
+    });
+    const sortedCampuses = sortCampuses(Object.keys(byCampus));
+    const totalPeople = list.length;
+
+    html += `
+    <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+      <span style="background:var(--blue);color:#fff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:99px;letter-spacing:.3px;">${mLabel(mk)}</span>
+      <span style="font-size:12px;color:var(--text3);font-weight:500;">캠퍼스 ${sortedCampuses.length}곳 · ${totalPeople}명</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:28px;">`;
+
+    sortedCampuses.forEach(campus => {
+      const names = byCampus[campus];
+      html += `
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:14px 18px;min-width:160px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">${campus}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${names.map(n=>`<span style="background:#f0f4f8;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:500;color:var(--text);">${n}</span>`).join('')}
+        </div>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  // ── 2. 누적현황 표 ──
+  if (personList.length) {
+    const campusGroups = {};
+    personList.forEach(([name, campus]) => {
+      if (!campusGroups[campus]) campusGroups[campus] = [];
+      campusGroups[campus].push(name);
+    });
+
+    // section label
+    html += `
+    <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;margin-top:8px;display:flex;align-items:center;gap:8px;">
+      ${_discYear}년 징계 누적현황
+      <span style="flex:1;height:1px;background:var(--border);display:block;"></span>
+    </div>
+    <div style="overflow-x:auto;background:var(--white);border-radius:10px;box-shadow:var(--shadow);border:1px solid var(--border);">
+    <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+      <thead>
+        <tr>
+          <th style="background:#f8fafc;padding:9px 14px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:center;width:90px;border-right:1px solid #e2e8f0;">캠퍼스</th>
+          <th style="background:#f8fafc;padding:9px 14px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:center;width:90px;border-right:2px solid #e2e8f0;">근로자명</th>
+          ${['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'].map(m=>`<th style="background:#f8fafc;padding:9px 14px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:center;width:80px;border-right:1px solid #e2e8f0;">${m}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>`;
+
+    sortCampuses(Object.keys(campusGroups)).forEach(campus => {
+      const names = campusGroups[campus];
+      names.forEach((name, ni) => {
+        html += '<tr>';
+        if (ni===0) {
+          html += `<td rowspan="${names.length}" style="padding:10px 14px;border-bottom:1px solid #e8c9b0;border-right:2px solid #e8c9b0;background:#fdf0e8;font-weight:700;font-size:13px;color:var(--text);text-align:center;vertical-align:middle;width:90px;">${campus}</td>`;
+        }
+        html += `<td style="padding:10px 14px;border-bottom:1px solid #edf0f4;border-right:2px solid #e2e8f0;font-size:13px;text-align:center;width:90px;">${name}</td>`;
+        [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m => {
+          const mk = `${_discYear}-${String(m).padStart(2,'0')}`;
+          const entry = (discPerMonth[mk]||[]).find(d=>d.name===name);
+          html += `<td style="padding:10px 14px;border-bottom:1px solid #edf0f4;border-right:1px solid #edf0f4;font-size:13px;text-align:center;vertical-align:middle;width:80px;">${entry ? badge(entry.label) : ''}</td>`;
+        });
+        html += '</tr>';
+      });
+    });
+
+    html += `</tbody></table></div>`;
+  }
+
+  if (!html) {
+    html = `<div style="text-align:center;padding:40px 0;color:var(--text3);">
+      <div style="font-size:13px;">${_discYear}년 징계 대상자가 없습니다.</div>
+    </div>`;
+  }
+
+  document.getElementById('disc-body').innerHTML = html;
+}
+
 function downloadReportExcel() {
   if (!RESULTS.length) { showToast('분석 결과가 없습니다','err'); return; }
 
@@ -3031,15 +3257,9 @@ function downloadReportExcel() {
   const RED_FG      = '#FF0000'; // 2회 이상 지각: 글자색
   const RED_BG      = '#FF7C80'; // 징계표 고단계 배경
 
-  // 셀 스타일 생성기
-  // edges: 'TLBR' 형태 — T=top, L=left, B=bottom, R=right 포함 시 2px, 나머지 1px
-  const cs = (bg, fg, bold, align, edges='') => {
-    const bw = dir => edges.includes(dir) ? '2px' : '1px';
-    return `background:${bg||'#fff'};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:${align||'left'};`
-      + `border-top:${bw('T')} solid #000;border-left:${bw('L')} solid #000;`
-      + `border-bottom:${bw('B')} solid #000;border-right:${bw('R')} solid #000;`
-      + `padding:5px 8px;`;
-  };
+  // 셀 스타일 생성기 (전체 1px 검정 실선)
+  const cs = (bg, fg, bold, align, _edges='') =>
+    `background:${bg||'#fff'};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:${align||'left'};border:1px solid #000;padding:5px 8px;`;
 
   // ── 표1 행 목록 구성 (외곽 위치 계산을 위해 먼저 수집) ──
   // isGroupLast: 같은 캠퍼스 그룹의 마지막 행 여부 (rowspan 캠퍼스 셀의 bottom 2px 용)
