@@ -3125,7 +3125,8 @@ function renderDisciplinePanel() {
       ${_discYear}년 징계 누적현황
       <span style="flex:1;height:1px;background:var(--border);display:block;"></span>
     </div>
-    <div style="overflow-x:auto;background:var(--white);border-radius:10px;box-shadow:var(--shadow);border:1px solid var(--border);display:inline-block;min-width:100%;box-sizing:border-box;">
+    <div style="overflow-x:auto;">
+    <div style="display:inline-block;background:var(--white);border-radius:10px;box-shadow:var(--shadow);border:1px solid var(--border);">
     <table style="width:auto;border-collapse:collapse;table-layout:auto;">
       <thead>
         <tr>
@@ -3153,7 +3154,7 @@ function renderDisciplinePanel() {
       });
     });
 
-    html += `</tbody></table></div>`;
+    html += `</tbody></table></div></div>`;
   }
 
   if (!html) {
