@@ -3024,14 +3024,16 @@ function downloadReportExcel() {
   });
 
   // ── 스타일 상수 ──
-  const HDR_BG  = '#FFB800'; // 노란색 헤더 (캡처 기준)
-  const HDR_FG  = '#000000';
-  const RED_BG  = '#FF7C80';
-  const CAM_BG  = '#FFE0B2'; // 캠퍼스 셀 연주황
+  const HDR_BG      = '#FFB800'; // 노란색 헤더
+  const HDR_FG      = '#000000';
+  const CAM_BG      = '#FBE2D5'; // 캠퍼스 셀 배경
   const DISC_HDR_BG = '#FFB800';
+  const RED_FG      = '#FF0000'; // 2회 이상 지각: 글자색만 변경
+  const RED_BG      = '#FF7C80'; // 징계표 고단계 배경
 
+  // 셀 스타일 생성기 (테두리: 일반 검정 1px, 외곽은 wrapper table에서 볼드 처리)
   const cs = (bg, fg, bold, align) =>
-    `background:${bg||'#fff'};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:${align||'left'};border:1px solid #aaa;padding:5px 8px;`;
+    `background:${bg||'#fff'};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:${align||'left'};border:1px solid #000;padding:5px 8px;`;
 
   // ── 표1: 캠퍼스별 지각 현황 ──
   let t1Head = `<tr>
@@ -3046,18 +3048,18 @@ function downloadReportExcel() {
     if (!entries.length) return;
     entries.forEach(([name,cnt],i) => {
       const isRed = cnt >= 2;
+      // 2회 이상: 배경색 유지, 글자색만 #FF0000 + 볼드
       t1Body += '<tr>';
       if (i===0) {
         t1Body += `<td rowspan="${entries.length}" style="${cs(CAM_BG,'#000',true,'center')}vertical-align:middle;">${campus}</td>`;
       }
-      t1Body += `<td style="${cs(isRed?RED_BG:'#fff','#000',isRed,'left')}">${name}</td>`;
-      t1Body += `<td style="${cs(isRed?RED_BG:'#fff','#000',isRed,'center')}">${cnt}회</td>`;
+      t1Body += `<td style="${cs('#fff',isRed?RED_FG:'#000',isRed,'left')}">${name}</td>`;
+      t1Body += `<td style="${cs('#fff',isRed?RED_FG:'#000',isRed,'center')}">${cnt}회</td>`;
       t1Body += '</tr>';
     });
   });
 
   // ── 표2: 징계대상 ──
-  // 캠퍼스별 그룹, 총인원 병합
   let t2Head = `<tr>
     <td colspan="4" style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">징계대상</td>
   </tr>
@@ -3068,7 +3070,6 @@ function downloadReportExcel() {
     <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">징계 단계</td>
   </tr>`;
 
-  // 캠퍼스별 그룹
   const discByCampus = {};
   disciplineList.forEach(d => {
     if (!discByCampus[d.campus]) discByCampus[d.campus] = [];
@@ -3085,7 +3086,6 @@ function downloadReportExcel() {
         t2Body += `<td rowspan="${members.length}" style="${cs(CAM_BG,'#000',true,'center')}vertical-align:middle;">${members.length}</td>`;
       }
       t2Body += `<td style="${cs('#fff','#000',false,'left')}">${d.name}</td>`;
-      // 징계 단계: 1차 이상이면 빨간색
       const isHighLevel = d.streak >= 1;
       t2Body += `<td style="${cs(isHighLevel?RED_BG:'#fff','#000',isHighLevel,'center')}">${d.label}</td>`;
       t2Body += '</tr>';
@@ -3093,7 +3093,7 @@ function downloadReportExcel() {
   });
 
   if (!t2Body) {
-    t2Body = `<tr><td colspan="4" style="text-align:center;border:1px solid #aaa;padding:8px;color:#888;">해당 없음</td></tr>`;
+    t2Body = `<tr><td colspan="4" style="text-align:center;border:1px solid #000;padding:8px;color:#888;">해당 없음</td></tr>`;
   }
 
   const mm = monthKey ? monthKey.slice(0,7).replace('-','년 ')+'월' : '미정';
@@ -3128,18 +3128,26 @@ function downloadReportExcel() {
   <tr valign="top">
     <td></td><!-- A열 비움 -->
     <td>
-      <!-- 표1: 지각현황 -->
-      <table border="1" style="border-collapse:collapse;">
-        <thead>${t1Head}</thead>
-        <tbody>${t1Body}</tbody>
+      <!-- 표1: 지각현황 (외곽 볼드 테두리) -->
+      <table border="0" cellspacing="0" cellpadding="0" style="border:2px solid #000;">
+        <tr><td>
+          <table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+            <thead>${t1Head}</thead>
+            <tbody>${t1Body}</tbody>
+          </table>
+        </td></tr>
       </table>
     </td>
     <td width="30"></td>
     <td>
-      <!-- 표2: 징계대상 -->
-      <table border="1" style="border-collapse:collapse;">
-        <thead>${t2Head}</thead>
-        <tbody>${t2Body}</tbody>
+      <!-- 표2: 징계대상 (외곽 볼드 테두리) -->
+      <table border="0" cellspacing="0" cellpadding="0" style="border:2px solid #000;">
+        <tr><td>
+          <table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+            <thead>${t2Head}</thead>
+            <tbody>${t2Body}</tbody>
+          </table>
+        </td></tr>
       </table>
     </td>
   </tr>
