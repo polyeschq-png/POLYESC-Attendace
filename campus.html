@@ -823,11 +823,10 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
 
     <!-- ════════════ TAB: DISCIPLINE ════════════ -->
     <div class="panel" id="panel-discipline">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-        <span style="font-size:15px;font-weight:600;">🚨 징계 대상 누적현황</span>
-        <span style="flex:1;"></span>
-        <!-- 연도 탭 -->
-        <div id="disc-year-tabs" style="display:flex;gap:4px;"></div>
+      <div style="margin-bottom:20px;">
+        <div style="font-size:15px;font-weight:600;margin-bottom:14px;">🚨 징계 대상 누적현황</div>
+        <!-- 연도 인덱스 탭 -->
+        <div id="disc-year-tabs" style="display:flex;gap:0;border-bottom:2px solid var(--border);"></div>
       </div>
       <div id="disc-body"></div>
     </div>
@@ -2983,6 +2982,9 @@ function renderDisciplinePanel() {
   const DISCIPLINE_START = '2026-09';
   const DISCIPLINE_LABELS = ['경고','1차 징계','2차 징계','3차 징계','4차 징계','5차 징계'];
 
+  // 이름 파싱: " (" 이전까지만 표시
+  const shortName = n => n.includes(' (') ? n.slice(0, n.indexOf(' (')) : n;
+
   // HISTORY에서 DISCIPLINE_START 이후 기록만 수집
   const validRecs = (HISTORY || []).filter(h => h.monthKey >= DISCIPLINE_START);
 
@@ -3006,9 +3008,10 @@ function renderDisciplinePanel() {
   const tabsEl = document.getElementById('disc-year-tabs');
   tabsEl.innerHTML = years.map(y =>
     `<button onclick="_discYear='${y}';renderDisciplinePanel();"
-      style="padding:5px 14px;border-radius:20px;border:1px solid var(--border2);cursor:pointer;font-size:13px;font-weight:600;
-             background:${y===_discYear?'var(--green)':'var(--white)'};
-             color:${y===_discYear?'#fff':'var(--text2)'};">
+      style="padding:10px 24px;border:none;border-bottom:3px solid ${y===_discYear?'var(--green)':'transparent'};
+             cursor:pointer;font-size:14px;font-weight:${y===_discYear?'700':'500'};
+             background:transparent;color:${y===_discYear?'var(--green)':'var(--text2)'};
+             margin-bottom:-2px;transition:all .15s;font-family:var(--sans);">
       ${y}년
     </button>`
   ).join('');
@@ -3051,17 +3054,17 @@ function renderDisciplinePanel() {
   yearRecs.forEach(rec => {
     const monthLate = {};
     (rec.results||[]).filter(r=>r.type==='late').forEach(r=>{
-      if (!monthLate[r.name]) monthLate[r.name] = { campus: r.campus, cnt: 0 };
+      if (!monthLate[r.name]) monthLate[r.name] = { campus: r.campus, cnt: 0, position: r.position||'' };
       monthLate[r.name].cnt++;
     });
     // streak는 이 월 처리 후의 값 (streakSnapshots[monthKey])
     const snap = streakSnapshots[rec.monthKey] || {};
     const list = [];
-    Object.entries(monthLate).forEach(([name, {campus, cnt}]) => {
+    Object.entries(monthLate).forEach(([name, {campus, cnt, position}]) => {
       if (cnt >= 2) {
         const streak = snap[name] || 0; // 이 월까지의 누적 (이 월 포함)
         const labelIdx = Math.min(streak - 1, DISCIPLINE_LABELS.length - 1); // streak=1→경고(idx0)
-        list.push({ campus, name, label: DISCIPLINE_LABELS[Math.max(0,labelIdx)] });
+        list.push({ campus, name, position: position||'', label: DISCIPLINE_LABELS[Math.max(0,labelIdx)] });
       }
     });
     discPerMonth[rec.monthKey] = list;
@@ -3069,15 +3072,15 @@ function renderDisciplinePanel() {
 
   // ── 누적현황: 인원별 월별 단계 ──
   // allPersons: {name: campus} — 해당 연도에 한번이라도 등장한 징계대상자
-  const allPersons = {}; // name → campus
+  const allPersons = {}; // name → {campus, position}
   Object.values(discPerMonth).forEach(list => {
-    list.forEach(d => { if (!allPersons[d.name]) allPersons[d.name] = d.campus; });
+    list.forEach(d => { if (!allPersons[d.name]) allPersons[d.name] = { campus: d.campus, position: d.position||'' }; });
   });
   // 캠퍼스 순 정렬
   const personList = Object.entries(allPersons)
     .sort((a,b) => {
-      const ca = sortCampuses([a[1],b[1]]);
-      return ca[0]===a[1] ? -1 : 1;
+      const ca = sortCampuses([a[1].campus, b[1].campus]);
+      return ca[0]===a[1].campus ? -1 : 1;
     });
 
   // 월 표시 헬퍼
@@ -3104,7 +3107,7 @@ function renderDisciplinePanel() {
     const byCampus = {};
     list.forEach(d => {
       if (!byCampus[d.campus]) byCampus[d.campus] = [];
-      byCampus[d.campus].push(d.name);
+      byCampus[d.campus].push({ name: d.name, position: d.position||'' });
     });
     const sortedCampuses = sortCampuses(Object.keys(byCampus));
     const totalPeople = list.length;
@@ -3117,12 +3120,12 @@ function renderDisciplinePanel() {
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:28px;">`;
 
     sortedCampuses.forEach(campus => {
-      const names = byCampus[campus];
+      const persons = byCampus[campus];
       html += `
       <div style="background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:14px 18px;min-width:160px;">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">${campus}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${names.map(n=>`<span style="background:#f0f4f8;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:500;color:var(--text);">${n}</span>`).join('')}
+          ${persons.map(({name,position})=>`<span style="background:#f0f4f8;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:500;color:var(--text);">${shortName(name)}${position?` <span style="color:var(--text3);font-size:11px;">(${position})</span>`:''}</span>`).join('')}
         </div>
       </div>`;
     });
@@ -3133,9 +3136,9 @@ function renderDisciplinePanel() {
   // ── 2. 누적현황 표 ──
   if (personList.length) {
     const campusGroups = {};
-    personList.forEach(([name, campus]) => {
+    personList.forEach(([name, {campus, position}]) => {
       if (!campusGroups[campus]) campusGroups[campus] = [];
-      campusGroups[campus].push(name);
+      campusGroups[campus].push({ name, position });
     });
 
     // section label
@@ -3156,13 +3159,13 @@ function renderDisciplinePanel() {
       <tbody>`;
 
     sortCampuses(Object.keys(campusGroups)).forEach(campus => {
-      const names = campusGroups[campus];
-      names.forEach((name, ni) => {
+      const persons = campusGroups[campus];
+      persons.forEach(({name, position}, ni) => {
         html += '<tr>';
         if (ni===0) {
-          html += `<td rowspan="${names.length}" style="padding:10px 14px;border-bottom:1px solid #e8c9b0;border-right:2px solid #e8c9b0;background:#fdf0e8;font-weight:700;font-size:13px;color:var(--text);text-align:center;vertical-align:middle;width:90px;">${campus}</td>`;
+          html += `<td rowspan="${persons.length}" style="padding:10px 14px;border-bottom:1px solid #e8c9b0;border-right:2px solid #e8c9b0;background:#fdf0e8;font-weight:700;font-size:13px;color:var(--text);text-align:center;vertical-align:middle;width:90px;">${campus}</td>`;
         }
-        html += `<td style="padding:10px 14px;border-bottom:1px solid #edf0f4;border-right:2px solid #e2e8f0;font-size:13px;text-align:center;width:90px;">${name}</td>`;
+        html += `<td style="padding:10px 14px;border-bottom:1px solid #edf0f4;border-right:2px solid #e2e8f0;font-size:13px;text-align:center;width:90px;">${shortName(name)}${position?` <span style="color:var(--text3);font-size:11px;">(${position})</span>`:''}</td>`;
         [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m => {
           const mk = `${_discYear}-${String(m).padStart(2,'0')}`;
           const entry = (discPerMonth[mk]||[]).find(d=>d.name===name);
