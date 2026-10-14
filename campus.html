@@ -436,7 +436,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
     <span class="hdr-badge" id="hdr-month"></span>
     <button class="btn btn-primary btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;margin-left:8px;">💾 저장</button>
     <div class="header-right">
-      <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()" id="hdr-btn-excel" style="display:none;">⬇ Excel</button>
+      <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()" id="hdr-btn-excel" style="display:none;">⬇ 징계대상 Excel</button>
       <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()" id="hdr-btn-pdf" style="display:none;">⬇ PDF</button>
     </div>
   </header>
@@ -457,7 +457,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
         <span style="font-size:15px;font-weight:600;" id="rpt-title">📊 보고자료</span>
         <span style="flex:1;"></span>
         <button class="btn btn-ghost btn-sm" onclick="addReportMemo()" style="border:1.5px dashed var(--border2);color:var(--text2);">특이사항 +</button>
-        <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()">⬇ Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()">⬇ 징계대상 Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">⬇ PDF</button>
       </div>
       <div class="warn-box" id="rpt-no-data">
@@ -2962,40 +2962,70 @@ function downloadReportExcel() {
   if (!RESULTS.length) { showToast('분석 결과가 없습니다','err'); return; }
 
   const monthKey = getReportMonthKey();
-  const receipts = monthKey ? (REPORT_RECEIPTS[monthKey]||{}) : {};
-  const campuses = sortCampuses([...new Set(RESULTS.map(r=>r.campus))].filter(ca=>MANAGED_CAMPUSES.has(ca)));
+  const campuses = sortCampuses(
+    [...new Set([...RESULTS.map(r=>r.campus), ...EMPLOYEES.map(e=>e.campus)])]
+    .filter(ca=>MANAGED_CAMPUSES.has(ca))
+  );
 
-  function buildNameList(rows) {
-    const map = {};
-    rows.forEach(r => { if(!map[r.name]) map[r.name]=0; map[r.name]++; });
-    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
-  }
-  function nameStr(entries) {
-    return entries.map(([n,cnt])=>`${n}(${cnt}회)`).join(' / ');
-  }
-
-  const hdr = ['캠퍼스','보고서수신일','불필요여부','지각인원(횟수)','근무시간미달(횟수)'];
-  const rows = campuses.map(campus => {
-    const cr = RESULTS.filter(r=>r.campus===campus);
-    const rec = receipts[campus]||{};
-    return [
-      campus,
-      rec.unnecessary ? '불필요' : (rec.date||'미수신'),
-      rec.unnecessary ? 'Y' : '',
-      nameStr(buildNameList(cr.filter(r=>r.type==='late'))),
-      nameStr(buildNameList(cr.filter(r=>r.type==='short'))),
-    ];
+  // 캠퍼스별 지각자 횟수 집계
+  const lateMap = {};
+  campuses.forEach(ca => { lateMap[ca] = {}; });
+  RESULTS.filter(r => r.type === 'late').forEach(r => {
+    if (!lateMap[r.campus]) lateMap[r.campus] = {};
+    lateMap[r.campus][r.name] = (lateMap[r.campus][r.name] || 0) + 1;
   });
 
-  const csv = [hdr,...rows].map(row=>row.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-  const mm = monthKey ? monthKey.slice(5).replace('-','')+'월' : '미정';
-  a.download = `${mm}_캠퍼스 근태 보고자료.csv`;
-  a.click();
-  showToast('✅ Excel(CSV) 다운로드','ok');
-}
+  // 전체 지각자 (가나다순)
+  const allNames = [...new Set(RESULTS.filter(r=>r.type==='late').map(r=>r.name))].sort((a,b)=>a.localeCompare(b,'ko'));
+  if (!allNames.length) { showToast('지각 인원이 없습니다','err'); return; }
 
+  const HDR_BG  = '#1E3A5F';
+  const HDR_FG  = '#FFFFFF';
+  const RED_BG  = '#FF7C80';
+  const cellStyle = (bg, fg, bold) =>
+    `background:${bg};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:center;border:1px solid #ccc;padding:4px 8px;`;
+
+  // 헤더행
+  let thead = `<tr><th style="${cellStyle(HDR_BG,HDR_FG,true)}">이름</th>`;
+  campuses.forEach(ca => {
+    thead += `<th style="${cellStyle(HDR_BG,HDR_FG,true)}">${ca}</th>`;
+  });
+  thead += '</tr>';
+
+  // 데이터행
+  let tbody = '';
+  allNames.forEach(name => {
+    tbody += '<tr>';
+    tbody += `<td style="border:1px solid #ccc;padding:4px 8px;font-weight:bold;">${name}</td>`;
+    campuses.forEach(ca => {
+      const cnt = (lateMap[ca]&&lateMap[ca][name]) ? lateMap[ca][name] : '';
+      const isRed = cnt >= 2;
+      tbody += `<td style="${cellStyle(isRed?RED_BG:'#fff','#000',isRed)}">${cnt}</td>`;
+    });
+    tbody += '</tr>';
+  });
+
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:x="urn:schemas-microsoft-com:office:excel"
+    xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8">
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>
+<x:ExcelWorksheet><x:Name>지각현황</x:Name>
+<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+</head><body>
+<table border="1" style="border-collapse:collapse;font-family:맑은고딕,Arial;">
+<thead>${thead}</thead><tbody>${tbody}</tbody>
+</table></body></html>`;
+
+  const blob = new Blob(['﻿'+html], {type:'application/vnd.ms-excel;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const mm = monthKey ? monthKey.slice(0,7).replace('-','년 ')+'월' : '미정';
+  a.download = `${mm}_지각현황_징계대상.xls`;
+  a.click();
+  showToast('✅ 징계대상 Excel 다운로드','ok');
+}
 function downloadReportPDF() {
   if (!RESULTS.length) { showToast('분석 결과가 없습니다','err'); return; }
 
