@@ -2968,43 +2968,43 @@ function downloadReportExcel() {
   );
 
   // 캠퍼스별 지각자 횟수 집계
-  const lateMap = {};
-  campuses.forEach(ca => { lateMap[ca] = {}; });
+  const lateMap = {}; // lateMap[campus][name] = 횟수
   RESULTS.filter(r => r.type === 'late').forEach(r => {
     if (!lateMap[r.campus]) lateMap[r.campus] = {};
     lateMap[r.campus][r.name] = (lateMap[r.campus][r.name] || 0) + 1;
   });
 
-  // 전체 지각자 (가나다순)
-  const allNames = [...new Set(RESULTS.filter(r=>r.type==='late').map(r=>r.name))].sort((a,b)=>a.localeCompare(b,'ko'));
-  if (!allNames.length) { showToast('지각 인원이 없습니다','err'); return; }
+  const HDR_BG = '#1E3A5F';
+  const HDR_FG = '#FFFFFF';
+  const RED_BG = '#FF7C80';
+  const hdrCell = (txt) =>
+    `<td style="background:${HDR_BG};color:${HDR_FG};font-weight:bold;text-align:center;border:1px solid #aaa;padding:5px 10px;">${txt}</td>`;
 
-  const HDR_BG  = '#1E3A5F';
-  const HDR_FG  = '#FFFFFF';
-  const RED_BG  = '#FF7C80';
-  const cellStyle = (bg, fg, bold) =>
-    `background:${bg};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:center;border:1px solid #ccc;padding:4px 8px;`;
+  // 데이터 행 생성 (캠퍼스별 지각자 목록)
+  let rows = '';
+  campuses.forEach(campus => {
+    const entries = Object.entries(lateMap[campus] || {})
+      .sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0],'ko')); // 횟수 내림차순, 동일시 가나다
+    if (!entries.length) return;
 
-  // 헤더행
-  let thead = `<tr><th style="${cellStyle(HDR_BG,HDR_FG,true)}">이름</th>`;
-  campuses.forEach(ca => {
-    thead += `<th style="${cellStyle(HDR_BG,HDR_FG,true)}">${ca}</th>`;
-  });
-  thead += '</tr>';
-
-  // 데이터행
-  let tbody = '';
-  allNames.forEach(name => {
-    tbody += '<tr>';
-    tbody += `<td style="border:1px solid #ccc;padding:4px 8px;font-weight:bold;">${name}</td>`;
-    campuses.forEach(ca => {
-      const cnt = (lateMap[ca]&&lateMap[ca][name]) ? lateMap[ca][name] : '';
+    entries.forEach(([name, cnt], i) => {
       const isRed = cnt >= 2;
-      tbody += `<td style="${cellStyle(isRed?RED_BG:'#fff','#000',isRed)}">${cnt}</td>`;
+      const nameBg  = isRed ? `background:${RED_BG};font-weight:bold;` : '';
+      const cntBg   = isRed ? `background:${RED_BG};font-weight:bold;` : '';
+      rows += '<tr>';
+      // 캠퍼스 셀: 첫 행만 출력, rowspan으로 병합
+      if (i === 0) {
+        rows += `<td rowspan="${entries.length}" style="background:#EBF0FA;font-weight:bold;text-align:center;border:1px solid #aaa;padding:5px 10px;vertical-align:middle;">${campus}</td>`;
+      }
+      rows += `<td style="border:1px solid #aaa;padding:5px 10px;${nameBg}">${name}</td>`;
+      rows += `<td style="border:1px solid #aaa;padding:5px 10px;text-align:center;${cntBg}">${cnt}회</td>`;
+      rows += '</tr>';
     });
-    tbody += '</tr>';
   });
 
+  if (!rows) { showToast('지각 인원이 없습니다','err'); return; }
+
+  const mm = monthKey ? monthKey.slice(0,7).replace('-','년 ')+'월' : '미정';
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:x="urn:schemas-microsoft-com:office:excel"
     xmlns="http://www.w3.org/TR/REC-html40">
@@ -3014,14 +3014,14 @@ function downloadReportExcel() {
 <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
 </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 </head><body>
-<table border="1" style="border-collapse:collapse;font-family:맑은고딕,Arial;">
-<thead>${thead}</thead><tbody>${tbody}</tbody>
+<table border="1" style="border-collapse:collapse;font-family:맑은 고딕,Arial;font-size:13px;">
+<thead><tr>${hdrCell('캠퍼스')}${hdrCell('지각인원')}${hdrCell('횟수')}</tr></thead>
+<tbody>${rows}</tbody>
 </table></body></html>`;
 
   const blob = new Blob(['﻿'+html], {type:'application/vnd.ms-excel;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  const mm = monthKey ? monthKey.slice(0,7).replace('-','년 ')+'월' : '미정';
   a.download = `${mm}_지각현황_징계대상.xls`;
   a.click();
   showToast('✅ 징계대상 Excel 다운로드','ok');
