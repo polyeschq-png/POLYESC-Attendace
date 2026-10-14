@@ -3024,76 +3024,108 @@ function downloadReportExcel() {
   });
 
   // ── 스타일 상수 ──
-  const HDR_BG      = '#FFB800'; // 노란색 헤더
+  const HDR_BG      = '#FFB800';
   const HDR_FG      = '#000000';
-  const CAM_BG      = '#FBE2D5'; // 캠퍼스 셀 배경
+  const CAM_BG      = '#FBE2D5';
   const DISC_HDR_BG = '#FFB800';
-  const RED_FG      = '#FF0000'; // 2회 이상 지각: 글자색만 변경
+  const RED_FG      = '#FF0000'; // 2회 이상 지각: 글자색
   const RED_BG      = '#FF7C80'; // 징계표 고단계 배경
 
-  // 셀 스타일 생성기 (테두리: 일반 검정 1px, 외곽은 wrapper table에서 볼드 처리)
-  const cs = (bg, fg, bold, align) =>
-    `background:${bg||'#fff'};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:${align||'left'};border:1px solid #000;padding:5px 8px;`;
+  // 셀 스타일 생성기
+  // edges: 'TLBR' 형태 — T=top, L=left, B=bottom, R=right 포함 시 2px, 나머지 1px
+  const cs = (bg, fg, bold, align, edges='') => {
+    const bw = dir => edges.includes(dir) ? '2px' : '1px';
+    return `background:${bg||'#fff'};color:${fg||'#000'};${bold?'font-weight:bold;':''}text-align:${align||'left'};`
+      + `border-top:${bw('T')} solid #000;border-left:${bw('L')} solid #000;`
+      + `border-bottom:${bw('B')} solid #000;border-right:${bw('R')} solid #000;`
+      + `padding:5px 8px;`;
+  };
 
-  // ── 표1: 캠퍼스별 지각 현황 ──
-  let t1Head = `<tr>
-    <td style="${cs(HDR_BG,HDR_FG,true,'center')}">캠퍼스</td>
-    <td style="${cs(HDR_BG,HDR_FG,true,'center')}">지각인원</td>
-    <td style="${cs(HDR_BG,HDR_FG,true,'center')}">횟수</td>
-  </tr>`;
-  let t1Body = '';
+  // ── 표1 행 목록 구성 (외곽 위치 계산을 위해 먼저 수집) ──
+  // isGroupLast: 같은 캠퍼스 그룹의 마지막 행 여부 (rowspan 캠퍼스 셀의 bottom 2px 용)
+  const t1Rows = [];
   campuses.forEach(campus => {
     const entries = Object.entries(lateMap[campus]||{})
       .sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'ko'));
     if (!entries.length) return;
     entries.forEach(([name,cnt],i) => {
-      const isRed = cnt >= 2;
-      // 2회 이상: 배경색 유지, 글자색만 #FF0000 + 볼드
-      t1Body += '<tr>';
-      if (i===0) {
-        t1Body += `<td rowspan="${entries.length}" style="${cs(CAM_BG,'#000',true,'center')}vertical-align:middle;">${campus}</td>`;
-      }
-      t1Body += `<td style="${cs('#fff',isRed?RED_FG:'#000',isRed,'left')}">${name}</td>`;
-      t1Body += `<td style="${cs('#fff',isRed?RED_FG:'#000',isRed,'center')}">${cnt}회</td>`;
-      t1Body += '</tr>';
+      t1Rows.push({ campus, name, cnt, isFirst: i===0, isGroupLast: i===entries.length-1, rowspan: entries.length });
     });
   });
+  const t1Total = t1Rows.length;
 
-  // ── 표2: 징계대상 ──
-  let t2Head = `<tr>
-    <td colspan="4" style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">징계대상</td>
-  </tr>
-  <tr>
-    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">캠퍼스</td>
-    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">총인원</td>
-    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">근로자 성명</td>
-    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center')}">징계 단계</td>
+  // 표1 헤더
+  let t1Head = `<tr>
+    <td style="${cs(HDR_BG,HDR_FG,true,'center','TL')}">캠퍼스</td>
+    <td style="${cs(HDR_BG,HDR_FG,true,'center','T')}">지각인원</td>
+    <td style="${cs(HDR_BG,HDR_FG,true,'center','TR')}">횟수</td>
   </tr>`;
 
+  let t1Body = '';
+  t1Rows.forEach((row, ri) => {
+    const isRed     = row.cnt >= 2;
+    const isLastRow = ri === t1Total - 1;   // 표 전체 마지막 행
+    const nameEdge  = isLastRow ? 'B' : '';
+    const cntEdge   = 'R' + (isLastRow ? 'B' : '');
+
+    t1Body += '<tr>';
+    if (row.isFirst) {
+      // 캠퍼스 rowspan 셀: 그룹 마지막 행이 표 마지막이면 B 2px
+      const cEdge = 'L' + (row.isGroupLast && isLastRow ? 'B' : '');
+      t1Body += `<td rowspan="${row.rowspan}" style="${cs(CAM_BG,'#000',true,'center',cEdge)}vertical-align:middle;">${row.campus}</td>`;
+    }
+    t1Body += `<td style="${cs('#fff',isRed?RED_FG:'#000',isRed,'left',nameEdge)}">${row.name}</td>`;
+    t1Body += `<td style="${cs('#fff',isRed?RED_FG:'#000',isRed,'center',cntEdge)}">${row.cnt}회</td>`;
+    t1Body += '</tr>';
+  });
+
+  // ── 표2 행 목록 구성 ──
   const discByCampus = {};
   disciplineList.forEach(d => {
     if (!discByCampus[d.campus]) discByCampus[d.campus] = [];
     discByCampus[d.campus].push(d);
   });
 
-  let t2Body = '';
+  const t2Rows = [];
   sortCampuses(Object.keys(discByCampus)).forEach(campus => {
     const members = discByCampus[campus];
-    members.forEach((d,i) => {
+    members.forEach((d,i) => t2Rows.push({ ...d, isFirst: i===0, isGroupLast: i===members.length-1, rowspan: members.length }));
+  });
+  const t2Total = t2Rows.length;
+
+  // 표2 헤더
+  let t2Head = `<tr>
+    <td colspan="4" style="${cs(DISC_HDR_BG,HDR_FG,true,'center','TLR')}">징계대상</td>
+  </tr>
+  <tr>
+    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center','L')}">캠퍼스</td>
+    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center','')}">총인원</td>
+    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center','')}">근로자 성명</td>
+    <td style="${cs(DISC_HDR_BG,HDR_FG,true,'center','R')}">징계 단계</td>
+  </tr>`;
+
+  let t2Body = '';
+  if (t2Total === 0) {
+    t2Body = `<tr><td colspan="4" style="${cs('#fff','#888',false,'center','LBR')}">해당 없음</td></tr>`;
+  } else {
+    t2Rows.forEach((row, ri) => {
+      const isLastRow   = ri === t2Total - 1;
+      const isHighLevel = row.streak >= 1;
+      // rowspan 셀은 그룹 마지막이 표 마지막일 때만 B 2px
+      const camEdge  = 'L' + (row.isGroupLast && isLastRow ? 'B' : '');
+      const totEdge  = (row.isGroupLast && isLastRow) ? 'B' : '';
+      const nameEdge = isLastRow ? 'B' : '';
+      const discEdge = 'R' + (isLastRow ? 'B' : '');
+
       t2Body += '<tr>';
-      if (i===0) {
-        t2Body += `<td rowspan="${members.length}" style="${cs(CAM_BG,'#000',true,'center')}vertical-align:middle;">${campus}</td>`;
-        t2Body += `<td rowspan="${members.length}" style="${cs(CAM_BG,'#000',true,'center')}vertical-align:middle;">${members.length}</td>`;
+      if (row.isFirst) {
+        t2Body += `<td rowspan="${row.rowspan}" style="${cs(CAM_BG,'#000',true,'center',camEdge)}vertical-align:middle;">${row.campus}</td>`;
+        t2Body += `<td rowspan="${row.rowspan}" style="${cs(CAM_BG,'#000',true,'center',totEdge)}vertical-align:middle;">${row.rowspan}</td>`;
       }
-      t2Body += `<td style="${cs('#fff','#000',false,'left')}">${d.name}</td>`;
-      const isHighLevel = d.streak >= 1;
-      t2Body += `<td style="${cs(isHighLevel?RED_BG:'#fff','#000',isHighLevel,'center')}">${d.label}</td>`;
+      t2Body += `<td style="${cs('#fff','#000',false,'left',nameEdge)}">${row.name}</td>`;
+      t2Body += `<td style="${cs(isHighLevel?RED_BG:'#fff','#000',isHighLevel,'center',discEdge)}">${row.label}</td>`;
       t2Body += '</tr>';
     });
-  });
-
-  if (!t2Body) {
-    t2Body = `<tr><td colspan="4" style="text-align:center;border:1px solid #000;padding:8px;color:#888;">해당 없음</td></tr>`;
   }
 
   const mm = monthKey ? monthKey.slice(0,7).replace('-','년 ')+'월' : '미정';
@@ -3128,26 +3160,18 @@ function downloadReportExcel() {
   <tr valign="top">
     <td></td><!-- A열 비움 -->
     <td>
-      <!-- 표1: 지각현황 (외곽 볼드 테두리) -->
-      <table border="0" cellspacing="0" cellpadding="0" style="border:2px solid #000;">
-        <tr><td>
-          <table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-            <thead>${t1Head}</thead>
-            <tbody>${t1Body}</tbody>
-          </table>
-        </td></tr>
+      <!-- 표1: 지각현황 -->
+      <table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+        <thead>${t1Head}</thead>
+        <tbody>${t1Body}</tbody>
       </table>
     </td>
     <td width="30"></td>
     <td>
-      <!-- 표2: 징계대상 (외곽 볼드 테두리) -->
-      <table border="0" cellspacing="0" cellpadding="0" style="border:2px solid #000;">
-        <tr><td>
-          <table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
-            <thead>${t2Head}</thead>
-            <tbody>${t2Body}</tbody>
-          </table>
-        </td></tr>
+      <!-- 표2: 징계대상 -->
+      <table border="0" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+        <thead>${t2Head}</thead>
+        <tbody>${t2Body}</tbody>
       </table>
     </td>
   </tr>
