@@ -1280,7 +1280,7 @@ function updateUnmatchedBadge(){
   let cnt=0;
   Object.values(PERSONS).forEach(list=>list.forEach(p=>{
     if(SKIP_POSITIONS.includes(p.posOverride||'')) return;
-    if(p.matchType==='none'||!p.attendName) cnt++;
+    if((p.matchType==='none'||!p.attendName) && !isNotYetHired(p)) cnt++;
   }));
   document.getElementById('sb-unmatched').textContent=cnt||'';
 }
@@ -1420,6 +1420,17 @@ function isResigned(p) {
   return p.leaveDate < today;
 }
 
+// 입사일이 기준 분기월 이후인 경우(아직 미입사) → 미매칭에서 제외
+function isNotYetHired(p) {
+  if (!p.hireDate) return false;
+  const q = parseInt(document.getElementById('sel-quarter')?.value || '1');
+  const y = parseInt(document.getElementById('sel-year')?.value || new Date().getFullYear());
+  const baseMonth = [3, 6, 9, 12][q - 1];
+  // 기준월 마지막 날
+  const lastDay = new Date(y, baseMonth, 0).toISOString().slice(0, 10);
+  return p.hireDate > lastDay;
+}
+
 function renderPersonCampusList() {
   if(personsTab !== 'campus') return; // 휴직자 탭 활성화 중엔 실행 안 함
   const el = document.getElementById('pm-campus-items');
@@ -1433,7 +1444,7 @@ function renderPersonCampusList() {
   el.innerHTML = campuses.map(campus => {
     const persons = PERSONS[campus] || [];
     const visible = showResigned ? persons : persons.filter(p => !isResigned(p) && !SKIP_POSITIONS.includes(p.posOverride||''));
-    const unmatched = visible.filter(p => !p.attendName && !p.isLeave).length;
+    const unmatched = visible.filter(p => !p.attendName && !p.isLeave && !isNotYetHired(p)).length;
     const active = campus === selectedPersonCampus;
     return `<div class="pm-item${active?' active':''}" onclick="selectPersonCampus('${campus}')">
       <span>${campus}</span>
@@ -1484,7 +1495,7 @@ function renderPersonDetail(campus, tab) {
   const activeList = viewList.filter(p => !SKIP_POSITIONS.includes(p.posOverride||''));
 
   const matched   = activeList.filter(p => p.attendName);
-  const unmatched = activeList.filter(p => !p.attendName);
+  const unmatched = activeList.filter(p => !p.attendName && !isNotYetHired(p));
 
   detail.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -1529,7 +1540,7 @@ function renderPersonDetail(campus, tab) {
     const isSkipped = SKIP_POSITIONS.includes(p.posOverride||'');
     const leaveClass = p.isLeave ? 'is-leave' : '';
     const resignedClass = (resigned||isSkipped) ? 'is-resigned' : '';
-    const unmatchClass = !p.attendName && !p.isLeave && !isSkipped ? 'is-unmatched' : '';
+    const unmatchClass = !p.attendName && !p.isLeave && !isSkipped && !isNotYetHired(p) ? 'is-unmatched' : '';
     const newClass = p._isNew ? 'is-new' : '';
 
     const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="본부장">본부장</option><option value="본사">본사</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="POLY안전선생님">POLY안전선생님</option><option value="사서">사서</option><option value="미화">미화</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
