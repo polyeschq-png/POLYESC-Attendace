@@ -126,32 +126,49 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .pm-item .pm-cnt{font-size:11px;font-family:var(--mono);color:var(--text3)}
 .pm-item.active .pm-cnt{color:var(--green)}
 /* 인원 카드 */
-.person-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);transition:box-shadow .15s}
+.person-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;display:flex;align-items:stretch;overflow:hidden;box-shadow:var(--shadow);transition:box-shadow .15s}
 .person-card:hover{box-shadow:var(--shadow-md)}
 .person-card.is-leave{background:#fffde7;border-color:#fcd34d}
 .person-card.is-unmatched{border-left:3px solid var(--red)}
-.pc-name{font-weight:700;font-size:14px;min-width:120px}
-.pc-payname-input{font-weight:700;font-size:14px;width:100%;border:1px solid transparent;border-radius:5px;padding:3px 6px;background:transparent;color:var(--text);font-family:var(--sans);cursor:text;transition:border-color .15s,background .15s;box-sizing:border-box}
-.pc-payname-input:hover{border-color:var(--border);background:var(--bg)}
-.pc-payname-input:focus{border-color:var(--blue);background:var(--bg);outline:none}
-.pc-payname-input::placeholder{color:var(--red);font-weight:400;font-size:13px}
-.pc-pos{font-size:12px;color:var(--text3);min-width:80px}
-.pc-div{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg);color:var(--text2);white-space:nowrap}
-.pc-input{border:1px solid var(--border2);border-radius:6px;padding:5px 9px;font-size:12px;font-family:var(--sans);background:var(--white);color:var(--text);width:180px;outline:none;transition:border-color .15s}
+.person-card.is-new{border-left:3px solid var(--blue);background:#ebf8ff}
+.person-card.is-resigned{opacity:.55;background:#f8f8f8;border-color:#ddd}
+.person-card.is-resigned .pc-payname-input{color:var(--text3)}
+/* 상태 뱃지 (공통) */
+.status-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;border-radius:4px;padding:2px 7px;letter-spacing:.2px;align-self:flex-start;margin-bottom:4px;white-space:nowrap}
+.status-badge.unmatched{background:#fee2e2;color:var(--red)}
+.status-badge.leave{background:#fef3c7;color:#b45309}
+.status-badge.new{background:#dbeafe;color:#1d4ed8}
+/* 카드 내부 */
+.pc-body{flex:1;min-width:0;display:flex;align-items:stretch;padding:10px 12px}
+.pc-name-wrap{flex:0 0 175px;min-width:0;border-right:1px solid var(--border);padding-right:12px;display:flex;flex-direction:column;gap:8px;justify-content:center}
+.pc-grid{flex:1;min-width:0;padding:0 12px;display:flex;flex-direction:column;gap:8px;justify-content:center}
+.pc-row{display:flex;align-items:flex-end;gap:8px;flex-wrap:nowrap}
+.pc-checks-col{padding:0 8px;display:flex;flex-direction:column;gap:8px;justify-content:center;flex-shrink:0}
+.pc-memo-wrap{border-left:1px solid var(--border);padding:8px 6px 8px 10px;display:flex;flex-direction:row;align-items:stretch;gap:6px;flex:0 0 220px}
+.pc-memo-inner{flex:1;display:flex;flex-direction:column;gap:3px}
+.pc-field{display:flex;flex-direction:column;gap:3px}
+.pc-field-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.pc-payname-input{border:1px solid var(--border2);border-radius:5px;padding:5px 8px;font-size:13px;font-weight:700;font-family:var(--sans);background:var(--white);color:var(--text);width:100%;box-sizing:border-box;outline:none;cursor:text}
+.pc-payname-input:hover{background:var(--bg)}
+.pc-payname-input:focus{border-color:var(--blue);background:var(--bg)}
+.pc-payname-input.has-val{border-color:var(--green);background:var(--green-lt)}
+.pc-payname-input::placeholder{color:var(--red);font-weight:400;font-size:12px}
+.pc-input{border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-size:12px;font-family:var(--sans);background:var(--white);color:var(--text);outline:none;box-sizing:border-box}
 .pc-input:focus{border-color:var(--green)}
 .pc-input.has-val{border-color:var(--green);background:var(--green-lt)}
-.pc-leave-wrap{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);white-space:nowrap}
+.pc-select{border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-size:12px;font-family:var(--sans);background:var(--white);color:var(--text);outline:none;width:100%}
+.pc-select:focus{border-color:var(--green)}
+.pc-memo{border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-size:12px;font-family:var(--sans);background:var(--white);color:var(--text);width:100%;flex:1;resize:none;line-height:1.4;outline:none;box-sizing:border-box;min-height:0}
+.pc-memo:focus{border-color:var(--green)}
+.pc-memo.has-val{border-color:var(--green);background:var(--green-lt)}
+.pc-check{display:flex;align-items:center;gap:6px;flex-shrink:0;white-space:nowrap;font-size:12px;color:var(--text2)}
+.pc-check input[type=checkbox]{width:14px;height:14px;margin:0}
+.btn-del{border:1px solid var(--border2);border-radius:6px;padding:6px 8px;font-size:16px;background:var(--white);color:var(--red);cursor:pointer;white-space:nowrap;align-self:center;line-height:1;flex-shrink:0}
+.btn-del:hover{background:#fff5f5;border-color:var(--red)}
 /* 인원 이너탭 */
 .pm-itabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:16px}
 .pm-itab{padding:7px 16px;font-size:13px;font-weight:500;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
 .pm-itab:hover{color:var(--text)}.pm-itab.active{color:var(--green);border-bottom-color:var(--green);font-weight:600}
-/* 카드 좌우 레이아웃 */
-.pc-left{min-width:130px;flex-shrink:0;border-right:1px solid var(--border);padding-right:16px}
-.pc-right{flex:1;display:grid;grid-template-columns:110px 100px auto 1fr auto auto auto;gap:10px;align-items:center}
-.pc-field{display:flex;flex-direction:column;gap:3px}
-.pc-field-label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.pc-select{border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-size:12px;font-family:var(--sans);background:var(--white);color:var(--text);outline:none;width:100%}
-.pc-select:focus{border-color:var(--green)}
 /* 보고자료 */
 .rpt-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
 .rpt-hdr{background:linear-gradient(135deg,#c9960a,#ffcd4a);border-radius:8px;padding:14px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
@@ -179,7 +196,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .new-person-row:last-child{border-bottom:none}
 .person-card.is-new{border-left:3px solid var(--blue);background:#ebf8ff}
 .person-card.is-resigned{opacity:.55;background:#f8f8f8;border-color:#ddd}
-.person-card.is-resigned .pc-name::after{content:' (퇴사)';font-size:11px;color:var(--red);font-weight:400}
 .person-card.is-resigned .pc-payname-input{color:var(--text3)}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
@@ -1520,68 +1536,81 @@ function renderPersonDetail(campus, tab) {
     const divOpts = `<option value="정규직">정규직</option><option value="계약직">계약직</option><option value="단기근로">단기근로</option>`.replace(`value="${curDiv}"`,`value="${curDiv}" selected`);
 
     // data-campus, data-payname 으로 이름 전달 → 특수문자 안전
+    const statusBadge = unmatchClass ? '<span class="status-badge unmatched">미매칭</span>'
+      : (p.isLeave ? '<span class="status-badge leave">휴직</span>'
+      : (p._isNew  ? '<span class="status-badge new">신규추가</span>' : ''));
     return `<div class="person-card ${leaveClass} ${resignedClass} ${unmatchClass} ${newClass}"
         data-campus="${esc(campus)}" data-payname="${esc(p.payName)}">
-      <div class="pc-left">
-        <div style="font-size:10px;color:var(--text3);margin-bottom:2px">급여대장 이름</div>
-        <input class="pc-payname-input pc-payname" type="text"
-          value="${esc(p.payName)}"
-          placeholder="급여대장 이름 입력"
-          title="클릭하여 수정">
-        ${p.isLeave ? '<div style="font-size:11px;color:#d97706;font-weight:600;margin-top:3px">🟡 휴직</div>' : ''}
-        ${p._isNew ? '<div style="font-size:11px;color:var(--blue);font-weight:600;margin-top:3px">🆕 신규추가</div>' : ''}
-      </div>
-      <div class="pc-right">
-        <div class="pc-field">
-          <div class="pc-field-label">직책</div>
-          <select class="pc-select pc-pos">
-            <option value="">선택</option>${posOpts}
-          </select>
+      <div class="pc-body">
+        <!-- 이름 컬럼 -->
+        <div class="pc-name-wrap">
+          <div class="pc-field">
+            ${statusBadge}
+            <div class="pc-field-label">급여대장 이름</div>
+            <input class="pc-payname-input pc-payname" type="text"
+              value="${esc(p.payName)}"
+              placeholder="급여대장 이름 입력"
+              title="클릭하여 수정">
+          </div>
+          <div class="pc-field">
+            <div class="pc-field-label">CAPS 이름</div>
+            <input class="pc-input pc-attend${p.attendName?' has-val':''}" type="text"
+              value="${esc(p.attendName||'')}"
+              placeholder="수기 입력"
+              style="width:100%;box-sizing:border-box">
+          </div>
         </div>
-        <div class="pc-field">
-          <div class="pc-field-label">구분</div>
-          <select class="pc-select pc-div">
-            <option value="">선택</option>${divOpts}
-          </select>
+        <!-- 데이터 그리드 (2행) -->
+        <div class="pc-grid">
+          <div class="pc-row">
+            <div class="pc-field" style="flex:1">
+              <div class="pc-field-label">직책</div>
+              <select class="pc-select pc-pos" style="width:100%">
+                <option value="">선택</option>${posOpts}
+              </select>
+            </div>
+            <div class="pc-field" style="flex:1">
+              <div class="pc-field-label">구분</div>
+              <select class="pc-select pc-div" style="width:100%">
+                <option value="">선택</option>${divOpts}
+              </select>
+            </div>
+          </div>
+          <div class="pc-row">
+            <div class="pc-field" style="flex:1">
+              <div class="pc-field-label">입사일</div>
+              <input class="pc-input pc-hiredate${p.hireDate?' has-val':''}" type="text"
+                value="${p.hireDate||''}"
+                placeholder="YYYY-MM-DD"
+                style="width:100%;font-family:var(--mono);font-size:11px">
+            </div>
+            <div class="pc-field" style="flex:1">
+              <div class="pc-field-label">퇴사일</div>
+              <input class="pc-input pc-leavedate${p.leaveDate?' has-val':''}" type="text"
+                value="${p.leaveDate||''}"
+                placeholder="YYYY-MM-DD"
+                style="width:100%;font-family:var(--mono);font-size:11px;${p.leaveDate?'border-color:var(--orange);':''}">
+            </div>
+          </div>
         </div>
-        <div class="pc-field">
-          <div class="pc-field-label">데이터 이름</div>
-          <input class="pc-input pc-attend${p.attendName?' has-val':''}" type="text"
-            value="${esc(p.attendName||'')}"
-            placeholder="수기 입력"
-            style="width:140px">
+        <!-- 체크박스 컬럼 -->
+        <div class="pc-checks-col">
+          <div class="pc-check">
+            <input type="checkbox" class="pc-leave" ${p.isLeave?'checked':''} style="accent-color:var(--green)">
+            <span>휴직</span>
+          </div>
+          <div class="pc-check">
+            <input type="checkbox" class="pc-abs-ignore" ${p.absIgnore?'checked':''} style="accent-color:var(--orange)">
+            <span>미달무시</span>
+          </div>
         </div>
-        <div class="pc-field">
-          <div class="pc-field-label">메모</div>
-          <input class="pc-input pc-note${p.note?' has-val':''}" type="text"
-            value="${esc(p.note||'')}"
-            placeholder="메모 입력"
-            style="width:100%;min-width:120px;font-size:12px">
-        </div>
-        <div class="pc-field" style="align-items:center;gap:8px;flex-direction:row;padding-top:16px">
-          <input type="checkbox" class="pc-leave" ${p.isLeave?'checked':''} style="accent-color:var(--green);width:15px;height:15px">
-          <span style="font-size:12px;color:var(--text2)">휴직</span>
-        </div>
-        <div class="pc-field" style="align-items:center;gap:8px;flex-direction:row;padding-top:16px">
-          <input type="checkbox" class="pc-abs-ignore" ${p.absIgnore?'checked':''} style="accent-color:var(--orange);width:15px;height:15px">
-          <span style="font-size:12px;color:var(--text2);white-space:nowrap">미달무시</span>
-        </div>
-        <div class="pc-field">
-          <div class="pc-field-label">입사일</div>
-          <input class="pc-input pc-hiredate${p.hireDate?' has-val':''}" type="text"
-            value="${p.hireDate||''}"
-            placeholder="YYYY-MM-DD"
-            style="width:120px;font-family:var(--mono);font-size:12px">
-        </div>
-        <div class="pc-field">
-          <div class="pc-field-label">퇴사일</div>
-          <input class="pc-input pc-leavedate${p.leaveDate?' has-val':''}" type="text"
-            value="${p.leaveDate||''}"
-            placeholder="YYYY-MM-DD"
-            style="width:120px;font-family:var(--mono);font-size:12px;${p.leaveDate?'border-color:var(--orange);':''}">
-        </div>
-        <div class="pc-field" style="padding-top:16px">
-          <button class="btn btn-ghost btn-sm pc-delete" style="color:var(--red);font-size:11px;padding:4px 8px">🗑 삭제</button>
+        <!-- 메모 + 삭제 -->
+        <div class="pc-memo-wrap">
+          <div class="pc-memo-inner">
+            <div class="pc-field-label">메모</div>
+            <textarea class="pc-memo pc-note${p.note?' has-val':''}" placeholder="메모">${esc(p.note||'')}</textarea>
+          </div>
+          <button class="btn-del pc-delete">🗑</button>
         </div>
       </div>
     </div>`;
@@ -1625,8 +1654,8 @@ function renderPersonDetail(campus, tab) {
 
     const noteEl = card.querySelector('.pc-note');
     if (noteEl) {
-      noteEl.addEventListener('input', e => { e.target.className = 'pc-input pc-note' + (e.target.value ? ' has-val' : ''); });
-      noteEl.addEventListener('change', e => {
+      noteEl.addEventListener('input', e => { e.target.className = 'pc-memo pc-note' + (e.target.value.trim() ? ' has-val' : ''); });
+      noteEl.addEventListener('blur', e => {
         const p = PERSONS[campus]?.find(x => x.payName === payName);
         if (p) { p.note = e.target.value.trim(); savePersonsMaster([campus]); }
       });
