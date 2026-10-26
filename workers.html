@@ -147,7 +147,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
 .pm-itab:hover{color:var(--text)}.pm-itab.active{color:var(--green);border-bottom-color:var(--green);font-weight:600}
 /* 카드 좌우 레이아웃 */
 .pc-left{min-width:130px;flex-shrink:0;border-right:1px solid var(--border);padding-right:16px}
-.pc-right{flex:1;display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:center}
+.pc-right{flex:1;display:grid;grid-template-columns:110px 100px auto 1fr auto auto auto;gap:10px;align-items:center}
 .pc-field{display:flex;flex-direction:column;gap:3px}
 .pc-field-label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
 .pc-select{border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-size:12px;font-family:var(--sans);background:var(--white);color:var(--text);outline:none;width:100%}
@@ -1549,11 +1549,22 @@ function renderPersonDetail(campus, tab) {
           <input class="pc-input pc-attend${p.attendName?' has-val':''}" type="text"
             value="${esc(p.attendName||'')}"
             placeholder="수기 입력"
-            style="width:160px">
+            style="width:140px">
+        </div>
+        <div class="pc-field">
+          <div class="pc-field-label">메모</div>
+          <input class="pc-input pc-note${p.note?' has-val':''}" type="text"
+            value="${esc(p.note||'')}"
+            placeholder="메모 입력"
+            style="width:100%;min-width:120px;font-size:12px">
         </div>
         <div class="pc-field" style="align-items:center;gap:8px;flex-direction:row;padding-top:16px">
           <input type="checkbox" class="pc-leave" ${p.isLeave?'checked':''} style="accent-color:var(--green);width:15px;height:15px">
           <span style="font-size:12px;color:var(--text2)">휴직</span>
+        </div>
+        <div class="pc-field" style="align-items:center;gap:8px;flex-direction:row;padding-top:16px">
+          <input type="checkbox" class="pc-abs-ignore" ${p.absIgnore?'checked':''} style="accent-color:var(--orange);width:15px;height:15px">
+          <span style="font-size:12px;color:var(--text2);white-space:nowrap">미달무시</span>
         </div>
         <div class="pc-field">
           <div class="pc-field-label">입사일</div>
@@ -1611,6 +1622,20 @@ function renderPersonDetail(campus, tab) {
 
     card.querySelector('.pc-leave')?.addEventListener('change', e =>
       setPersonLeave(campus, payName, e.target.checked));
+
+    const noteEl = card.querySelector('.pc-note');
+    if (noteEl) {
+      noteEl.addEventListener('input', e => { e.target.className = 'pc-input pc-note' + (e.target.value ? ' has-val' : ''); });
+      noteEl.addEventListener('change', e => {
+        const p = PERSONS[campus]?.find(x => x.payName === payName);
+        if (p) { p.note = e.target.value.trim(); savePersonsMaster([campus]); }
+      });
+    }
+
+    card.querySelector('.pc-abs-ignore')?.addEventListener('change', e => {
+      const p = PERSONS[campus]?.find(x => x.payName === payName);
+      if (p) { p.absIgnore = e.target.checked; savePersonsMaster([campus]); showToast(e.target.checked ? '출근률 미달 무시 설정' : '출근률 미달 무시 해제', 'ok'); }
+    });
 
     card.querySelector('.pc-hiredate')?.addEventListener('change', e =>
       setPersonDate(campus, payName, 'hireDate', e.target.value));
@@ -1937,6 +1962,7 @@ window.runAnalysis=function(){
       if(!per) return;
       if(per.isLeave) return;
       if(per.ignored) return; // 무시 처리된 인원 제외
+      if(per.absIgnore) return; // 출근률 미달 무시 설정된 인원 제외
       // ignored 항목으로 등록된 경우도 제외
       const ignoredEntry=persons.find(x=>x.ignored&&(x.attendName===a.name||x.payName===a.name));
       if(ignoredEntry) return;
