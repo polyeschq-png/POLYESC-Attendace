@@ -438,6 +438,7 @@ input[type=checkbox] { width: auto; accent-color: var(--green); }
     <span class="hdr-title" id="hdr-tab-title">💾 월별 기록</span>
     <span class="hdr-badge" id="hdr-month"></span>
     <button class="btn btn-primary btn-sm" onclick="saveHistory()" id="save-history-btn" style="display:none;margin-left:8px;">💾 저장</button>
+    <button class="btn btn-primary btn-sm" onclick="saveExceptionsNow()" id="save-exceptions-btn" style="display:none;margin-left:8px;">💾 특이사항 저장</button>
     <div class="header-right">
       <button class="btn btn-ghost btn-sm" onclick="downloadReportExcel()" id="hdr-btn-excel" style="display:none;">⬇ 징계대상 Excel</button>
       <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()" id="hdr-btn-pdf" style="display:none;">⬇ PDF</button>
@@ -1136,6 +1137,10 @@ function switchTab(tab) {
     const hasData = (typeof RAW_DATA !== 'undefined' && RAW_DATA.length) || (typeof RESULTS !== 'undefined' && RESULTS.length);
     saveBtn.style.display = (isOwner && hasData) ? 'inline-flex' : 'none';
   }
+
+  // 특이사항 저장 버튼
+  const saveExBtn = document.getElementById('save-exceptions-btn');
+  if (saveExBtn) saveExBtn.style.display = tab === 'exceptions' ? 'inline-flex' : 'none';
 
   // 캠퍼스 패널 (예외/결과 탭만 표시)
   const showCampus = tab === 'exceptions' || tab === 'result';
@@ -3769,6 +3774,19 @@ async function saveSettingsToFirebase() {
   } catch(e) { console.warn('설정 저장 실패:', e); }
 }
 
+async function saveExceptionsNow() {
+  const btn = document.getElementById('save-exceptions-btn');
+  if (btn) { btn.textContent = '저장 중...'; btn.disabled = true; }
+  try {
+    await saveSettingsToFirebase();
+    showToast('✅ 특이사항 저장됨', 'ok');
+  } catch(e) {
+    showToast('⚠ 저장 실패: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.textContent = '💾 특이사항 저장'; btn.disabled = false; }
+  }
+}
+
 async function loadSettingsFromFirebase() {
   if (!window._fbReady || !currentUser) return;
   const { db, doc, getDoc } = window._fb;
@@ -3787,6 +3805,7 @@ async function loadSettingsFromFirebase() {
       showToast('✅ Firebase에서 설정 불러옴', 'ok');
     }
   } catch(e) { console.warn('설정 불러오기 실패:', e); }
+  window._fbLoaded = true;
 }
 
 // ── 분석 기록 저장 ──
