@@ -66,7 +66,7 @@ header{background:var(--white);border-bottom:1px solid var(--border);padding:0 2
 .scard:hover{box-shadow:var(--shadow-md);background:#f8fafc}
 .scard .num{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1;margin-bottom:3px}
 .scard .lbl{font-size:11px;color:var(--text2)}
-.scard.red .num{color:var(--red)}.scard.orange .num{color:var(--orange)}.scard.yellow .num{color:var(--yellow)}.scard.green .num{color:var(--green)}.scard.purple .num{color:var(--purple)}
+.scard.red .num{color:var(--red)}.scard.orange .num{color:var(--orange)}.scard.yellow .num{color:var(--yellow)}.scard.green .num{color:var(--green)}.scard.purple .num{color:var(--purple)}.scard.teal .num{color:#14b8a6}
 .twrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
 table{width:100%;border-collapse:collapse}
 th{background:#f8fafc;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -336,13 +336,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
       <div class="scard orange" onclick="switchITab('res-del')"><div class="num" id="s-del">0</div><div class="lbl">삭제 필요</div></div>
       <div class="scard yellow" onclick="switchITab('res-abs')"><div class="num" id="s-abs">0</div><div class="lbl">출근률 미달</div></div>
       <div class="scard purple" onclick="switchITab('res-dup')"><div class="num" id="s-dup">0</div><div class="lbl">중복 계정</div></div>
+      <div class="scard teal"   onclick="switchITab('res-check')"><div class="num" id="s-check">0</div><div class="lbl">확인 필요</div></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">
       <div class="itabs" style="flex:1;min-width:0">
-        <div class="itab active" data-itab="res-add" onclick="switchITab('res-add')">➕ 추가 필요 <span id="tab-cnt-add" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-        <div class="itab" data-itab="res-del"        onclick="switchITab('res-del')">🗑 삭제 필요 <span id="tab-cnt-del" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-        <div class="itab" data-itab="res-abs"        onclick="switchITab('res-abs')">📉 출근률 미달 <span id="tab-cnt-abs" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-        <div class="itab" data-itab="res-dup"        onclick="switchITab('res-dup')">🔴 중복 계정 <span id="tab-cnt-dup" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+        <div class="itab active" data-itab="res-add"   onclick="switchITab('res-add')">➕ 추가 필요 <span id="tab-cnt-add" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+        <div class="itab" data-itab="res-del"           onclick="switchITab('res-del')">🗑 삭제 필요 <span id="tab-cnt-del" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+        <div class="itab" data-itab="res-abs"           onclick="switchITab('res-abs')">📉 출근률 미달 <span id="tab-cnt-abs" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+        <div class="itab" data-itab="res-dup"           onclick="switchITab('res-dup')">🔴 중복 계정 <span id="tab-cnt-dup" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+        <div class="itab" data-itab="res-check"         onclick="switchITab('res-check')">⚠️ 확인 필요 <span id="tab-cnt-check" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="downloadAddDelList()" style="white-space:nowrap;flex-shrink:0;font-size:11px">📥 추가+삭제 목록 엑셀</button>
     </div>
@@ -366,6 +368,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
           <table><thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>구분</th><th>입사일</th><th>퇴사일 입력</th><th></th></tr></thead>
           <tbody id="add-tbody"></tbody></table>
           <div class="pagination" id="add-pg"></div>
+        </div>
+      </div>
+      <!-- 확인 필요 -->
+      <div id="res-check" style="display:none">
+        <div class="warn-box" style="background:rgba(20,184,166,0.1);border-color:#14b8a6">인원관리에 등록돼 있으나 출퇴근 기록이 없는 인원 — CAPS 설정 오류 또는 분석 기간 이후 등록된 경우</div>
+        <div class="fbar">
+          <input type="text" id="check-search" placeholder="이름 검색..." oninput="renderCheckTable()">
+          <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="check-count"></span>
+        </div>
+        <div class="twrap">
+          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>구분</th><th>입사일</th><th>메모</th></tr></thead>
+          <tbody id="check-tbody"></tbody></table>
+          <div class="pagination" id="check-pg"></div>
         </div>
       </div>
       <!-- 삭제 필요 -->
@@ -515,7 +530,7 @@ let PAYROLL = {};   // {campus: [{name,position,div,hireDate,leaveDate,note,empI
 let ATTEND  = {};   // {campus: [{name,empId,days:{1:{ci,co},...}}]}
 let PERSONS = {};   // {campus: [{payName,attendName,isLeave,divOverride,note, matchType}]}
 let DUPS    = [];
-let RESULTS = {add:[],del:[],abs:[],dup:[]};
+let RESULTS = {add:[],del:[],abs:[],dup:[],check:[]};
 let HISTORY = [];
 let currentUser = null;
 
@@ -646,13 +661,14 @@ window.switchTab=switchTab;
 
 function switchITab(itab){
   document.querySelectorAll('.itab').forEach(t=>t.classList.toggle('active',t.dataset.itab===itab));
-  ['res-add','res-del','res-abs','res-dup'].forEach(id=>{
+  ['res-add','res-del','res-abs','res-dup','res-check'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display=id===itab?'block':'none';
   });
-  if(itab==='res-add') renderAddTable();
-  if(itab==='res-del') renderDelTable();
-  if(itab==='res-abs') renderAbsTable();
+  if(itab==='res-add')   renderAddTable();
+  if(itab==='res-del')   renderDelTable();
+  if(itab==='res-abs')   renderAbsTable();
+  if(itab==='res-check') renderCheckTable();
 }
 window.switchITab=switchITab;
 
@@ -1934,7 +1950,7 @@ window.runAnalysis=function(){
   const y=parseInt(document.getElementById('sel-year').value);
   const baseMonth=[3,6,9,12][q-1]; // 기준월
 
-  RESULTS={add:[],del:[],abs:[],dup:[...DUPS]};
+  RESULTS={add:[],del:[],abs:[],dup:[...DUPS],check:[]};
 
   // 기준월 영업일 (전체)
   const allWorkdays=getWorkdays(y,baseMonth);
@@ -2004,7 +2020,13 @@ window.runAnalysis=function(){
 
       if(!foundInAttend){
         const hireDate=per?.hireDate||p.hireDate||'';
-        RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
+        if(per){
+          // 인원관리에는 등록돼 있으나 출퇴근 파일에 이름 없음 → 확인 필요
+          RESULTS.check.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
+        } else {
+          // 인원관리에도 없음 → 진짜 추가 필요
+          RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
+        }
       }
     });
 
@@ -2077,7 +2099,7 @@ window.runAnalysis=function(){
 
   updateSummaryCards();
   renderCampusFilters();
-  showToast(`분석 완료 — 추가 ${RESULTS.add.length} / 삭제 ${RESULTS.del.length} / 미달 ${RESULTS.abs.length}`,'ok');
+  showToast(`분석 완료 — 추가 ${RESULTS.add.length} / 확인 ${RESULTS.check.length} / 삭제 ${RESULTS.del.length} / 미달 ${RESULTS.abs.length}`,'ok');
   switchTab('result');
 };
 
@@ -2086,14 +2108,17 @@ function updateSummaryCards(){
   document.getElementById('s-del').textContent=RESULTS.del.length;
   document.getElementById('s-abs').textContent=RESULTS.abs.length;
   document.getElementById('s-dup').textContent=RESULTS.dup.length;
+  const sCheck=document.getElementById('s-check');
+  if(sCheck) sCheck.textContent=RESULTS.check.length;
   const c = selectedResultCampus;
   const counts = {
-    add: c ? RESULTS.add.filter(r=>r.campus===c).length : RESULTS.add.length,
-    del: c ? RESULTS.del.filter(r=>r.campus===c).length : RESULTS.del.length,
-    abs: c ? RESULTS.abs.filter(r=>r.campus===c).length : RESULTS.abs.length,
-    dup: c ? RESULTS.dup.filter(r=>r.campus===c).length : RESULTS.dup.length,
+    add:   c ? RESULTS.add.filter(r=>r.campus===c).length   : RESULTS.add.length,
+    del:   c ? RESULTS.del.filter(r=>r.campus===c).length   : RESULTS.del.length,
+    abs:   c ? RESULTS.abs.filter(r=>r.campus===c).length   : RESULTS.abs.length,
+    dup:   c ? RESULTS.dup.filter(r=>r.campus===c).length   : RESULTS.dup.length,
+    check: c ? RESULTS.check.filter(r=>r.campus===c).length : RESULTS.check.length,
   };
-  ['add','del','abs','dup'].forEach(k=>{
+  ['add','del','abs','dup','check'].forEach(k=>{
     const el=document.getElementById('tab-cnt-'+k);
     if(!el) return;
     el.textContent=counts[k];
@@ -2117,19 +2142,21 @@ function renderCampusFilters(){
     ...RESULTS.del.map(r=>r.campus),
     ...RESULTS.abs.map(r=>r.campus),
     ...DUPS.map(r=>r.campus),
+    ...RESULTS.check.map(r=>r.campus),
   ])]);
 
   // 좌측 캠퍼스 리스트 갱신
   const list = document.getElementById('result-campus-list');
   if(list){
-    const totalCnt = RESULTS.add.length + RESULTS.del.length + RESULTS.abs.length + DUPS.length;
+    const totalCnt = RESULTS.add.length + RESULTS.del.length + RESULTS.abs.length + DUPS.length + RESULTS.check.length;
     list.innerHTML = `<div class="rc-item${selectedResultCampus===''?' active':''}" data-campus="" onclick="selectResultCampus('')">
       <span>전체</span><span class="rc-cnt">${totalCnt||'-'}</span>
     </div>` + campuses.map(c=>{
       const cnt = RESULTS.add.filter(r=>r.campus===c).length
                 + RESULTS.del.filter(r=>r.campus===c).length
                 + RESULTS.abs.filter(r=>r.campus===c).length
-                + DUPS.filter(r=>r.campus===c).length;
+                + DUPS.filter(r=>r.campus===c).length
+                + RESULTS.check.filter(r=>r.campus===c).length;
       return `<div class="rc-item${selectedResultCampus===c?' active':''}" data-campus="${c}" onclick="selectResultCampus('${c}')">
         <span style="font-size:12px">${c}</span><span class="rc-cnt">${cnt}</span>
       </div>`;
@@ -2151,6 +2178,7 @@ function renderAllResults(){
   renderDelTable();
   renderAbsTable();
   renderDupTable();
+  renderCheckTable();
 }
 
 window.renderAddTable=function(pg){
@@ -2190,6 +2218,28 @@ window.renderAddTable=function(pg){
     });
   });
   renderPg('add-pg',rows.length,addPage,'window.renderAddTable');
+};
+
+let checkPage=1;
+window.renderCheckTable=function(pg){
+  if(pg) checkPage=pg;
+  const s=(document.getElementById('check-search')?.value||'').toLowerCase();
+  const c=selectedResultCampus;
+  const rows=RESULTS.check.filter(r=>(!c||r.campus===c)&&(!s||r.name.toLowerCase().includes(s)));
+  const countEl=document.getElementById('check-count');
+  if(countEl) countEl.textContent=`총 ${rows.length}명`;
+  const sl=paginate(rows,checkPage);
+  const tbody=document.getElementById('check-tbody');
+  if(!tbody) return;
+  tbody.innerHTML=sl.map(r=>`<tr>
+    <td>${r.campus}</td>
+    <td style="font-weight:600">${r.name}</td>
+    <td style="font-size:12px">${r.position||'-'}</td>
+    <td><span class="chip chip-gray">${r.div||'-'}</span></td>
+    <td class="mono" style="font-size:12px">${r.hireDate||'-'}</td>
+    <td style="font-size:12px;color:var(--text3)">${r.note||''}</td>
+  </tr>`).join('')||noData(6);
+  renderPg('check-pg',rows.length,checkPage,'window.renderCheckTable');
 };
 
 window.renderDelTable=function(pg){
