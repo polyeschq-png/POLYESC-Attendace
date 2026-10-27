@@ -1836,6 +1836,10 @@ window.addPersonFromResult = function(campus, payName, leaveDate) {
   // RESULTS.add에서 제거
   RESULTS.add = RESULTS.add.filter(r=>!(r.campus===campus&&r.name===payName));
   renderAllResults();
+  // 인원관리 패널도 갱신
+  renderPersonCampusList();
+  if(selectedPersonCampus===campus) renderPersonDetail(campus);
+  updateUnmatchedBadge();
   showToast(`✅ ${payName} 인원관리에 추가됨`, 'ok');
 };
 
@@ -2152,7 +2156,13 @@ window.renderAddTable=function(pg){
   if(pg) addPage=pg;
   const s=(document.getElementById('add-search').value||'').toLowerCase();
   const c=selectedResultCampus;
-  const rows=RESULTS.add.filter(r=>(!c||r.campus===c)&&(!s||r.name.toLowerCase().includes(s)));
+  // 이미 인원관리에 추가된 사람은 제외 (attendName 유무 무관, payName 기준)
+  const rows=RESULTS.add.filter(r=>{
+    if(c && r.campus!==c) return false;
+    if(s && !r.name.toLowerCase().includes(s)) return false;
+    const already=(PERSONS[r.campus]||[]).some(p=>p.payName===r.name||baseNameOf(p.payName)===baseNameOf(r.name));
+    return !already;
+  });
   document.getElementById('add-count').textContent=`총 ${rows.length}명`;
   const sl=paginate(rows,addPage);
   const tbody=document.getElementById('add-tbody');
