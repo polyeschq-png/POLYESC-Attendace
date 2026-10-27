@@ -1563,7 +1563,8 @@ function renderPersonDetail(campus, tab) {
   const activeList = viewList.filter(p => !SKIP_POSITIONS.includes(p.posOverride||''));
 
   const matched   = activeList.filter(p => p.attendName);
-  const unmatched = activeList.filter(p => !p.attendName && !isNotYetHired(p) && !p.isArCenter);
+  const today = new Date().toISOString().slice(0,10);
+  const unmatched = activeList.filter(p => !p.attendName && !(p.hireDate > today) && !p.isArCenter);
 
   detail.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -1874,7 +1875,7 @@ window.addPersonFromResult = function(campus, payName, leaveDate) {
     document.getElementById('pm-tab-leave')?.classList.remove('active');
     selectedPersonCampus = campus;
     renderPersonCampusList();
-    renderPersonDetail(campus);
+    renderPersonDetail(campus, 'unmatched');
     updateUnmatchedBadge();
     setTimeout(()=>{
       const target = document.getElementById('pm-detail-content')
@@ -1904,7 +1905,7 @@ window.addPersonFromResult = function(campus, payName, leaveDate) {
   document.getElementById('pm-tab-leave')?.classList.remove('active');
   selectedPersonCampus = campus;
   renderPersonCampusList();
-  renderPersonDetail(campus);
+  renderPersonDetail(campus, 'unmatched');
   updateUnmatchedBadge();
   setTimeout(()=>{
     const target = document.getElementById('pm-detail-content')
