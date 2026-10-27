@@ -321,6 +321,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
   </div>
   <!-- 인원 상세 -->
   <div id="pm-detail">
+    <div id="pm-detail-bar" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10">
+      <span style="font-size:11px;color:var(--text3)" id="pm-save-status">변경사항은 자동 저장됩니다</span>
+      <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="saveAllPersons()">💾 인원관리 저장</button>
+    </div>
     <div id="pm-detail-content">
       <div class="empty"><div class="icon">👈</div><h3>캠퍼스를 선택하세요</h3></div>
     </div>
@@ -974,6 +978,23 @@ async function savePersonsMaster(campusList){
   // 성공 토스트는 조용히 (매번 뜨면 피로감)
 }
 
+// 인원관리 전체 저장 버튼 핸들러
+window.saveAllPersons = async function(){
+  const statusEl = document.getElementById('pm-save-status');
+  if(statusEl) statusEl.textContent = '저장 중...';
+  const campuses = Object.keys(PERSONS);
+  if(!campuses.length){
+    showToast('저장할 인원 데이터가 없습니다','err');
+    if(statusEl) statusEl.textContent = '변경사항은 자동 저장됩니다';
+    return;
+  }
+  await savePersonsMaster(campuses);
+  const now = new Date();
+  const ts = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+  showToast(`✅ 인원관리 저장 완료 (${campuses.length}개 캠퍼스)`,'ok');
+  if(statusEl) statusEl.textContent = `마지막 저장: ${ts}`;
+};
+
 async function loadPersonsMaster(){
   if(!window._fbReady||!currentUser) return;
   const{db,collection,getDocs}=window._fb;
@@ -1326,7 +1347,7 @@ function updateUnmatchedBadge(){
   let cnt=0;
   Object.values(PERSONS).forEach(list=>list.forEach(p=>{
     if(SKIP_POSITIONS.includes(p.posOverride||'')) return;
-    if((p.matchType==='none'||!p.attendName) && !isNotYetHired(p)) cnt++;
+    if((p.matchType==='none'||!p.attendName) && !isNotYetHired(p) && !p.isArCenter) cnt++;
   }));
   document.getElementById('sb-unmatched').textContent=cnt||'';
 }
@@ -1490,7 +1511,7 @@ function renderPersonCampusList() {
   el.innerHTML = campuses.map(campus => {
     const persons = PERSONS[campus] || [];
     const visible = showResigned ? persons : persons.filter(p => !isResigned(p) && !SKIP_POSITIONS.includes(p.posOverride||''));
-    const unmatched = visible.filter(p => !p.attendName && !p.isLeave && !isNotYetHired(p)).length;
+    const unmatched = visible.filter(p => !p.attendName && !p.isLeave && !isNotYetHired(p) && !p.isArCenter).length;
     const active = campus === selectedPersonCampus;
     return `<div class="pm-item${active?' active':''}" onclick="selectPersonCampus('${campus}')">
       <span>${campus}</span>
@@ -1541,7 +1562,7 @@ function renderPersonDetail(campus, tab) {
   const activeList = viewList.filter(p => !SKIP_POSITIONS.includes(p.posOverride||''));
 
   const matched   = activeList.filter(p => p.attendName);
-  const unmatched = activeList.filter(p => !p.attendName && !isNotYetHired(p));
+  const unmatched = activeList.filter(p => !p.attendName && !isNotYetHired(p) && !p.isArCenter);
 
   detail.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -1586,7 +1607,7 @@ function renderPersonDetail(campus, tab) {
     const isSkipped = SKIP_POSITIONS.includes(p.posOverride||'');
     const leaveClass = p.isLeave ? 'is-leave' : '';
     const resignedClass = (resigned||isSkipped) ? 'is-resigned' : '';
-    const unmatchClass = !p.attendName && !p.isLeave && !isSkipped && !isNotYetHired(p) ? 'is-unmatched' : '';
+    const unmatchClass = !p.attendName && !p.isLeave && !isSkipped && !isNotYetHired(p) && !p.isArCenter ? 'is-unmatched' : '';
     const newClass = p._isNew ? 'is-new' : '';
 
     const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="본부장">본부장</option><option value="본사">본사</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="POLY안전선생님">POLY안전선생님</option><option value="사서">사서</option><option value="미화">미화</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
@@ -1660,6 +1681,10 @@ function renderPersonDetail(campus, tab) {
             <input type="checkbox" class="pc-abs-ignore" ${p.absIgnore?'checked':''} style="accent-color:var(--orange)">
             <span>미달무시</span>
           </div>
+          <div class="pc-check">
+            <input type="checkbox" class="pc-ar-center" ${p.isArCenter?'checked':''} style="accent-color:#14b8a6">
+            <span>AR센터</span>
+          </div>
         </div>
         <!-- 메모 + 삭제 -->
         <div class="pc-memo-wrap">
@@ -1721,6 +1746,11 @@ function renderPersonDetail(campus, tab) {
     card.querySelector('.pc-abs-ignore')?.addEventListener('change', e => {
       const p = PERSONS[campus]?.find(x => x.payName === payName);
       if (p) { p.absIgnore = e.target.checked; savePersonsMaster([campus]); showToast(e.target.checked ? '출근률 미달 무시 설정' : '출근률 미달 무시 해제', 'ok'); }
+    });
+
+    card.querySelector('.pc-ar-center')?.addEventListener('change', e => {
+      const p = PERSONS[campus]?.find(x => x.payName === payName);
+      if (p) { p.isArCenter = e.target.checked; savePersonsMaster([campus]); showToast(e.target.checked ? 'AR센터 설정 — 분석 제외' : 'AR센터 해제', 'ok'); }
     });
 
     card.querySelector('.pc-hiredate')?.addEventListener('change', e =>
@@ -1997,6 +2027,8 @@ window.runAnalysis=function(){
       // 디버그: leaveDate 있는데 추가필요에 뜨는 인원 추적
 
       if(skipPos(per||p)) return;
+      // AR센터 제외 (급여대장 없음, 분석 불필요)
+      if(per?.isArCenter) return;
       // 휴직자 제외
       const isLeave=per?.isLeave||p.isLeave;
       if(isLeave) return;
@@ -2020,11 +2052,11 @@ window.runAnalysis=function(){
 
       if(!foundInAttend){
         const hireDate=per?.hireDate||p.hireDate||'';
-        if(per){
-          // 인원관리에는 등록돼 있으나 출퇴근 파일에 이름 없음 → 확인 필요
+        if(per && per.matchType==='manual'){
+          // 인원관리에 매칭 완료(attendName 수동 지정)됐으나 출퇴근 파일에 이름 없음 → 확인 필요
           RESULTS.check.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
         } else {
-          // 인원관리에도 없음 → 진짜 추가 필요
+          // 인원관리에 없거나 매칭 미완료 → 진짜 추가 필요
           RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
         }
       }
@@ -2754,7 +2786,8 @@ function renderHistoryList(){
 window.loadRecord=function(key){
   const h=HISTORY.find(r=>r.key===key);
   if(!h) return;
-  RESULTS=h.results||{add:[],del:[],abs:[],dup:[]};
+  RESULTS=h.results||{add:[],del:[],abs:[],dup:[],check:[]};
+  if(!RESULTS.check) RESULTS.check=[];
   DUPS=h.dups||[];
   // 상단 분기/연도 셀렉트 동기화
   const qEl=document.getElementById('sel-quarter');
