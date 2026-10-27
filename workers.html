@@ -1810,7 +1810,7 @@ window.setPersonNote = function(campus, payName, val) {
 // 추가필요 → 인원관리에 즉시 추가
 window.addPersonFromResult = function(campus, payName, leaveDate) {
   if(!PERSONS[campus]) PERSONS[campus]=[];
-  const existing = PERSONS[campus].find(x=>x.payName===payName||baseNameOf(x.payName)===baseNameOf(payName));
+  const existing = PERSONS[campus].find(x=>x.payName===payName);
   if(existing){
     // 이미 있으면 퇴사일만 업데이트
     if(leaveDate){ existing.leaveDate=leaveDate; }
@@ -2081,14 +2081,24 @@ window.runAnalysis=function(){
   switchTab('result');
 };
 
+// PERSONS에 이미 있는 인원을 제외한 유효 추가필요 목록
+function effectiveAddList(campusFilter){
+  return RESULTS.add.filter(r=>{
+    if(campusFilter && r.campus!==campusFilter) return false;
+    const already=(PERSONS[r.campus]||[]).some(p=>p.payName===r.name);
+    return !already;
+  });
+}
+
 function updateSummaryCards(){
-  document.getElementById('s-add').textContent=RESULTS.add.length;
+  const addCnt = effectiveAddList().length;
+  document.getElementById('s-add').textContent=addCnt;
   document.getElementById('s-del').textContent=RESULTS.del.length;
   document.getElementById('s-abs').textContent=RESULTS.abs.length;
   document.getElementById('s-dup').textContent=RESULTS.dup.length;
   const c = selectedResultCampus;
   const counts = {
-    add: c ? RESULTS.add.filter(r=>r.campus===c).length : RESULTS.add.length,
+    add: effectiveAddList(c||null).length,
     del: c ? RESULTS.del.filter(r=>r.campus===c).length : RESULTS.del.length,
     abs: c ? RESULTS.abs.filter(r=>r.campus===c).length : RESULTS.abs.length,
     dup: c ? RESULTS.dup.filter(r=>r.campus===c).length : RESULTS.dup.length,
@@ -2122,11 +2132,11 @@ function renderCampusFilters(){
   // 좌측 캠퍼스 리스트 갱신
   const list = document.getElementById('result-campus-list');
   if(list){
-    const totalCnt = RESULTS.add.length + RESULTS.del.length + RESULTS.abs.length + DUPS.length;
+    const totalCnt = effectiveAddList().length + RESULTS.del.length + RESULTS.abs.length + DUPS.length;
     list.innerHTML = `<div class="rc-item${selectedResultCampus===''?' active':''}" data-campus="" onclick="selectResultCampus('')">
       <span>전체</span><span class="rc-cnt">${totalCnt||'-'}</span>
     </div>` + campuses.map(c=>{
-      const cnt = RESULTS.add.filter(r=>r.campus===c).length
+      const cnt = effectiveAddList(c).length
                 + RESULTS.del.filter(r=>r.campus===c).length
                 + RESULTS.abs.filter(r=>r.campus===c).length
                 + DUPS.filter(r=>r.campus===c).length;
@@ -2145,6 +2155,7 @@ function renderCampusFilters(){
 }
 
 function renderAllResults(){
+  renderCampusFilters();
   updateSummaryCards();
   renderAddTable();
   renderDelTable();
@@ -2156,13 +2167,7 @@ window.renderAddTable=function(pg){
   if(pg) addPage=pg;
   const s=(document.getElementById('add-search').value||'').toLowerCase();
   const c=selectedResultCampus;
-  // 이미 인원관리에 추가된 사람은 제외 (attendName 유무 무관, payName 기준)
-  const rows=RESULTS.add.filter(r=>{
-    if(c && r.campus!==c) return false;
-    if(s && !r.name.toLowerCase().includes(s)) return false;
-    const already=(PERSONS[r.campus]||[]).some(p=>p.payName===r.name||baseNameOf(p.payName)===baseNameOf(r.name));
-    return !already;
-  });
+  const rows=effectiveAddList(c||null).filter(r=>!s||r.name.toLowerCase().includes(s));
   document.getElementById('add-count').textContent=`총 ${rows.length}명`;
   const sl=paginate(rows,addPage);
   const tbody=document.getElementById('add-tbody');
