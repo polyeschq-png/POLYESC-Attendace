@@ -337,11 +337,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
       <div class="scard yellow" onclick="switchITab('res-abs')"><div class="num" id="s-abs">0</div><div class="lbl">출근률 미달</div></div>
       <div class="scard purple" onclick="switchITab('res-dup')"><div class="num" id="s-dup">0</div><div class="lbl">중복 계정</div></div>
     </div>
-    <div class="itabs" style="margin-top:12px">
-      <div class="itab active" data-itab="res-add" onclick="switchITab('res-add')">➕ 추가 필요 <span id="tab-cnt-add" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-      <div class="itab" data-itab="res-del"        onclick="switchITab('res-del')">🗑 삭제 필요 <span id="tab-cnt-del" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-      <div class="itab" data-itab="res-abs"        onclick="switchITab('res-abs')">📉 출근률 미달 <span id="tab-cnt-abs" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
-      <div class="itab" data-itab="res-dup"        onclick="switchITab('res-dup')">🔴 중복 계정 <span id="tab-cnt-dup" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <div class="itabs" style="flex:1;min-width:0">
+        <div class="itab active" data-itab="res-add" onclick="switchITab('res-add')">➕ 추가 필요 <span id="tab-cnt-add" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+        <div class="itab" data-itab="res-del"        onclick="switchITab('res-del')">🗑 삭제 필요 <span id="tab-cnt-del" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+        <div class="itab" data-itab="res-abs"        onclick="switchITab('res-abs')">📉 출근률 미달 <span id="tab-cnt-abs" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+        <div class="itab" data-itab="res-dup"        onclick="switchITab('res-dup')">🔴 중복 계정 <span id="tab-cnt-dup" style="display:none;margin-left:5px;background:#475569;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;vertical-align:middle"></span></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="downloadAddDelList()" style="white-space:nowrap;flex-shrink:0;font-size:11px">📥 추가+삭제 목록 엑셀</button>
     </div>
   </div>
   <!-- 하단: 캠퍼스 리스트 + 데이터 -->
@@ -880,6 +883,33 @@ window.downloadUnmatched = function() {
   XLSX.utils.book_append_sheet(wb, ws, '미매칭인원');
   XLSX.writeFile(wb, '미매칭_인원목록.xlsx');
   showToast('⬇️ 미매칭 인원 ' + cnt + '명 다운로드 완료', 'ok');
+};
+
+window.downloadAddDelList = function() {
+  if(!RESULTS.add.length && !RESULTS.del.length){
+    showToast('분석 결과가 없습니다. 먼저 분석을 실행하세요.','err'); return;
+  }
+  const y = document.getElementById('sel-year').value;
+  const q = document.getElementById('sel-quarter').value;
+  const wb = XLSX.utils.book_new();
+
+  // ── 추가 필요 시트 ──
+  const addRows = [['캠퍼스','이름','직급','구분','입사일','메모']];
+  RESULTS.add.forEach(r => addRows.push([r.campus, r.name, r.position||'', r.div||'', r.hireDate||'', r.note||'']));
+  const wsAdd = XLSX.utils.aoa_to_sheet(addRows);
+  wsAdd['!cols'] = [{wch:16},{wch:18},{wch:14},{wch:12},{wch:13},{wch:24}];
+  XLSX.utils.book_append_sheet(wb, wsAdd, '추가 필요');
+
+  // ── 삭제 필요 시트 ──
+  const delRows = [['캠퍼스','이름','사유','퇴사일']];
+  RESULTS.del.forEach(r => delRows.push([r.campus, r.name, r.reason||'', r.leaveDate||'']));
+  const wsDel = XLSX.utils.aoa_to_sheet(delRows);
+  wsDel['!cols'] = [{wch:16},{wch:18},{wch:20},{wch:13}];
+  XLSX.utils.book_append_sheet(wb, wsDel, '삭제 필요');
+
+  const fname = `CAPS조치목록_${y}년${q}분기.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast(`⬇️ 추가 ${RESULTS.add.length}명 / 삭제 ${RESULTS.del.length}명 다운로드`, 'ok');
 };
 
 window.downloadMatchingTemplate = function() {
