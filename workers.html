@@ -321,7 +321,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
   </div>
   <!-- 인원 상세 -->
   <div id="pm-detail">
-    <div id="pm-detail-bar" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10">
+    <div id="pm-detail-bar" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg)">
       <span style="font-size:11px;color:var(--text3)" id="pm-save-status">변경사항은 자동 저장됩니다</span>
       <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="saveAllPersons()">💾 인원관리 저장</button>
     </div>
@@ -2365,18 +2365,24 @@ window.renderDelTable=function(pg){
   tbody.querySelectorAll('.btn-del-done').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const campus=btn.dataset.campus, name=btn.dataset.name;
-      if(!confirm(`"${name}" 을(를) 오늘 날짜로 퇴사처리 할까요?`)) return;
+      const row=btn.closest('tr');
+      const inputEl=row.querySelector('.del-leave-input');
+      const inputDate=normalizeDate(inputEl?.value||'')||'';
       const today=new Date().toISOString().slice(0,10);
+      // 우선순위: 입력칸 > 기존 leaveDate > 오늘
+      const delRow=RESULTS.del.find(r=>r.campus===campus&&r.name===name);
+      const leaveDate=inputDate||delRow?.leaveDate||today;
+      if(!confirm(`"${name}" 을(를) ${leaveDate} 로 퇴사처리 할까요?`)) return;
       // 인원관리에서 퇴사처리
       if(PERSONS[campus]){
         const per=PERSONS[campus].find(x=>x.attendName===name||x.payName===name);
-        if(per){ per.leaveDate=today; per.isLeave=true; }
+        if(per){ per.leaveDate=leaveDate; per.isLeave=true; }
         savePersonsMaster([campus]);
       }
       // 삭제필요 목록에서 제거
       RESULTS.del=RESULTS.del.filter(r=>!(r.campus===campus&&r.name===name));
       renderAllResults();
-      showToast(`✅ ${name} 퇴사처리 완료 (${today})`,'ok');
+      showToast(`✅ ${name} 퇴사처리 완료 (${leaveDate})`,'ok');
     });
   });
   renderPg('del-pg',rows.length,delPage,'window.renderDelTable');
