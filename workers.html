@@ -376,7 +376,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
       </div>
       <!-- 확인 필요 -->
       <div id="res-check" style="display:none">
-        <div class="warn-box" style="background:rgba(20,184,166,0.1);border-color:#14b8a6">인원관리에 등록돼 있으나 출퇴근 기록이 없는 인원 — CAPS 설정 오류 또는 분석 기간 이후 등록된 경우</div>
+        <div class="warn-box" style="background:rgba(20,184,166,0.1);border-color:#14b8a6">인원관리에 등록된 인원이 CAPS 출퇴근 파일에서 확인되지 않음 — ① CAPS 이름 미매칭(매칭 후 재분석) ② CAPS 이름 오입력 또는 변경 ③ 미래 입사자(다음 분기 정상 반영)</div>
         <div class="fbar">
           <input type="text" id="check-search" placeholder="이름 검색..." oninput="renderCheckTable()">
           <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="check-count"></span>
@@ -2078,11 +2078,15 @@ window.runAnalysis=function(){
 
       if(!foundInAttend){
         const hireDate=per?.hireDate||p.hireDate||'';
-        if(per && per.matchType==='manual'){
-          // 인원관리에 매칭 완료(attendName 수동 지정)됐으나 출퇴근 파일에 이름 없음 → 확인 필요
-          RESULTS.check.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
+        if(per){
+          // 인원관리에 등록된 사람 → 확인 필요
+          // (매칭 완료 후 CAPS 이름 변경, 오입력 등 가능성 / 또는 아직 매칭 전 매칭대기)
+          const checkNote = per.matchType==='manual'
+            ? (per.attendName ? `CAPS 이름 불일치 — 등록명: ${per.attendName}` : 'CAPS 이름 미등록')
+            : '인원관리 등록됨 — CAPS 이름 매칭 필요';
+          RESULTS.check.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:checkNote});
         } else {
-          // 인원관리에 없거나 매칭 미완료 → 진짜 추가 필요
+          // 인원관리에 없음 → 진짜 추가 필요
           RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
         }
       }
