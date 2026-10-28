@@ -2863,7 +2863,13 @@ function renderHistoryList(){
   const el=document.getElementById('history-list');
   const isOwner=window._role==='owner';
   if(!HISTORY.length){el.innerHTML='<div class="empty"><div class="icon">💾</div><h3>저장된 기록이 없습니다</h3></div>';return;}
-  el.innerHTML=HISTORY.map(h=>{
+  // 보고자료 연도·분기 기준 내림차순 정렬
+  const sorted=[...HISTORY].sort((a,b)=>{
+    const ay=parseInt(a.year||0)*10+parseInt(a.quarter||0);
+    const by=parseInt(b.year||0)*10+parseInt(b.quarter||0);
+    return by-ay;
+  });
+  el.innerHTML=sorted.map(h=>{
     const done=!!h.completed;
     const cBtn=done
       ?`<button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;font-size:11px" onclick="loadRecord('${h.key}')">✅ 완료된 보고자료</button>`
