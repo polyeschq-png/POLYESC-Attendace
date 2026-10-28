@@ -2345,7 +2345,7 @@ window.renderDelTable=function(pg){
     +'<button class="btn btn-ghost btn-sm btn-apply-leave" data-campus="'+esc(r.campus)+'" data-name="'+esc(r.name)+'" style="font-size:11px;color:var(--blue)">✅ 퇴사일 적용</button>'
     +'<button class="btn btn-ghost btn-sm btn-ignore" data-campus="'+esc(r.campus)+'" data-name="'+esc(r.name)+'" style="font-size:11px;color:var(--text3)">🙈 무시</button>'
     +'<button class="btn btn-ghost btn-sm btn-newhire" data-campus="'+esc(r.campus)+'" data-name="'+esc(r.name)+'" style="font-size:11px;color:var(--blue)">🆕 입사자</button>'
-    +'<button class="btn btn-ghost btn-sm btn-del-done" data-campus="'+esc(r.campus)+'" data-name="'+esc(r.name)+'" style="font-size:11px;color:var(--red)">✂️ 퇴사처리</button>'
+    +'<button class="btn btn-ghost btn-sm btn-del-done" data-campus="'+esc(r.campus)+'" data-name="'+esc(r.name)+'" style="font-size:11px;color:var(--red)">✅ 삭제완료</button>'
     +'</td>'
     +'</tr>').join('')||noData(6);
 
@@ -2374,17 +2374,22 @@ window.renderDelTable=function(pg){
       // 우선순위: 입력칸 > 기존 퇴사일(분석에서 잡힌) > 오늘
       const delRow=RESULTS.del.find(r=>r.campus===campus&&r.name===name);
       const leaveDate=inputDate||delRow?.leaveDate||today;
-      if(!confirm(`"${name}" 을(를) ${leaveDate} 로 퇴사처리 할까요?`)) return;
-      // 인원관리에서 퇴사처리
+      if(!confirm(`"${name}" 을(를) ${leaveDate} 로 삭제완료 처리할까요?`)) return;
+      // 인원관리에서 삭제완료 처리
       if(PERSONS[campus]){
         const per=PERSONS[campus].find(x=>x.attendName===name||x.payName===name);
-        if(per){ per.leaveDate=leaveDate; per.isLeave=true; }
+        if(per){
+          per.leaveDate=leaveDate;
+          per.isLeave=true;
+          per.ignored=true;
+          per.note=(per.note?per.note+' / ':'')+'CAPS 삭제 확인 완료';
+        }
         savePersonsMaster([campus]);
       }
       // 삭제필요 목록에서 제거
       RESULTS.del=RESULTS.del.filter(r=>!(r.campus===campus&&r.name===name));
       renderAllResults();
-      showToast(`✅ ${name} 퇴사처리 완료 (${leaveDate})`,'ok');
+      showToast(`✅ ${name} 삭제완료 처리됨 (${leaveDate})`,'ok');
     });
   });
   renderPg('del-pg',rows.length,delPage,'window.renderDelTable');
