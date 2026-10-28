@@ -1820,17 +1820,19 @@ window.setPersonLeave = function(campus, payName, val) {
   if (p) { p.isLeave = val; savePersonsMaster([campus]); renderPersonCampusList(); }
 };
 
-// 날짜 입력 정규화: YYYYMMDD / YYYY/MM/DD / YYYY-MM-DD 모두 → YYYY-MM-DD
+// 날짜 입력 정규화 → YYYY-MM-DD
+// 지원: 20261001 / 2026-10-01 / 2026/10/01 / 2026.10.01
 function normalizeDate(val) {
   const s = String(val||'').trim().replace(/\s/g,'');
   if (!s) return '';
-  // YYYYMMDD (숫자 8자리)
-  if (/^\d{8}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
-  // YYYY/MM/DD 또는 YYYY.MM.DD
-  const slash = s.match(/^(\d{4})[\/\.](\d{1,2})[\/\.](\d{1,2})$/);
-  if (slash) return `${slash[1]}-${slash[2].padStart(2,'0')}-${slash[3].padStart(2,'0')}`;
-  // 이미 YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // 숫자 8자리 YYYYMMDD
+  if (/^\d{8}$/.test(s)) {
+    const y=s.slice(0,4), m=s.slice(4,6), d=s.slice(6,8);
+    if(+m>=1&&+m<=12&&+d>=1&&+d<=31) return `${y}-${m}-${d}`;
+  }
+  // YYYY[-/.]MM[-/.]DD
+  const m1=s.match(/^(\d{4})[-\/\.](\d{1,2})[-\/\.](\d{1,2})$/);
+  if(m1) return `${m1[1]}-${m1[2].padStart(2,'0')}-${m1[3].padStart(2,'0')}`;
   return null; // 인식 불가
 }
 
@@ -2369,9 +2371,8 @@ window.renderDelTable=function(pg){
       const inputEl=row.querySelector('.del-leave-input');
       const inputDate=normalizeDate(inputEl?.value||'')||'';
       const today=new Date().toISOString().slice(0,10);
-      // 우선순위: 입력칸 > 기존 leaveDate > 오늘
-      const delRow=RESULTS.del.find(r=>r.campus===campus&&r.name===name);
-      const leaveDate=inputDate||delRow?.leaveDate||today;
+      // 우선순위: 입력칸 > 오늘
+      const leaveDate=inputDate||today;
       if(!confirm(`"${name}" 을(를) ${leaveDate} 로 퇴사처리 할까요?`)) return;
       // 인원관리에서 퇴사처리
       if(PERSONS[campus]){
