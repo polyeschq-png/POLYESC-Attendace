@@ -382,7 +382,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--green)}
           <span style="margin-left:auto;font-size:12px;color:var(--text3)" id="check-count"></span>
         </div>
         <div class="twrap">
-          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>구분</th><th>입사일</th><th>메모</th></tr></thead>
+          <table><thead><tr><th>캠퍼스</th><th>이름</th><th>직급</th><th>구분</th><th>입사일</th><th>상태 원인</th></tr></thead>
           <tbody id="check-tbody"></tbody></table>
           <div class="pagination" id="check-pg"></div>
         </div>
@@ -2080,13 +2080,25 @@ window.runAnalysis=function(){
         const hireDate=per?.hireDate||p.hireDate||'';
         if(per){
           // 인원관리에 등록된 사람 → 확인 필요
-          // (매칭 완료 후 CAPS 이름 변경, 오입력 등 가능성 / 또는 아직 매칭 전 매칭대기)
-          const checkNote = per.matchType==='manual'
-            ? (per.attendName ? `CAPS 이름 불일치 — 등록명: ${per.attendName}` : 'CAPS 이름 미등록')
-            : '인원관리 등록됨 — CAPS 이름 매칭 필요';
-          RESULTS.check.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:checkNote});
+          // 분석 기간 끝 날짜 계산 (isNotYetHired와 동일 기준)
+          const _q=parseInt(document.getElementById('sel-quarter')?.value||'3');
+          const _y=parseInt(document.getElementById('sel-year')?.value||new Date().getFullYear());
+          const _lastDay=new Date(_y,[3,6,9,12][_q-1],0).toISOString().slice(0,10);
+          const isFuture = hireDate && hireDate > _lastDay;
+          let checkType, checkNote;
+          if(isFuture){
+            checkType='future';
+            checkNote=`다음달 입사자 — 입사일: ${hireDate}`;
+          } else if(per.matchType==='manual'){
+            checkType='mismatch';
+            checkNote=per.attendName ? `CAPS 이름 확인 필요 — 등록명: ${per.attendName}` : 'CAPS 이름 확인 필요';
+          } else {
+            checkType='unmatched';
+            checkNote='CAPS 이름 추가 필요(미매칭)';
+          }
+          RESULTS.check.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:checkNote,checkType});
         } else {
-          // 인원관리에 없음 → 진짜 추가 필요
+          // 인원관리에 없음 → 추가 필요
           RESULTS.add.push({campus,name:p.name,position:p.position,div:p.div,hireDate,note:per?.note||''});
         }
       }
@@ -2293,14 +2305,23 @@ window.renderCheckTable=function(pg){
   const sl=paginate(rows,checkPage);
   const tbody=document.getElementById('check-tbody');
   if(!tbody) return;
-  tbody.innerHTML=sl.map(r=>`<tr>
-    <td>${r.campus}</td>
-    <td style="font-weight:600">${r.name}</td>
-    <td style="font-size:12px">${r.position||'-'}</td>
-    <td><span class="chip chip-gray">${r.div||'-'}</span></td>
-    <td class="mono" style="font-size:12px">${r.hireDate||'-'}</td>
-    <td style="font-size:12px;color:var(--text3)">${r.note||''}</td>
-  </tr>`).join('')||noData(6);
+  const typeColor={'mismatch':'#ef4444','unmatched':'#f97316','future':'#3b82f6'};
+  tbody.innerHTML=sl.map(r=>{
+    const color=typeColor[r.checkType]||'#94a3b8';
+    return `<tr>
+      <td style="padding-left:0">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="display:inline-block;width:4px;min-width:4px;height:32px;border-radius:2px;background:${color}"></span>
+          <span>${r.campus}</span>
+        </div>
+      </td>
+      <td style="font-weight:600">${r.name}</td>
+      <td style="font-size:12px">${r.position||'-'}</td>
+      <td><span class="chip chip-gray">${r.div||'-'}</span></td>
+      <td class="mono" style="font-size:12px">${r.hireDate||'-'}</td>
+      <td style="font-size:12px;color:${color};font-weight:500">${r.note||''}</td>
+    </tr>`;
+  }).join('')||noData(6);
   renderPg('check-pg',rows.length,checkPage,'window.renderCheckTable');
 };
 
