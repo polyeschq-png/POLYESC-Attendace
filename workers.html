@@ -2371,8 +2371,9 @@ window.renderDelTable=function(pg){
       const inputEl=row.querySelector('.del-leave-input');
       const inputDate=normalizeDate(inputEl?.value||'')||'';
       const today=new Date().toISOString().slice(0,10);
-      // 우선순위: 입력칸 > 오늘
-      const leaveDate=inputDate||today;
+      // 우선순위: 입력칸 > 기존 퇴사일(분석에서 잡힌) > 오늘
+      const delRow=RESULTS.del.find(r=>r.campus===campus&&r.name===name);
+      const leaveDate=inputDate||delRow?.leaveDate||today;
       if(!confirm(`"${name}" 을(를) ${leaveDate} 로 퇴사처리 할까요?`)) return;
       // 인원관리에서 퇴사처리
       if(PERSONS[campus]){
