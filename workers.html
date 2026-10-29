@@ -2526,14 +2526,17 @@ function renderReport(){
   }
 
   // 캠퍼스 목록 — PAYROLL 있으면 그 기준, 없으면 RESULTS+PERSONS
+  const _rptLastDay=new Date(parseInt(y),[3,6,9,12][parseInt(q)-1],0).toISOString().slice(0,10);
   const campuses = sortCampuses([...new Set([
     ...Object.keys(PAYROLL),
     ...RESULTS.add.map(r=>r.campus),
     ...RESULTS.abs.map(r=>r.campus),
     ...Object.keys(PERSONS)
   ])].filter(c=>
-    PAYROLL[c]?.length || PERSONS[c]?.length ||
-    RESULTS.add.some(r=>r.campus===c) || RESULTS.abs.some(r=>r.campus===c)
+    !isCampusClosed(c, _rptLastDay) && (
+      PAYROLL[c]?.length || PERSONS[c]?.length ||
+      RESULTS.add.some(r=>r.campus===c) || RESULTS.abs.some(r=>r.campus===c)
+    )
   ));
 
   function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
