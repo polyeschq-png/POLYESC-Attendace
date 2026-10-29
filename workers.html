@@ -536,6 +536,7 @@ let PERSONS = {};   // {campus: [{payName,attendName,isLeave,divOverride,note, m
 let DUPS    = [];
 let RESULTS = {add:[],del:[],abs:[],dup:[],check:[]};
 let HISTORY = [];
+let CAMPUS_CLOSE = {}; // {campus: 'YYYY-MM-DD'} 폐업일
 let currentUser = null;
 
 let addPage=1,delPage=1,absPage=1,personPage=1;
@@ -614,6 +615,7 @@ function initApp() {
       switchTab('history');
     })();
     document.body.style.opacity='1';
+    await loadCampusConfig();  // 캠퍼스 설정(폐업일 등) 로드
     await loadPersonsMaster(); // 인원 마스터 먼저 로드
     loadHistory();
   });
@@ -1025,6 +1027,56 @@ async function loadPersonsMaster(){
     console.error('[마스터 불러오기 실패]', e);
     showToast('인원 마스터 불러오기 실패: '+e.message,'err');
   }
+}
+
+// ══════════════════════════════════════
+// 캠퍼스 설정 (폐업일 등)
+window.setCampusClose = async function(campus){
+  const cur = CAMPUS_CLOSE[campus]||'';
+  const input = prompt(
+    `"${campus}" 폐업일을 입력하세요 (YYYYMMDD 또는 YYYY-MM-DD)\n비워두면 폐업처리 취소`,
+    cur
+  );
+  if(input === null) return; // 취소
+  const date = normalizeDate(input.trim());
+  if(input.trim() && !date){
+    showToast('날짜 형식이 올바르지 않습니다 (예: 20260930)','err');
+    return;
+  }
+  if(date){
+    CAMPUS_CLOSE[campus]=date;
+    showToast(`🔒 ${campus} 폐업일 설정: ${date}`,'ok');
+  } else {
+    delete CAMPUS_CLOSE[campus];
+    showToast(`${campus} 폐업처리 취소`,'ok');
+  }
+  await saveCampusConfig();
+  renderPersonCampusList();
+  if(selectedPersonCampus===campus) renderPersonDetail(campus);
+};
+
+async function saveCampusConfig(){
+  if(!window._fbReady||!currentUser) return;
+  const{db,doc,setDoc}=window._fb;
+  try{
+    await setDoc(doc(db,'workers_config','campus_close'),{data:CAMPUS_CLOSE});
+  }catch(e){console.warn('[캠퍼스설정 저장 실패]',e);}
+}
+async function loadCampusConfig(){
+  if(!window._fbReady||!currentUser) return;
+  const{db,doc,getDoc}=window._fb;
+  try{
+    const snap=await getDoc(doc(db,'workers_config','campus_close'));
+    if(snap.exists()) CAMPUS_CLOSE=snap.data().data||{};
+  }catch(e){console.warn('[캠퍼스설정 불러오기 실패]',e);}
+}
+
+// 해당 분기에 폐업 캠퍼스인지 판단
+// lastDay: 분기 마지막 날 (YYYY-MM-DD)
+function isCampusClosed(campus, lastDay){
+  const cd=CAMPUS_CLOSE[campus];
+  if(!cd) return false;
+  return cd <= lastDay; // 폐업일이 분기 마지막날 이하 → 해당 분기부터 폐업
 }
 
 // 급여대장 업로드 후: 마스터와 병합하고 신규/변동 인원 감지
@@ -1514,8 +1566,11 @@ function renderPersonCampusList() {
     const visible = showResigned ? persons : persons.filter(p => !isResigned(p) && !SKIP_POSITIONS.includes(p.posOverride||''));
     const unmatched = visible.filter(p => !p.attendName && !p.isLeave && !isNotYetHired(p) && !p.isArCenter).length;
     const active = campus === selectedPersonCampus;
-    return `<div class="pm-item${active?' active':''}" onclick="selectPersonCampus('${campus}')">
-      <span>${campus}</span>
+    const closeDate = CAMPUS_CLOSE[campus]||'';
+    const closedStyle = closeDate ? 'opacity:0.45;' : '';
+    const closedLabel = closeDate ? `<span style="font-size:9px;color:var(--red);display:block;line-height:1.2">🔒폐업 ${closeDate}</span>` : '';
+    return `<div class="pm-item${active?' active':''}" style="${closedStyle}" onclick="selectPersonCampus('${campus}')">
+      <div><span>${campus}</span>${closedLabel}</div>
       <span class="pm-cnt">${unmatched > 0 ? '<span style="color:var(--red)">'+unmatched+'미매칭</span>' : visible.length+'명'}</span>
     </div>`;
   }).join('');
@@ -1566,16 +1621,24 @@ function renderPersonDetail(campus, tab) {
   const today = new Date().toISOString().slice(0,10);
   const unmatched = activeList.filter(p => !p.attendName && !(p.hireDate > today) && !p.isArCenter);
 
+  const _closeDate = CAMPUS_CLOSE[campus]||'';
   detail.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
       <span style="font-size:15px;font-weight:700;color:var(--text)">${campus}</span>
       <span style="font-size:12px;color:var(--text3)">${active.length}명 재직</span>
       ${resigned.length ? `<span style="font-size:12px;color:var(--text3)">/ 퇴사 ${resigned.length}명</span>` : ''}
       ${skipped.length ? `<span style="font-size:12px;color:var(--text3)">/ 제외직책 ${skipped.length}명</span>` : ''}
-      <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:11px"
-        onclick="showResigned=!showResigned;renderPersonDetail('${campus}')">
-        ${showResigned ? '🙈 퇴사자/제외직책 숨기기' : '👁 퇴사자 보기 ('+resigned.length+') / 제외직책 보기 ('+skipped.length+')'}
-      </button>
+      ${_closeDate ? `<span style="font-size:11px;color:var(--red);font-weight:600">🔒 폐업 ${_closeDate}</span>` : ''}
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" style="font-size:11px"
+          onclick="showResigned=!showResigned;renderPersonDetail('${campus}')">
+          ${showResigned ? '🙈 퇴사자/제외직책 숨기기' : '👁 퇴사자 보기 ('+resigned.length+') / 제외직책 보기 ('+skipped.length+')'}
+        </button>
+        <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red)"
+          onclick="setCampusClose('${campus}')">
+          ${_closeDate ? '🔒 폐업일 변경/취소' : '🔒 폐업처리'}
+        </button>
+      </div>
     </div>
     <div class="pm-itabs">
       <div class="pm-itab${currentTab==='unmatched'?' active':''}" onclick="renderPersonDetail('${campus}','unmatched')">
@@ -2021,10 +2084,15 @@ window.runAnalysis=function(){
     if(present.length>1) present.slice(1).forEach(c=>mergedCampuses.add(c));
   });
 
+  // 분기 마지막 날 (폐업 판단 기준)
+  const quarterLastDay=new Date(y,[3,6,9,12][q-1],0).toISOString().slice(0,10);
+
   const allCampuses=new Set([...Object.keys(PAYROLL),...Object.keys(ATTEND)]);
   allCampuses.forEach(campus=>{
     // 수지2는 수지로 통합됐으므로 단독 처리 안 함
     if(mergedCampuses.has(campus)) return;
+    // 폐업 캠퍼스는 해당 분기부터 분석 제외
+    if(isCampusClosed(campus, quarterLastDay)) return;
 
     // 수지 그룹이면 관련 캠퍼스 데이터 전부 합산
     const group = MERGE_GROUPS.find(g=>g.includes(campus));
