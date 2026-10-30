@@ -414,6 +414,7 @@ let currentUser=null, ROLE='report';
 let rTab='soe', rCampus='', stCampus='';
 let MATCH=null;           // 미매칭 계산 결과 (분석 실행과 무관하게 CAPS 파일·마스터로 바로 계산)
 let mCampus=null;         // 미매칭 연동 탭에서 선택한 캠퍼스 ('' = 전체, null = 자동 선택)
+let HQ_STAFF=[];          // hq.html config/staff에서 불러온 본사 직원 명단
 let MATCH_PENDING=null;   // 템플릿 업로드 미리보기 중인 항목
 
 // ══════════════════════════════════════
@@ -523,7 +524,7 @@ function initApp(){
       ['btn-analyze','btn-publish','btn-save'].forEach(id=>{const b=$(id);if(b)b.style.display='none';});
     }
     document.body.style.opacity='1';
-    await Promise.all([loadPersonsMaster(),loadConfig(),loadNonwork(),loadTokens(),loadRuns()]);
+    await Promise.all([loadPersonsMaster(),loadHQStaff(),loadConfig(),loadNonwork(),loadTokens(),loadRuns()]);
     await restoreWeekInputs();
     renderRuleBox();
     if(RUNS.length){fillWeekSelect();}
@@ -579,6 +580,8 @@ async function restoreWeekInputs(){
     snap.forEach(d=>{const x=d.data();files.push({name:x.name,campus:x.campus,month:x.month,persons:x.persons||[],saved:true});});
     const lv=await getDoc(doc(db,'weekly_leaves',WEEK.key));
     FILES=files.map(f=>f.campus==='미분류'?{...f,persons:f.persons.filter(p=>!files.some(o=>o.campus!=='미분류'&&o.month===f.month&&o.persons.some(q=>q.name===p.name)))}:f).filter(f=>f.campus!=='미분류'||f.persons.length);
+    // 복원된 미분류 항목 중 마스터에 이미 연결된 이름은 자동 재분류
+    _autoReclassifyUnsorted();
     LEAVES=lv.exists()?(lv.data().leaves||[]):[];
     RESULTS=null; $('result-empty').style.display='block'; $('result-body').style.display='none'; $('sb-soe').textContent='0';
     renderFileTable();
@@ -725,7 +728,9 @@ function classifyCapsNames(persons){
     const set=idx.get(strictKey(p.name));
     if(!set) return {p,campus:''};
     const groups=new Set([...set].map(groupKey));
-    return {p,campus:groups.size===1?[...set][0]:''};
+    // 단일 그룹이면 그 캠퍼스로, 여러 그룹이어도 단일 캠퍼스면 그 캠퍼스로 확정
+    if(groups.size===1||set.size===1) return {p,campus:[...set][0]};
+    return {p,campus:''};
   });
 }
 function splitCombinedFile(fileName,month,persons){
@@ -753,8 +758,10 @@ function splitCombinedFile(fileName,month,persons){
   const by={};
   cls.forEach(x=>{const c=x.campus||'미분류';(by[c]=by[c]||[]).push(x.p);});
   Object.entries(by).forEach(([c,list])=>put(c,list,` → ${c}`));
+  _autoReclassifyUnsorted(); // 마스터에 이미 연결된 이름은 자동 재분류
   renderFileTable();
-  const un=(by['미분류']||[]).length, n=Object.keys(by).filter(c=>c!=='미분류').length;
+  const un=(FILES.filter(f=>f.campus==='미분류').reduce((a,f)=>a+f.persons.length,0));
+  const n=Object.keys(by).filter(c=>c!=='미분류').length;
   showToast(`${fileName}: ${n}개 캠퍼스로 자동 분류`+(un?` · 분류 못 한 ${un}명은 미매칭 연동 탭에서 캠퍼스를 지정하세요`:''),un?'err':'ok');
 }
 function renderFileTable(){
@@ -865,6 +872,16 @@ async function loadPersonsMaster(){
     $('hdr-badge').textContent=`${Object.keys(PERSONS).length} 캠퍼스`;
     renderFileTable();
   }catch(e){$('hdr-master').textContent='마스터 불러오기 실패: '+e.message;}
+}
+async function loadHQStaff(){
+  // hq.html의 config/staff에서 본사 직원 명단 로드
+  const{db,doc,getDoc}=window._fb;
+  try{
+    const snap=await getDoc(doc(db,'config','staff'));
+    if(snap.exists()&&Array.isArray(snap.data().list)){
+      HQ_STAFF=snap.data().list.filter(s=>!s.resigned&&!s.hidden);
+    }
+  }catch(e){console.warn('본사 직원 명단 로드 실패:',e.message);}
 }
 async function loadConfig(){
   const{db,doc,getDoc}=window._fb;
@@ -1182,6 +1199,21 @@ function unsortedInfo(name){
   const gs=new Set([...pc].map(groupKey));
   return {why:'마스터에 연결된 이름이 없음',guess:gs.size===1?[...pc][0]:''};
 }
+function _autoReclassifyUnsorted(){
+  // 미분류 파일 중 마스터에 attendName이 이미 연결된 이름은 해당 캠퍼스로 자동 이동
+  const pairs=[];
+  FILES.filter(f=>f.campus==='미분류').forEach(f=>{
+    f.persons.forEach(p=>{
+      const k=strictKey(p.name);
+      const found=[];
+      Object.entries(PERSONS).forEach(([c,list])=>{
+        if(list.some(x=>x.attendName&&strictKey(x.attendName)===k)) found.push(c);
+      });
+      if(found.length===1) pairs.push({name:p.name,campus:found[0]});
+    });
+  });
+  if(pairs.length) moveUnsorted(pairs);
+}
 function moveUnsorted(pairs){ // pairs:[{name,campus}] → 미분류 항목을 해당 캠퍼스 파일로 옮김
   const want=new Map(pairs.map(x=>[x.name,x.campus]));
   FILES.filter(f=>f.campus==='미분류').forEach(f=>{
@@ -1275,6 +1307,70 @@ function matchGroupHtml(U,gk,edit){
   if(idle.length) html+=`<details style="margin:16px 14px"><summary class="hint" style="cursor:pointer">${idleNote(idle.length)}</summary><table style="margin-top:8px">${capsHead}<tbody>${capsRows(idle)}</tbody></table></details>`;
   return html;
 }
+// 본사 직원 섹션: CAPS에서 본사 직원 이름을 찾아 매칭/미매칭 표시
+function renderHQSection(edit){
+  if(!HQ_STAFF.length) return '<div class="empty"><div class="icon">🏢</div><h3>본사 직원 명단을 불러오지 못했습니다</h3><p>hq.html의 config/staff 데이터를 읽을 수 없습니다.</p></div>';
+  // CAPS 전체 이름 수집
+  const capsAll={};
+  FILES.forEach(f=>{if(f.campus) f.persons.forEach(p=>{if(!capsAll[strictKey(p.name)]) capsAll[strictKey(p.name)]=p.name;});});
+  // 이미 마스터에 ignored로 등록된 이름 수집
+  const ignoredKeys=new Set();
+  Object.values(PERSONS).forEach(list=>list.forEach(p=>{if(p.ignored&&p.attendName) ignoredKeys.add(strictKey(p.attendName));}));
+  // 각 본사 직원 → CAPS에 있는지 확인
+  const matched=[], unmatched=[];
+  HQ_STAFF.forEach(s=>{
+    const k=strictKey(s.name);
+    const capsName=capsAll[k];
+    const isIgnored=ignoredKeys.has(k);
+    if(capsName) matched.push({...s,capsName,isIgnored});
+    else unmatched.push({...s,isIgnored});
+  });
+  let html='';
+  // 요약
+  html+=`<div style="padding:14px 14px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <span style="font-weight:700;font-size:14px">🏢 본사 직원 ${HQ_STAFF.length}명</span>
+    <span class="chip" style="background:#e6f4ea;color:#1a7f37">CAPS 확인 ${matched.length}명</span>
+    <span class="chip" style="background:var(--bg);color:var(--text3)">CAPS 미확인 ${unmatched.length}명</span>
+    <span class="hint" style="margin-left:4px">본사는 소명 대상이 아닙니다 · CAPS에 있는 이름은 점검 대상 아님으로 처리하세요</span>
+  </div>`;
+  if(matched.length){
+    html+=`<div class="card-title" style="margin:0 14px 6px">CAPS에서 확인된 본사 직원 <span class="chip chip-purple">${matched.length}</span></div>
+    <table><thead><tr><th>이름</th><th>직책</th><th>부서</th><th>처리 상태</th><th></th></tr></thead><tbody>`;
+    matched.forEach(s=>{
+      const statusCell=s.isIgnored
+        ?'<span class="hint" style="color:var(--teal)">✅ 점검 대상 아님 처리됨</span>'
+        :`<span class="hint" style="color:var(--orange)">⚠ 미처리 (CAPS에 출퇴근 기록 있음)</span>`;
+      const actionCell=edit&&!s.isIgnored
+        ?`<button class="btn btn-ghost btn-sm" onclick="hqIgnore('${esc(s.name)}')">점검 대상 아님</button>`
+        :'';
+      html+=`<tr><td><b>${esc(s.name)}</b></td><td>${esc(s.rank||'')}</td><td>${esc(s.dept||'')}</td><td>${statusCell}</td><td>${actionCell}</td></tr>`;
+    });
+    html+='</tbody></table>';
+  }
+  if(unmatched.length){
+    html+=`<div class="card-title" style="margin:20px 14px 6px">CAPS에서 확인되지 않은 본사 직원 <span class="chip" style="background:var(--bg);color:var(--text3)">${unmatched.length}</span></div>
+    <div class="hint" style="margin:0 14px 8px">이번 주 CAPS 파일에 출퇴근 기록이 없는 본사 직원입니다.</div>
+    <table><thead><tr><th>이름</th><th>직책</th><th>부서</th></tr></thead><tbody>`;
+    unmatched.forEach(s=>{html+=`<tr><td>${esc(s.name)}</td><td>${esc(s.rank||'')}</td><td>${esc(s.dept||'')}</td></tr>`;});
+    html+='</tbody></table>';
+  }
+  return html;
+}
+window.hqIgnore=async function(name){
+  if(!canEdit()){showToast('권한이 없습니다','err');return;}
+  if(!confirm(`"${name}"을(를) 점검 대상이 아닌 이름으로 처리할까요?\n(본사 직원 · 이후 CAPS에 나와도 미매칭으로 표시되지 않습니다)`)) return;
+  // 어느 캠퍼스 마스터에 넣을지: CAPS 파일에서 이 이름이 있는 캠퍼스 우선, 없으면 '본사'
+  const k=strictKey(name);
+  let campus='본사';
+  for(const f of FILES){
+    if(f.campus&&f.campus!=='미분류'&&f.persons.some(p=>strictKey(p.name)===k)){campus=f.campus;break;}
+  }
+  const r=await applyMatchOps([],[{campus,attendName:name}]);
+  if(!r){showToast('저장 실패','err');return;}
+  if(!r.ignores){showToast('이미 다른 사람에게 연결된 이름입니다','err');return;}
+  showToast(`${name} → 점검 대상 아님 처리 (${campus})`,'ok');
+  refreshMatchUI();
+};
 function renderMatchPanel(){
   const U=MATCH||(MATCH=calcUnmatched());
   const has=FILES.some(f=>f.campus);
@@ -1286,7 +1382,14 @@ function renderMatchPanel(){
   const sug=collectSuggested(U).length;
   const groups=[...U.groups.filter(g=>g==='미분류'),...sortCampuses(U.groups.filter(g=>g!=='미분류'))];
   const cntOf=gk=>U.noAttend.filter(r=>r.group===gk).length+U.capsOnly.filter(r=>r.group===gk&&!r.idle).length;
-  if(mCampus===null||(mCampus!==''&&!groups.includes(mCampus))) mCampus=groups.find(g=>cntOf(g))||'';
+  const hqUnprocessed=HQ_STAFF.length?HQ_STAFF.filter(s=>{
+    const k=strictKey(s.name);
+    const inCaps=FILES.some(f=>f.campus&&f.persons.some(p=>strictKey(p.name)===k));
+    const isIgnored=Object.values(PERSONS).some(list=>list.some(p=>p.ignored&&p.attendName&&strictKey(p.attendName)===k));
+    return inCaps&&!isIgnored;
+  }).length:0;
+  const allGroups=[...groups,'__hq__'];
+  if(mCampus===null||(mCampus!==''&&mCampus!=='__hq__'&&!groups.includes(mCampus))) mCampus=groups.find(g=>cntOf(g))||(hqUnprocessed?'__hq__':'');
   const summary=`<div class="card">
     <div class="fbar" style="margin-bottom:0">
       <span style="font-weight:700">${total?`미매칭 ${total}명`:'✅ 미매칭 없음'}</span>
@@ -1299,10 +1402,13 @@ function renderMatchPanel(){
     <div class="hint" style="margin-top:8px">${total?'① 급여대장에는 있는데 CAPS 이름이 없는 사람과 ② CAPS에만 있는 이름은 연결하기 전까지 판정에서 빠집니다. 왼쪽에서 캠퍼스를 골라 하나씩 연결하거나, 템플릿(엑셀)을 내려받아 이름을 채운 뒤 올리면 한 번에 연결할 수 있습니다. 이름이 비슷해도 자동으로 묶지 않으니 직접 확인해 주세요.':'올린 CAPS 파일의 모든 이름이 마스터와 연결되어 있습니다. 주차·파일 탭에서 분석을 실행하세요.'}</div>
   </div>`;
   const left=`<div class="rc-item ${mCampus===''?'active':''}" onclick="mCampus='';renderMatchPanel()"><span>전체</span><span class="rc-cnt">${total}</span></div>`+
-    groups.map(g=>{const n=cntOf(g);return `<div class="rc-item ${mCampus===g?'active':''}" onclick="mCampus='${esc(g)}';renderMatchPanel()"><span>${esc(g)}</span><span class="rc-cnt" ${n&&mCampus!==g?'style="color:var(--red);font-weight:700"':''}>${n||'✓'}</span></div>`;}).join('');
-  const right=mCampus===''
-    ?(groups.filter(cntOf).map(g=>`<div style="padding:14px 14px 0;font-weight:700;font-size:14px">${esc(g)}</div>`+matchGroupHtml(U,g,edit)).join('')||'<div class="empty"><div class="icon">✅</div><h3>미매칭 없음</h3></div>')
-    :matchGroupHtml(U,mCampus,edit);
+    groups.map(g=>{const n=cntOf(g);return `<div class="rc-item ${mCampus===g?'active':''}" onclick="mCampus='${esc(g)}';renderMatchPanel()"><span>${esc(g)}</span><span class="rc-cnt" ${n&&mCampus!==g?'style="color:var(--red);font-weight:700"':''}>${n||'✓'}</span></div>`;}).join('')+
+    (HQ_STAFF.length?`<div style="border-top:1px solid var(--border);margin:4px 0"></div><div class="rc-item ${mCampus==='__hq__'?'active':''}" onclick="mCampus='__hq__';renderMatchPanel()"><span>🏢 본사</span><span class="rc-cnt" ${hqUnprocessed&&mCampus!=='__hq__'?'style="color:var(--orange);font-weight:700"':''}>${hqUnprocessed?`${hqUnprocessed}명 처리 필요`:`${HQ_STAFF.length}명`}</span></div>`:'');
+  const right=mCampus==='__hq__'
+    ?renderHQSection(edit)
+    :mCampus===''
+      ?(groups.filter(cntOf).map(g=>`<div style="padding:14px 14px 0;font-weight:700;font-size:14px">${esc(g)}</div>`+matchGroupHtml(U,g,edit)).join('')||'<div class="empty"><div class="icon">✅</div><h3>미매칭 없음</h3></div>')
+      :matchGroupHtml(U,mCampus,edit);
   $('match-body').innerHTML=summary+`<div class="split"><div class="split-left">${left}</div><div class="split-right">${right}</div></div>`;
 }
 
