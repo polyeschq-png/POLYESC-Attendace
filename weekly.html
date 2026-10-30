@@ -1141,7 +1141,9 @@ function calcUnmatched(){
     const capsKey=new Map(); Object.keys(capsCampus).forEach(n=>{const k=strictKey(n);if(!capsKey.has(k)) capsKey.set(k,n);});
     const resolveAtt=a=>a?(Object.prototype.hasOwnProperty.call(capsCampus,a)?a:(capsKey.get(strictKey(a))||a)):a;
     const masterAttendNames=new Set(persons.map(p=>resolveAtt(p.attendName)).filter(Boolean));
-    const capsNames=Object.keys(capsCampus).filter(n=>!masterAttendNames.has(n)).sort((a,b)=>a.localeCompare(b,'ko'));
+    // ignored 항목은 attendName이 CAPS 이름과 strictKey 기준으로만 같을 수 있으므로 별도 집합으로 처리
+    const ignoredStrictKeys=new Set(persons.filter(p=>p.ignored&&p.attendName).map(p=>strictKey(p.attendName)));
+    const capsNames=Object.keys(capsCampus).filter(n=>!masterAttendNames.has(n)&&!ignoredStrictKeys.has(strictKey(n))).sort((a,b)=>a.localeCompare(b,'ko'));
     out.groups.push(gk);
     out.capsNames[gk]=capsNames;
     out.freeMaster[gk]=persons.filter(p=>!p.attendName&&!p.ignored&&p.payName).map(p=>({campus:p._campus,payName:p.payName,position:p.posOverride||''}));
