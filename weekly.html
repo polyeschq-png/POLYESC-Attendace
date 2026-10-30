@@ -152,7 +152,7 @@ body.ro .edit{display:none!important}
 <div class="side">
   <div class="logo"><b>주간 근태 점검</b><span>㈜폴리이에스씨 인사팀</span></div>
   <div class="nav" id="nav">
-    <a data-t="prep"><span>📥</span>이번 주 준비</a>
+    <a data-t="prep"><span>📥</span>주간 파일 업로드</a>
     <a data-t="people"><span>👥</span>인원 분류<span class="bd" id="bd-people">0</span></a>
     <a data-t="result"><span>🔍</span>누락 결과<span class="bd" id="bd-result">0</span></a>
     <a data-t="review"><span>📨</span>소명 검토<span class="bd" id="bd-review">-</span></a>
@@ -169,18 +169,19 @@ body.ro .edit{display:none!important}
 
 <div class="main">
 <header>
-  <h1 id="h-title">이번 주 준비</h1>
+  <h1 id="h-title">주간 파일 업로드</h1>
   <div class="wk">
     <button onclick="shiftWeek(-1)">◀</button>
     <b id="wk-label">-</b>
     <button onclick="shiftWeek(1)">▶</button>
     <input type="date" id="wk-pick" onchange="setWeek(this.value)">
   </div>
+  <span class="chip c-blu" id="wk-no" style="font-size:12px;padding:3px 10px"></span>
   <div class="hr"><span id="sync">연결 중…</span></div>
 </header>
 <div class="content">
 
-<!-- ═══ 이번 주 준비 ═══ -->
+<!-- ═══ 주간 파일 업로드 ═══ -->
 <div class="panel" id="p-prep"></div>
 <!-- ═══ 인원 분류 ═══ -->
 <div class="panel" id="p-people"></div>
@@ -250,7 +251,8 @@ let ASSIGN={};              // CAPS키 → 캠퍼스 | '__hq' | '__ignore' | '__
 let HQSTAFF=[];             // 본사 근태(hq) 직원명단 이름
 let CONFIG={minHours:8,holidays:[]};
 let NONWORK={}, TOKENS={}, RUNS=[], ITEMS=[], ITEMS_WEEK='';
-let D=null;                 // 파생 결과
+let D=null;
+let ANA=null;               // 마지막 분석 결과 (분석 버튼을 눌러야 갱신)                 // 파생 결과
 let TAB='prep', PSUB='todo', RTAB='soe', RCAMP='', ROSTER='', VCAMP='', VFILT='', VQ='';
 let user=null, ROLE='report', READY=false;
 let PAY_PENDING=null, EVCACHE={}, REV=[], REVI=0;
@@ -267,6 +269,10 @@ function parseYMD(s){const m=String(s||'').match(/(\d{4})\D{0,2}(\d{1,2})\D{0,2}
 function dowOf(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).getDay();}
 function fmtMD(s){if(!s)return '';const [y,m,d]=s.split('-');return `${+m}/${+d}(${DOW[dowOf(s)]})`;}
 function isHoliday(s){return HOLIDAYS.has(s)||(CONFIG.holidays||[]).includes(s);}
+// 몇 주차: 그 주 목요일이 속한 달 기준 (월이 걸친 주도 하나의 달로)
+function weekNo(mon){const [y,m,d]=mon.split('-').map(Number);const th=new Date(y,m-1,d+3);return `${th.getFullYear()}년 ${th.getMonth()+1}월 ${Math.ceil(th.getDate()/7)}주차`;}
+// 이번 주 기준 재직기간 밖·휴직
+function outOf(p){const h=parseYMD(p.hireDate),lv=parseYMD(p.leaveDate);if(lv&&lv<WEEK.start)return `퇴사 (${lv})`;if(h&&h>WEEK.end)return `입사 예정 (${h})`;if(p.isLeave)return '휴직';return '';}
 function canEdit(){return ROLE==='owner'||ROLE==='admin';}
 function sortCampuses(a){return [...a.filter(c=>!MPOLY.includes(c)).sort((x,y)=>x.localeCompare(y,'ko')),...MPOLY.filter(c=>a.includes(c))];}
 function normCampus(n){if(!n)return null;n=String(n).trim();if(CAMPUS_ALIASES[n])return CAMPUS_ALIASES[n];for(const k of Object.keys(CAMPUS_ALIASES).sort((a,b)=>b.length-a.length)){if(n.toLowerCase().includes(k.toLowerCase()))return CAMPUS_ALIASES[k];}return null;}
@@ -339,7 +345,7 @@ function subscribe(){
 // ═════════════════════════════════════════════
 // 탭
 // ═════════════════════════════════════════════
-const TITLES={prep:'이번 주 준비',people:'인원 분류',result:'누락 결과',review:'소명 검토',history:'주차 기록',settings:'설정'};
+const TITLES={prep:'주간 파일 업로드',people:'인원 분류',result:'누락 결과',review:'소명 검토',history:'주차 기록',settings:'설정'};
 function switchTab(t){
   TAB=t;
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.t===t));
@@ -360,7 +366,7 @@ function refresh(){
 }
 function renderBadges(){
   const bp=$('bd-people');bp.textContent=D.todo;bp.classList.toggle('hot',D.todo>0);
-  $('bd-result').textContent=D.soe.length;
+  $('bd-result').textContent=D.analyzed?D.soe.length:'-';
   const bv=$('bd-review');
   if(ITEMS_WEEK===WEEK.key){const o=ITEMS.filter(i=>i.status==='replied').length;bv.textContent=o;bv.classList.toggle('hot',o>0);}else{bv.textContent='-';bv.classList.remove('hot');}
 }
@@ -374,8 +380,8 @@ window.setWeek=async function(s){
   const mon=new Date(dt);mon.setDate(dt.getDate()-((dt.getDay()+6)%7));
   const dates=[];for(let i=0;i<5;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);dates.push(ymd(x));}
   WEEK={key:dates[0],start:dates[0],end:dates[4],dates,months:[...new Set(dates.map(x=>x.slice(0,7)))]};
-  $('wk-pick').value=dates[0];$('wk-label').textContent=`${fmtMD(dates[0])} ~ ${fmtMD(dates[4])}`;
-  CAPS={files:[]};LEAVES=[];ITEMS=[];ITEMS_WEEK='';D=derive();renderBadges();renderTab();
+  $('wk-pick').value=dates[0];$('wk-no').textContent=weekNo(dates[0]);$('wk-label').textContent=`${fmtMD(dates[0])} ~ ${fmtMD(dates[4])}`;
+  CAPS={files:[]};LEAVES=[];ITEMS=[];ITEMS_WEEK='';ANA=null;D=derive();renderBadges();renderTab();
   await loadWeekInputs();
   if(TAB==='review')loadReview();
 };
@@ -411,12 +417,11 @@ async function saveWeekInputs(){
     if(JSON.stringify(body).length>950000){toast('CAPS 데이터가 너무 커서 저장하지 못했습니다 (1MB 제한). 이번 주 날짜가 있는 파일만 올려 주세요',1);return;}
     await setDoc(doc(db,'weekly_caps',CAPS_DOC(WEEK.key)),body);
     await setDoc(doc(db,'weekly_leaves',WEEK.key),{weekKey:WEEK.key,leaves:LEAVES,savedAt:new Date().toISOString()});
-    await saveRunSummary();
     stamp('저장됨 '+new Date().toTimeString().slice(0,5));
   }catch(e){toast('자동 저장 실패: '+e.message,1);}
 }
 async function saveRunSummary(){
-  if(!D||!CAPS.files.length)return;
+  if(!D||!D.analyzed||!CAPS.files.length)return;
   const{db,doc,setDoc}=window._fb;
   const analysis={soe:D.soe.length,check:D.check.length,auto:D.auto.length,unmatched:D.todo};
   const now=new Date().toISOString();
@@ -428,7 +433,7 @@ async function saveRunSummary(){
 // ═════════════════════════════════════════════
 // 핵심: 인원 분류 + 누락 판정 (입력이 바뀔 때마다 전체 재계산)
 // ═════════════════════════════════════════════
-function derive(){
+function derive(full){
   const R={entries:[],pay:[],soe:[],check:[],auto:[],excl:[],warn:[],groups:[],todo:0,hasCaps:CAPS.files.length>0,resigned:0};
   if(!WEEK)return R;
   R.groups=sortCampuses([...new Set(Object.keys(PERSONS).filter(c=>c&&c!=='미분류').map(groupKey))]);
@@ -437,11 +442,15 @@ function derive(){
   CAPS.files.forEach(f=>f.persons.forEach(p=>{const k=p.n+'|'+(p.e||'');let e=em.get(k);if(!e){e={key:k,name:p.n,empId:p.e||'',rec:{}};em.set(k,e);}Object.entries(p.r).forEach(([d,v])=>{const o=e.rec[d]||['',''];e.rec[d]=[v[0]||o[0],v[1]||o[1]];});}));
   const entries=[...em.values()].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
   const nameCnt={};entries.forEach(e=>{const s=strictKey(e.name);nameCnt[s]=(nameCnt[s]||0)+1;});
-  const linkIdx=new Map(),ignIdx=new Map(),payIdx=new Map();
+  const linkIdx=new Map(),ignIdx=new Map(),payIdx=new Map(),outIdx=new Map();
   Object.entries(PERSONS).forEach(([c,l])=>l.forEach(p=>{
-    if(p.attendName){const s=strictKey(p.attendName);const m=p.ignored?ignIdx:linkIdx;if(!m.has(s))m.set(s,[]);m.get(s).push({campus:c,p});}
-    else if(!p.ignored&&p.payName){const k=normName(p.payName);if(!payIdx.has(k))payIdx.set(k,new Set());payIdx.get(k).add(c);}
+    const out=p.ignored?'':outOf(p),gone=out&&out!=='휴직';
+    if(out)[p.payName,p.attendName].filter(Boolean).forEach(n=>{const k=normName(n);if(!outIdx.has(k))outIdx.set(k,{campus:c,why:out,name:p.payName||n});});
+    // 퇴사·입사예정 인원의 CAPS 이름은 연결로 보지 않음 → 캠퍼스 이동·재입사 때 "여러 캠퍼스" 충돌 방지
+    if(p.attendName&&!gone){const s=strictKey(p.attendName);const m=p.ignored?ignIdx:linkIdx;if(!m.has(s))m.set(s,[]);m.get(s).push({campus:c,p});}
+    else if(!p.attendName&&!p.ignored&&p.payName&&!out){const k=normName(p.payName);if(!payIdx.has(k))payIdx.set(k,new Set());payIdx.get(k).add(c);}
   }));
+  const assignedName=new Set(entries.filter(e=>ASSIGN[e.key]&&!ASSIGN[e.key].startsWith('__')).map(e=>strictKey(e.name)));
   const hqSet=new Set(HQSTAFF.map(strictKey));
   // 2) CAPS 항목 분류: 캠퍼스 / 본사 / 점검 제외 / 미분류
   entries.forEach(e=>{
@@ -455,10 +464,14 @@ function derive(){
     else if(a==='__ignore'){e.cls='ignore';e.why='점검 대상 아님 (직접 지정)';}
     else if(a&&!a.startsWith('__')){e.cls='campus';e.campus=a;e.group=groupKey(a);}
     else if(!dup&&lg.length===1){e.cls='campus';e.group=lg[0];e.campus=links[0].campus;}
-    else if(lg.length>1){e.cls='unsorted';e.why='여러 캠퍼스 인원에 같은 CAPS 이름이 연결되어 있음';}
-    else if(dup){e.cls='unsorted';e.why=`동명이인(같은 이름 ${nameCnt[s]}명) — 사번 보고 캠퍼스를 지정하세요`;if(lg.length===1)e.guess=links[0].campus;}
+    else if(lg.length>1){e.cls='unsorted';e.why=`같은 CAPS 이름이 여러 캠퍼스 인원에 연결됨 (${links.map(x=>x.campus+' '+x.p.payName).join(', ')}) — 맞는 사람을 고르면 나머지 연결은 해제됩니다`;}
+    else if(dup){e.cls='unsorted';e.why=assignedName.has(s)?`같은 이름의 CAPS 계정이 하나 더 있음 — 같은 사람의 중복 계정이면 "점검 대상 아님", 다른 사람이면 연결`:`동명이인(같은 이름 ${nameCnt[s]}명) — 사번 보고 캠퍼스를 지정하세요`;if(lg.length===1)e.guess=links[0].campus;}
     else if(ignIdx.has(s)){e.cls='ignore';e.why='전체 근로자에서 무시 처리된 이름';}
     else if(hqSet.has(s)&&a!=='__nothq'){e.cls='hq';e.src='본사 직원명단 자동';}
+    else if(!pc&&outIdx.has(normName(e.name))){const o=outIdx.get(normName(e.name));
+      // 이번 주 출퇴근 기록이 실제로 있으면 숨기지 않음 (재입사·캠퍼스 이동·휴직 복귀 가능성)
+      if(e.active){e.cls='unsorted';e.why=`급여대장상 ${o.why} (${o.campus} ${o.name})인데 이번 주 출퇴근 기록이 있음 — 재입사·이동·복귀면 연결, 아니면 "점검 대상 아님"`;}
+      else{e.cls='out';e.why=`${o.why} · ${o.campus} ${o.name}`;}}
     else{e.cls='unsorted';e.why='인원 마스터에 연결된 이름 없음';}
   });
   // 3) 캠퍼스로 분류된 CAPS 항목 ↔ 급여대장 인원 연결
@@ -492,13 +505,19 @@ function derive(){
   const noname=R.pay.filter(r=>!r.excl&&r.st==='noname').length;
   R.todo=R.hasCaps?unsortedA+capsOnlyA+noname:noname;
   R.cnt={unsortedA,capsOnlyA,noname,nocaps:R.pay.filter(r=>!r.excl&&r.st==='nocaps').length};
+  R.sig=sigOf(R);
   if(!R.hasCaps)return R;
+  if(!full){ // 화면 갱신 때는 마지막 분석 결과를 그대로 보여줌
+    if(ANA&&ANA.week===WEEK.key){Object.assign(R,{soe:ANA.soe,check:ANA.check,auto:ANA.auto,excl:ANA.excl,warn:ANA.warn,analyzed:true,stale:ANA.sig!==R.sig,anaAt:ANA.at});}
+    return R;
+  }
+  R.analyzed=true;R.anaAt=new Date();
   // 5) 누락 판정
   const loaded=new Set(CAPS.files.flatMap(f=>f.months));
   WEEK.months.filter(m=>!loaded.has(m)).forEach(m=>R.warn.push(`${+m.slice(5)}월 CAPS 파일이 없어 ${+m.slice(5)}월 날짜는 판정하지 않았습니다.`));
   if(R.todo)R.warn.push(`인원 분류에서 처리 안 된 ${R.todo}명은 판정에서 빠졌습니다.`);
   const pa=CONFIG.payrollAt?Math.floor((Date.now()-new Date(CONFIG.payrollAt))/864e5):null;
-  if(pa===null)R.warn.push('급여대장을 반영한 기록이 없습니다. 이번 주 준비에서 급여대장을 올려 주세요.');
+  if(pa===null)R.warn.push('급여대장을 반영한 기록이 없습니다. 주간 파일 업로드에서 급여대장을 올려 주세요.');
   else if(pa>35)R.warn.push(`급여대장 마지막 반영이 ${pa}일 전입니다. 이번 달 급여대장을 반영하세요.`);
   const lvIdx=new Map();
   LEAVES.forEach(l=>{const k=normName(l.name)+'|'+l.date;if(!lvIdx.has(k))lvIdx.set(k,[]);lvIdx.get(k).push(l);});
@@ -526,8 +545,31 @@ function derive(){
   return R;
 }
 
+// 분석 이후 분류·파일·기준이 바뀌었는지 판단용
+function sigOf(R){
+  let s=[CONFIG.minHours,(CONFIG.holidays||[]).join(),JSON.stringify(NONWORK),LEAVES.length,CAPS.files.map(f=>f.name+f.persons.length).join()].join('|');
+  R.pay.forEach(r=>{s+='|'+r.campus+r.pay+r.st+(r.excl||'')+r.att+(r.h||'')+(r.lv||'');});
+  R.entries.forEach(e=>{s+='|'+e.key+e.cls+(e.campus||'');});
+  let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h;
+}
+window.runAnalysis=async function(){
+  if(!CAPS.files.length){toast('CAPS 파일을 먼저 올리세요',1);return;}
+  if(D.todo&&!confirm(`인원 분류에서 처리 안 된 ${D.todo}명은 판정에서 빠집니다.\n그래도 분석할까요?\n\n[취소]를 누르면 인원 분류로 이동합니다.`)){switchTab('people');return;}
+  const r=derive(true);
+  ANA={week:WEEK.key,soe:r.soe,check:r.check,auto:r.auto,excl:r.excl,warn:r.warn,sig:r.sig,at:r.anaAt};
+  D=derive(false);renderBadges();
+  if(canEdit()){try{await saveRunSummary();}catch(e){}}
+  toast(`분석 완료: 소명 필요 ${r.soe.length} · 짧은 근무 ${r.check.length} · 연차 종결 ${r.auto.length}`);
+  RTAB='soe';switchTab('result');
+};
+function anaBar(){
+  if(!D.hasCaps)return '';
+  const t=D.analyzed?D.anaAt.toTimeString().slice(0,5):'';
+  return `<div class="card row" style="${D.analyzed&&!D.stale?'':'border-left:4px solid var(--red)'}"><b>🔍 누락 분석</b><span class="hint">${!D.analyzed?'파일·인원 분류를 마친 뒤 분석을 실행하세요':D.stale?`${t}에 분석한 뒤 인원 분류·파일·기준이 바뀌었습니다 — 다시 분석하세요`:`${t} 분석 결과 반영 중`}</span><span class="sp"></span><button class="btn bp" onclick="runAnalysis()">${D.analyzed?'다시 분석':'분석 실행'}</button></div>`;
+}
+
 // ═════════════════════════════════════════════
-// 📥 이번 주 준비
+// 📥 주간 파일 업로드
 // ═════════════════════════════════════════════
 function renderPrep(){
   const run=RUNS.find(r=>r.weekKey===WEEK.key);
@@ -535,7 +577,7 @@ function renderPrep(){
   const st=(cls,k,v,d,t)=>`<div class="step ${cls}" onclick="switchTab('${t}')"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
   let html=`<div class="steps">
     ${st(!D.hasCaps?'wait':D.todo?'todo':'ok','① 인원 분류',D.hasCaps?(D.todo?D.todo+'명':'완료'):'-',D.hasCaps?(D.todo?'분류·매칭이 필요한 인원':'모든 인원이 캠퍼스·본사·제외로 분류됨'):'CAPS 파일을 올리면 시작','people')}
-    ${st(!D.hasCaps?'wait':D.soe.length?'todo':'ok','② 누락 판정',D.hasCaps?D.soe.length+'건':'-',D.hasCaps?`소명 필요 · 짧은 근무 ${D.check.length} · 연차 종결 ${D.auto.length}`:'자동 계산','result')}
+    ${st(!D.analyzed?'wait':D.stale?'todo':D.soe.length?'todo':'ok','② 누락 판정',D.analyzed?D.soe.length+'건':'분석 전',D.analyzed?`소명 필요 · 짧은 근무 ${D.check.length} · 연차 종결 ${D.auto.length}${D.stale?' · 다시 분석 필요':''}`:'아래 분석 버튼으로 실행','result')}
     ${st(run&&run.publishedAt?'ok':'wait','③ 원장 소명 요청',run&&run.publishedAt?(run.total||0)+'건':'미발행',run&&run.publishedAt?'발행 '+run.publishedAt.slice(5,16).replace('T',' '):'누락 결과에서 발행','result')}
     ${st(ITEMS_WEEK===WEEK.key&&ITEMS.some(i=>i.status==='replied')?'todo':'wait','④ 소명 검토',ITEMS_WEEK===WEEK.key?ITEMS.filter(i=>i.status==='replied').length+'건':'-','검토 대기 (회신됨)','review')}
   </div>`;
@@ -551,7 +593,7 @@ function renderPrep(){
   html+=`<div class="card"><div class="ct">🕐 CAPS 출퇴근 파일 <span class="chip c-blu">필요: ${mNeed}</span></div>
     <div class="drop edit"><input type="file" accept=".xlsx,.xls,.csv" multiple onchange="onCapsFiles(this)"><b>전체 인원 근태 파일 올리기</b>월별 파일 · 주가 두 달에 걸치면 두 달치 모두</div>
     ${CAPS.files.length?`<div style="margin-top:10px">${CAPS.files.map((f,i)=>`<div class="row" style="padding:5px 0;border-bottom:1px solid #f0f2f5"><span class="mono" style="flex:1;word-break:break-all">${esc(f.name)}</span><span class="chip c-blu">${f.months.map(m=>+m.slice(5)+'월').join('·')}</span><span class="hint">${f.persons.length}명</span><button class="btn bg sm edit" onclick="removeCaps(${i})">✖</button></div>`).join('')}</div>`:'<div class="hint" style="margin-top:8px">올린 파일 없음</div>'}
-    ${D.hasCaps?`<div class="hint" style="margin-top:6px">CAPS ${D.entries.length}명 → 캠퍼스 ${D.entries.filter(e=>e.cls==='campus').length} · 본사 ${D.entries.filter(e=>e.cls==='hq').length} · 제외 ${D.entries.filter(e=>e.cls==='ignore').length} · 미분류 ${D.entries.filter(e=>e.cls==='unsorted').length}</div>`:''}</div>`;
+    ${D.hasCaps?`<div class="hint" style="margin-top:6px">CAPS ${D.entries.length}명 → 캠퍼스 ${D.entries.filter(e=>e.cls==='campus').length} · 본사 ${D.entries.filter(e=>e.cls==='hq').length} · 제외 ${D.entries.filter(e=>e.cls==='ignore'||e.cls==='out').length} · 미분류 ${D.entries.filter(e=>e.cls==='unsorted').length}</div>`:''}</div>`;
   // 연차
   const sys=LEAVES.filter(l=>l.src==='system').length,fl=LEAVES.filter(l=>l.src==='file').length;
   html+=`<div class="card"><div class="ct">🏖 연차·반차</div>
@@ -559,6 +601,7 @@ function renderPrep(){
     <div class="drop edit" style="padding:10px"><input type="file" accept=".xlsx,.xls,.csv" onchange="onLeaveFile(this)"><b>연차 엑셀 올리기</b>열 이름: 이름 · 날짜(또는 시작/종료) · 종류 · (캠퍼스, 상태)</div>
     <div class="hint" style="margin-top:8px" id="lv-status">${LEAVES.length?`연차시스템 ${sys}건 · 엑셀 ${fl}건 반영됨`:'아직 없음 — 없어도 판정은 됩니다 (연차 자동 종결만 빠짐)'}</div></div>`;
   html+=`</div>`;
+  html+=anaBar();
   $('p-prep').innerHTML=html;
 }
 
@@ -770,10 +813,11 @@ async function linkPair(pi,ei,silent){
   if(!canEdit())return false;
   const row=D.pay[pi],e=D.entries[ei];if(!row||!e)return false;
   const sk=strictKey(e.name),touched=new Set([row.campus]);
-  const other=campusGroup(row.group).flatMap(c=>(PERSONS[c]||[]).map(p=>({c,p}))).find(x=>x.p!==row.p&&!x.p.ignored&&x.p.attendName&&strictKey(x.p.attendName)===sk&&!e.dup);
-  if(other){
-    if(!silent&&!confirm(`"${e.name}"은(는) 이미 ${other.p.payName}에게 연결돼 있습니다.\n${row.pay}(으)로 옮길까요?`))return false;
-    other.p.attendName=null;other.p.matchType='none';touched.add(other.c);
+  // 같은 CAPS 이름이 다른 사람(다른 캠퍼스 포함)에 연결돼 있으면 옮김. 퇴사·입사예정 인원은 기록으로 두고 건드리지 않음
+  const others=e.dup?[]:Object.entries(PERSONS).flatMap(([c,l])=>l.map(p=>({c,p}))).filter(x=>x.p!==row.p&&!x.p.ignored&&x.p.attendName&&strictKey(x.p.attendName)===sk&&!['퇴사','입사'].some(w=>outOf(x.p).startsWith(w)));
+  if(others.length){
+    if(!silent&&!confirm(`"${e.name}"은(는) 이미 ${others.map(o=>o.c+' '+o.p.payName).join(', ')}에게 연결돼 있습니다.\n${row.campus} ${row.pay}(으)로 옮길까요?`))return false;
+    others.forEach(o=>{o.p.attendName=null;o.p.matchType='none';touched.add(o.c);});
   }
   row.p.attendName=e.name;row.p.matchType='manual';
   let a=false;
@@ -864,15 +908,15 @@ function R_CAMPS(){return [...new Set([...Object.keys(PERSONS),...Object.values(
 function entryLabel(e){return `<b>${esc(e.name)}</b>${e.empId?` <span class="hint">[${esc(e.empId)}]</span>`:''}`;}
 function renderPeople(){
   const ents=D.entries,pays=D.pay;
-  const cnt={campus:ents.filter(e=>e.cls==='campus').length,hq:ents.filter(e=>e.cls==='hq').length,ign:ents.filter(e=>e.cls==='ignore').length,uns:ents.filter(e=>e.cls==='unsorted').length};
+  const cnt={campus:ents.filter(e=>e.cls==='campus').length,hq:ents.filter(e=>e.cls==='hq').length,ign:ents.filter(e=>e.cls==='ignore').length,out:ents.filter(e=>e.cls==='out').length,uns:ents.filter(e=>e.cls==='unsorted').length};
   const linked=pays.filter(r=>!r.excl&&r.st==='ok').length,ex=pays.filter(r=>r.excl).length;
   let h=`<div class="grid2" style="margin-bottom:14px">
     <div class="card" style="margin:0"><div class="ct">🕐 CAPS ${ents.length}명 <span class="sub">전원이 아래 중 하나로 분류되어야 합니다</span></div>
-      ${D.hasCaps?`<div class="row"><span class="chip c-blu">캠퍼스 ${cnt.campus}</span><span class="chip c-gry">본사 ${cnt.hq}</span><span class="chip c-gry">점검 제외 ${cnt.ign}</span><span class="chip ${cnt.uns?'c-red':'c-grn'}">미분류 ${cnt.uns}</span></div>`:'<span class="hint">CAPS 파일을 올리면 표시됩니다</span>'}</div>
+      ${D.hasCaps?`<div class="row"><span class="chip c-blu">캠퍼스 ${cnt.campus}</span><span class="chip c-gry">본사 ${cnt.hq}</span><span class="chip c-gry">점검 제외 ${cnt.ign}</span><span class="chip c-gry">퇴사·입사예정·휴직 ${cnt.out}</span><span class="chip ${cnt.uns?'c-red':'c-grn'}">미분류 ${cnt.uns}</span></div>`:'<span class="hint">CAPS 파일을 올리면 표시됩니다</span>'}</div>
     <div class="card" style="margin:0"><div class="ct">💰 급여대장 재직 ${pays.length}명 <span class="sub">퇴사자 ${D.resigned}명 제외</span></div>
       <div class="row"><span class="chip c-grn">CAPS 연결 ${linked}</span><span class="chip ${D.cnt.noname?'c-red':'c-grn'}">CAPS 이름 없음 ${D.cnt.noname}</span><span class="chip ${D.cnt.nocaps?'c-org':'c-grn'}">이번 주 CAPS에 없음 ${D.cnt.nocaps}</span><span class="chip c-gry">점검 제외 ${ex}</span></div></div>
   </div>`;
-  h+=`<div class="tabs">${[['todo','처리 필요',D.todo],['roster','캠퍼스 명단',0],['hq','본사',cnt.hq],['excl','점검 제외',cnt.ign+ex]].map(([k,l,n])=>`<a class="${PSUB===k?'on':''}" onclick="PSUB='${k}';renderPeople()">${l}${n?`<span class="chip ${k==='todo'?'c-red':'c-gry'}">${n}</span>`:''}</a>`).join('')}</div>`;
+  h+=`<div class="tabs">${[['todo','처리 필요',D.todo],['roster','캠퍼스 명단',0],['hq','본사',cnt.hq],['excl','점검 제외',cnt.ign+cnt.out+ex]].map(([k,l,n])=>`<a class="${PSUB===k?'on':''}" onclick="PSUB='${k}';renderPeople()">${l}${n?`<span class="chip ${k==='todo'?'c-red':'c-gry'}">${n}</span>`:''}</a>`).join('')}</div>`;
   if(PSUB==='todo')h+=peopleTodo();
   else if(PSUB==='roster')h+=peopleRoster();
   else if(PSUB==='hq')h+=peopleHQ();
@@ -932,8 +976,10 @@ function peopleHQ(){
 }
 function peopleExcl(){
   const ig=D.entries.map((e,i)=>({e,i})).filter(x=>x.e.cls==='ignore');
+  const ot=D.entries.filter(e=>e.cls==='out');
   const pe=D.pay.filter(r=>r.excl);
-  return `<div class="tw" style="margin-bottom:14px"><div class="sec">CAPS 이름 — 점검 대상 아님 <span class="chip c-gry">${ig.length}</span></div>${ig.length?`<table><tbody>${ig.map(x=>`<tr><td>${entryLabel(x.e)}</td><td class="hint">${esc(x.e.why)}</td><td>${ASSIGN[x.e.key]==='__ignore'?`<button class="btn bg sm edit" onclick="setAssignE(${x.i},null,'제외 해제')">제외 해제</button>`:'<span class="hint">전체 근로자에서 해제</span>'}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:14px">없음</div>'}</div>
+  return `<div class="tw" style="margin-bottom:14px"><div class="sec">CAPS 이름 — 이번 주 기준 퇴사·입사 예정·휴직 <span class="chip c-gry">${ot.length}</span><span class="hint">급여대장 입·퇴사일 기준 자동 제외 (CAPS 계정 미삭제·선등록 등)</span></div>${ot.length?`<table><tbody>${ot.map(e=>`<tr><td>${entryLabel(e)}</td><td class="hint">${esc(e.why)}</td><td>${e.active?'<span class="chip c-org">이번 주 기록 있음</span>':''}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:14px">없음</div>'}</div>
+  <div class="tw" style="margin-bottom:14px"><div class="sec">CAPS 이름 — 점검 대상 아님 <span class="chip c-gry">${ig.length}</span></div>${ig.length?`<table><tbody>${ig.map(x=>`<tr><td>${entryLabel(x.e)}</td><td class="hint">${esc(x.e.why)}</td><td>${ASSIGN[x.e.key]==='__ignore'?`<button class="btn bg sm edit" onclick="setAssignE(${x.i},null,'제외 해제')">제외 해제</button>`:'<span class="hint">전체 근로자에서 해제</span>'}</td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:14px">없음</div>'}</div>
   <div class="tw"><div class="sec">급여대장 인원 — 점검 제외 <span class="chip c-gry">${pe.length}</span><span class="hint">직책·휴직·입사예정은 전체 근로자 인원관리에서 바꿉니다</span></div>${pe.length?`<table><tbody>${pe.map(r=>`<tr><td>${esc(r.campus)}</td><td><b>${esc(r.pay)}</b></td><td>${esc(r.pos)}</td><td><span class="chip c-gry">${esc(r.excl)}</span></td></tr>`).join('')}</tbody></table>`:'<div class="empty" style="padding:14px">없음</div>'}</div>`;
 }
 
@@ -941,12 +987,14 @@ function peopleExcl(){
 // 🔍 누락 결과
 // ═════════════════════════════════════════════
 function renderResult(){
-  if(!D.hasCaps){$('p-result').innerHTML='<div class="card empty"><div class="i">🔍</div><b>CAPS 파일을 올리면 자동으로 계산됩니다</b></div>';return;}
+  if(!D.hasCaps){$('p-result').innerHTML='<div class="card empty"><div class="i">🔍</div><b>먼저 주간 파일 업로드에서 CAPS 파일을 올리세요</b></div>';return;}
+  if(!D.analyzed){$('p-result').innerHTML=anaBar()+'<div class="card empty"><div class="i">🔍</div><b>아직 분석하지 않았습니다</b><p class="hint">인원 분류를 마친 뒤 "분석 실행"을 누르세요.</p></div>';return;}
   const L={soe:D.soe,check:D.check,auto:D.auto,excl:D.excl};
   const lbl={soe:['소명 필요','var(--red)'],check:[`짧은 근무 (${CONFIG.minHours}h 미만)`,'var(--org)'],auto:['연차 자동 종결','var(--grn)'],excl:['제외','var(--tx3)']};
   const run=RUNS.find(r=>r.weekKey===WEEK.key);
   let h=`<div class="kpis">${Object.keys(lbl).map(k=>`<div class="kpi ${RTAB===k?'on':''}" onclick="RTAB='${k}';renderResult()"><div class="v" style="color:${lbl[k][1]}">${L[k].length}</div><div class="l">${lbl[k][0]}</div></div>`).join('')}
-    <div class="sp"></div><div class="row" style="align-self:center"><button class="btn bg" onclick="exportResult()">⬇ 엑셀</button><button class="btn bp edit" onclick="publish()">📨 원장 소명 요청 발행${run&&run.publishedAt?' (다시)':''}</button></div></div>`;
+    <div class="sp"></div><div class="row" style="align-self:center"><button class="btn ${D.stale?'bp':'bg'}" onclick="runAnalysis()">🔍 다시 분석</button><button class="btn bg" onclick="exportResult()">⬇ 엑셀</button><button class="btn bp edit" onclick="publish()">📨 원장 소명 요청 발행${run&&run.publishedAt?' (다시)':''}</button></div></div>`;
+  if(D.stale)h+=`<div class="box b-err">분석한 뒤에 인원 분류·파일·기준이 바뀌었습니다. 아래는 ${D.anaAt.toTimeString().slice(0,5)} 분석 결과입니다. 최신으로 보려면 "다시 분석"을 누르세요.</div>`;
   if(D.warn.length)h+=`<div class="box b-warn">${D.warn.map(esc).join('<br>')}${D.todo?` <button class="btn bp sm" onclick="switchTab('people')">인원 분류로</button>`:''}</div>`;
   if(RTAB==='check')h+='<div class="box b-info">출퇴근은 모두 찍혔지만 체류시간이 기준보다 짧은 날입니다. 소명 요청 대상은 아니고 본사 확인용입니다.</div>';
   const list=L[RTAB];const counts={};list.forEach(r=>{counts[r.group]=(counts[r.group]||0)+1;});
@@ -987,6 +1035,8 @@ async function ensureToken(c){
 }
 window.publish=async function(){
   if(!canEdit())return;
+  if(!D.analyzed){toast('먼저 분석을 실행하세요',1);return;}
+  if(D.stale&&!confirm('분석한 뒤에 인원 분류·파일이 바뀌었습니다.\n이전 분석 결과로 발행할까요?\n\n(취소 → "다시 분석" 후 발행하면 최신 결과로 나갑니다)'))return;
   if(!D.soe.length){toast('소명 필요 건이 없습니다',1);return;}
   const by={};D.soe.forEach(r=>{(by[r.campus]=by[r.campus]||[]).push(r);});
   const camps=Object.keys(by);
@@ -1173,8 +1223,8 @@ ${Object.entries(by).map(([n,d])=>`• ${n}: ${d.join(', ')}`).join('\n')}
 // ═════════════════════════════════════════════
 async function loadRuns(){try{const{db,collection,getDocs}=window._fb;const s=await getDocs(collection(db,'weekly_runs'));RUNS=[];s.forEach(d=>RUNS.push(d.data()));RUNS.sort((a,b)=>b.weekKey.localeCompare(a.weekKey));}catch(e){}}
 function renderHistory(){
-  if(!RUNS.length){$('p-history').innerHTML='<div class="card empty"><div class="i">💾</div><b>기록이 없습니다</b><p class="hint">CAPS 파일을 올리면 그 주차가 자동으로 기록됩니다.</p></div>';return;}
-  $('p-history').innerHTML=`<div class="box b-info">CAPS·연차 파일과 분석 결과는 올리는 순간 자동 저장되고, 소명 회신·사진·승인 기록은 계속 남습니다. 주차를 누르면 그 주로 이동합니다. 사진이 저장 용량(무료 1GB)을 차지하므로 검토가 끝난 주차는 <b>🧹 사진 정리</b>로 승인 건의 사진만 지울 수 있습니다.</div>
+  if(!RUNS.length){$('p-history').innerHTML='<div class="card empty"><div class="i">💾</div><b>기록이 없습니다</b><p class="hint">파일을 올리고 분석하면 그 주차가 기록됩니다.</p></div>';return;}
+  $('p-history').innerHTML=`<div class="box b-info">CAPS·연차 파일은 올리는 순간, 분석 요약은 분석할 때 자동 저장되고, 소명 회신·사진·승인 기록은 계속 남습니다. 주차를 누르면 그 주로 이동합니다. 사진이 저장 용량(무료 1GB)을 차지하므로 검토가 끝난 주차는 <b>🧹 사진 정리</b>로 승인 건의 사진만 지울 수 있습니다.</div>
   <div class="tw"><table><thead><tr><th>주차</th><th>소명 필요</th><th>짧은 근무</th><th>분류 미처리</th><th>발행</th><th>최근 저장</th><th></th></tr></thead><tbody>${RUNS.map(r=>{const a=r.analysis||{};return `<tr style="${r.weekKey===WEEK.key?'background:var(--pri-lt)':''}"><td class="mono"><b>${fmtMD(r.start)} ~ ${fmtMD(r.end)}</b></td><td>${a.soe??'-'}</td><td>${a.check??'-'}</td><td>${a.unmatched?`<span class="chip c-red">${a.unmatched}</span>`:'0'}</td><td>${r.publishedAt?`<span class="chip c-grn">${r.total}건 · ${r.publishedAt.slice(5,10)}</span>`:'<span class="chip c-gry">미발행</span>'}</td><td class="mono">${(r.savedAt||r.publishedAt||'').slice(0,16).replace('T',' ')}</td><td style="white-space:nowrap"><button class="btn bg sm" onclick="setWeek('${r.start}').then(()=>switchTab('prep'))">📂 열기</button> ${r.publishedAt?`<button class="btn bg sm" onclick="setWeek('${r.start}').then(()=>switchTab('review'))">📨 검토</button> <button class="btn bg sm edit" onclick="cleanupEv('${r.weekKey}')">🧹 사진 정리</button>`:''}</td></tr>`;}).join('')}</tbody></table></div>`;
 }
 window.cleanupEv=async function(wk){
