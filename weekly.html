@@ -145,6 +145,12 @@ details summary{cursor:pointer;color:var(--tx2);font-size:12px;padding:10px 14px
 .bar{height:6px;background:var(--gry-lt);border-radius:99px;overflow:hidden;margin-top:6px}
 .bar>div{height:100%;background:var(--grn)}
 body.ro .edit{display:none!important}
+/* 증빙 마우스 오버 미리보기 */
+.evh{cursor:zoom-in}
+.hov{position:fixed;z-index:1500;display:none;background:var(--white);border:1px solid var(--line2);border-radius:10px;box-shadow:0 10px 32px rgba(15,22,35,.28);padding:10px;pointer-events:none;width:min(760px,62vw)}
+.hov .h{font-size:12.5px;margin-bottom:8px;line-height:1.5}
+.hov .imgs{display:flex;gap:8px}
+.hov .imgs img{flex:1;min-width:0;max-height:76vh;object-fit:contain;border-radius:6px;background:#f3f5f8;border:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -199,6 +205,7 @@ body.ro .edit{display:none!important}
 
 <div class="mbg" id="mbg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
+<div class="hov" id="hov"></div>
 <input type="file" id="f-payroll" accept=".xlsx,.xls" style="display:none" onchange="onPayrollFile(this)">
 
 <script>
@@ -282,6 +289,10 @@ function groupKey(c){const g=MERGE_GROUPS.find(g=>g.includes(c));return g?g[0]:c
 function strictKey(n){return String(n||'').normalize('NFKC').replace(/[\s\u200b-\u200d\ufeff]+/g,' ').trim().toLowerCase();}
 function baseName(n){return String(n||'').trim().replace(/\s*[\(（][^)）]*[\)）]/g,'').replace(/\s+/g,' ').trim();}
 function normName(n){return strictKey(baseName(n));}
+// 급여대장 이름의 육휴·출휴 표시 제거: "홍길동(육휴_2026.03~", "홍길동_출휴" → 홍길동
+const LEAVE_MARK=/(육휴|출휴|육아휴직|출산휴가|출산전후|휴직)/;
+function stripMark(n){return String(n||'').replace(/[\s_\-(（\[].*?(육휴|출휴|육아휴직|출산휴가|출산전후|휴직).*$/,'').trim();}
+function personKey(n){return normName(stripMark(n));}
 // "09:02", "9:02:15", "+01:30"(익일) → 분. 실패 null
 function parseTime(v){
   if(v==null||v==='')return null;
@@ -445,10 +456,10 @@ function derive(full){
   const linkIdx=new Map(),ignIdx=new Map(),payIdx=new Map(),outIdx=new Map();
   Object.entries(PERSONS).forEach(([c,l])=>l.forEach(p=>{
     const out=p.ignored?'':outOf(p),gone=out&&out!=='휴직';
-    if(out)[p.payName,p.attendName].filter(Boolean).forEach(n=>{const k=normName(n);if(!outIdx.has(k))outIdx.set(k,{campus:c,why:out,name:p.payName||n});});
+    if(out)[p.payName,p.formalName,p.attendName].filter(Boolean).forEach(n=>{const k=normName(n);if(!outIdx.has(k))outIdx.set(k,{campus:c,why:out,name:p.payName||n});});
     // 퇴사·입사예정 인원의 CAPS 이름은 연결로 보지 않음 → 캠퍼스 이동·재입사 때 "여러 캠퍼스" 충돌 방지
     if(p.attendName&&!gone){const s=strictKey(p.attendName);const m=p.ignored?ignIdx:linkIdx;if(!m.has(s))m.set(s,[]);m.get(s).push({campus:c,p});}
-    else if(!p.attendName&&!p.ignored&&p.payName&&!out){const k=normName(p.payName);if(!payIdx.has(k))payIdx.set(k,new Set());payIdx.get(k).add(c);}
+    else if(!p.attendName&&!p.ignored&&p.payName&&!out){[...new Set([personKey(p.payName),p.formalName?normName(p.formalName):''])].filter(Boolean).forEach(k=>{if(!payIdx.has(k))payIdx.set(k,new Set());payIdx.get(k).add(c);});}
   }));
   const assignedName=new Set(entries.filter(e=>ASSIGN[e.key]&&!ASSIGN[e.key].startsWith('__')).map(e=>strictKey(e.name)));
   const hqSet=new Set(HQSTAFF.map(strictKey));
@@ -477,7 +488,9 @@ function derive(full){
   // 3) 캠퍼스로 분류된 CAPS 항목 ↔ 급여대장 인원 연결
   const byPerson=new Map();
   entries.filter(e=>e.cls==='campus').forEach(e=>{
-    const c=(linkIdx.get(strictKey(e.name))||[]).find(x=>groupKey(x.campus)===e.group&&!byPerson.has(x.p));
+    // 같은 캠퍼스에 같은 CAPS 이름이 걸린 사람이 여럿이면: 급여대장 이름이 같은 사람 > 점검 대상(휴직·제외직책 아님) 순으로 우선
+    const sc=x=>(personKey(x.p.payName)===normName(e.name)||(x.p.formalName&&normName(x.p.formalName)===normName(e.name))?2:0)+(!x.p.isLeave&&!SKIP_POSITIONS.includes(x.p.posOverride||'')&&!isSafety(x.p.posOverride)?1:0);
+    const c=(linkIdx.get(strictKey(e.name))||[]).filter(x=>groupKey(x.campus)===e.group&&!byPerson.has(x.p)).sort((a,b)=>sc(b)-sc(a))[0];
     if(c){e.person=c.p;e.pcampus=c.campus;byPerson.set(c.p,e);}
   });
   R.entries=entries;
@@ -486,7 +499,7 @@ function derive(full){
     if(p.ignored)return;
     const h=parseYMD(p.hireDate),lv=parseYMD(p.leaveDate),pos=p.posOverride||'';
     if(lv&&lv<WEEK.start){R.resigned++;return;}
-    const row={campus:c,group:groupKey(c),p,pay:p.payName||'',att:p.attendName||'',pos,h,lv};
+    const row={campus:c,group:groupKey(c),p,pay:p.payName||'',formal:p.formalName||'',att:p.attendName||'',pos,h,lv};
     if(SKIP_POSITIONS.includes(pos))row.excl='제외 직책 ('+pos+')';
     else if(isSafety(pos))row.excl='안전선생님 (별도 관리)';
     else if(p.isLeave)row.excl='휴직';
@@ -495,7 +508,19 @@ function derive(full){
     const e=byPerson.get(p);
     row.entry=e||null;
     row.st=e?'ok':(!p.attendName?'noname':'nocaps');
-    if(row.st==='nocaps'){const other=entries.find(x=>strictKey(x.name)===strictKey(p.attendName));row.why=other?`CAPS 이름 "${other.name}"이 ${other.cls==='hq'?'본사':other.cls==='ignore'?'점검 제외':other.cls==='unsorted'?'미분류':other.campus}로 분류됨`:'연결된 CAPS 이름이 이번 주 파일에 없음';}
+    if(row.st==='nocaps'){
+      const oi=entries.findIndex(x=>strictKey(x.name)===strictKey(p.attendName)),other=entries[oi];
+      if(!other)row.why='연결된 CAPS 이름이 이번 주 파일에 없음 (이름이 바뀌었으면 다시 연결)';
+      else{
+        row.oi=oi;
+        if(other.cls==='campus'&&other.person){
+          const same=groupKey(other.pcampus)===row.group;
+          row.why=`CAPS 이름 "${other.name}"이 ${same?'같은 캠퍼스의 ':''}${other.pcampus} ${other.person.payName}에게 연결돼 있음`+(same?(normName(other.person.payName)===normName(p.payName)?' — 같은 사람이 두 번 등록됐다면 전체 근로자에서 하나를 정리하세요':` — ${p.payName}의 CAPS 이름이 잘못 저장된 것 같으면 다시 고르거나 "연결 해제"`):'');
+        }
+        else if(other.cls==='campus')row.why=`CAPS 이름 "${other.name}"이 ${other.campus}로 캠퍼스 직접 지정돼 있음`;
+        else row.why=`CAPS 이름 "${other.name}"이 ${other.cls==='hq'?'본사':other.cls==='ignore'?'점검 제외':other.cls==='out'?'퇴사·입사예정':'미분류'}로 분류됨${other.why?' ('+other.why+')':''}`;
+      }
+    }
     R.pay.push(row);
   });});
   R.pay.sort((a,b)=>a.campus.localeCompare(b.campus,'ko')||a.pay.localeCompare(b.pay,'ko'));
@@ -534,7 +559,7 @@ function derive(full){
       if(row.lv&&date>row.lv){R.excl.push({...b,why:'퇴사 후'});return;}
       if(nw.includes(dowOf(date))){R.excl.push({...b,why:'비근무요일'});return;}
       const r=row.entry?row.entry.rec[date]:null,ci=r?r[0]:'',co=r?r[1]:'';
-      const lv=[...new Set([row.pay,row.att].filter(Boolean).map(n=>normName(n)+'|'+date))].flatMap(k=>lvIdx.get(k)||[])
+      const lv=[...new Set([stripMark(row.pay),row.formal,row.att].filter(Boolean).map(n=>normName(n)+'|'+date))].flatMap(k=>lvIdx.get(k)||[])
         .filter(l=>!l.campus||!normCampus(l.campus)||groupKey(normCampus(l.campus))===row.group).map(l=>l.type||'연차');
       if(ci&&co){const a=parseTime(ci),bb=parseTime(co);if(a!=null&&bb!=null&&bb-a>=0&&bb-a<minMin)R.check.push({...b,ci,co,hours:((bb-a)/60).toFixed(1),leave:lv.join(', ')});return;}
       const kind=!row.entry?'absent_all':ci?'ci_only':co?'co_only':'none';
@@ -743,6 +768,7 @@ window.onPayrollFile=async function(input){
       let hdr=-1;for(let i=0;i<Math.min(rows.length,10);i++){if(rows[i].some(c=>String(c).includes('성')&&String(c).includes('명'))){hdr=i;break;}}
       if(hdr<0)return;
       const h=rows[hdr].map(c=>String(c).trim());
+      const iFh=h.findIndex(x=>/더존|정식/.test(x)),iF=iFh>=0?iFh:38; // AM열 = 39번째 열
       const iN=h.findIndex(x=>x.includes('성')&&x.includes('명')),iP=h.findIndex(x=>x.includes('직급')),iD=h.findIndex(x=>x.includes('구분')),iE=h.findIndex(x=>x.includes('사번')||x.includes('사원')),iH=h.findIndex(x=>x.includes('입사일')),iL=h.findIndex(x=>x.includes('퇴사일'));
       PAY[campus]=PAY[campus]||[];
       for(let i=hdr+2;i<rows.length;i++){
@@ -750,51 +776,78 @@ window.onPayrollFile=async function(input){
         if(!name||name==='합 계'||name==='소 계')continue;
         const div=iD>=0?String(r[iD]||'').trim():'';if(PAY_SKIP_DIVS.has(div))continue;
         const empId=iE>=0?String(r[iE]||'').trim():'';
-        PAY[campus].push({name,position:iP>=0?String(r[iP]||'').trim():'',div,empId,hireDate:iH>=0?xlDate(r[iH]):'',leaveDate:iL>=0?xlDate(r[iL]):'',isLeave:empId.includes('휴직')||div.includes('휴직')});
+        const formal=String(r[iF]??'').trim().replace(/\s+/g,' ');
+        PAY[campus].push({name,formal:formal&&!/^\d+$/.test(formal)?formal:'',position:iP>=0?String(r[iP]||'').trim():'',div,empId,hireDate:iH>=0?xlDate(r[iH]):'',leaveDate:iL>=0?xlDate(r[iL]):'',isLeave:empId.includes('휴직')||div.includes('휴직')});
       }
     });
     const total=Object.values(PAY).reduce((a,l)=>a+l.length,0);
     if(!total){toast('급여대장에서 인원을 읽지 못했습니다 (캠퍼스별 탭·"성명" 열 확인)',1);return;}
-    // 비교
-    const diff={added:[],changed:[],vanished:[]};
+    // 비교: AM열(더존 이름) → 급여대장 이름 → 휴직표시 뺀 이름 순으로 기존 인원을 찾음
+    const diff={added:[],changed:[],vanished:[],merge:[]};
+    const formalCnt=Object.values(PAY).reduce((a,l)=>a+l.filter(p=>p.formal).length,0);
     Object.keys(PAY).forEach(c=>{
-      const list=PERSONS[c]||[];
+      const list=PERSONS[c]||[],used=new Set();
+      const pick=(p,f)=>list.find(x=>!used.has(x)&&!x.ignored&&f(x));
+      const pairs=[];
       PAY[c].forEach(p=>{
-        const ex=list.find(x=>x.payName===p.name||baseName(x.payName)===baseName(p.name));
+        // 더존 이름과 급여대장 이름이 달라도 둘 중 하나로 찾음 (휴직표시는 뺌)
+        const keys=[...new Set([p.formal?personKey(p.formal):'',personKey(p.name)].filter(Boolean))],key=keys;
+        const kHit=x=>keys.includes(personKey(x.payName));
+        let ex=(p.formal&&pick(p,x=>x.formalName===p.formal))||pick(p,x=>x.payName===p.name)||pick(p,x=>!x.formalName&&kHit(x));
+        // 같은 사람이 여러 줄로 남아 있으면 CAPS 연결된 줄을 기준으로
+        if(ex&&!ex.attendName){const alt=pick(p,x=>x!==ex&&x.attendName&&((p.formal&&x.formalName===p.formal)||(!x.formalName&&kHit(x))));if(alt)ex=alt;}
         if(!ex){diff.added.push({...p,campus:c});return;}
+        used.add(ex);pairs.push({p,ex,key});
         const set={},ch=[];
+        if(p.formal&&ex.formalName!==p.formal){set.formalName=p.formal;if(ex.formalName)ch.push(`더존 이름 ${ex.formalName} → ${p.formal}`);}
+        if(ex.payName!==p.name){set.payName=p.name;ch.push(`급여대장 이름 ${ex.payName} → ${p.name}`);}
         if(p.hireDate&&ex.hireDate!==p.hireDate){ch.push(`입사일 ${ex.hireDate||'없음'} → ${p.hireDate}`);set.hireDate=p.hireDate;}
         if(p.leaveDate&&ex.leaveDate!==p.leaveDate){ch.push(`퇴사일 ${ex.leaveDate||'없음'} → ${p.leaveDate}`);set.leaveDate=p.leaveDate;}
-        if((p.isLeave||/육휴|육아휴직|휴직/.test(p.name))&&!ex.isLeave){ch.push('휴직으로 변경');set.isLeave=true;}
-        if(ch.length)diff.changed.push({campus:c,payName:ex.payName,set,ch});
+        const onLeave=p.isLeave||LEAVE_MARK.test(p.name);
+        if(onLeave&&!ex.isLeave){ch.push('휴직으로 변경');set.isLeave=true;set.leaveAuto=true;}
+        else if(!onLeave&&ex.isLeave&&ex.leaveAuto){ch.push('복직 (휴직 해제)');set.isLeave=false;set.leaveAuto=false;}
+        if(ch.length||Object.keys(set).length)diff.changed.push({campus:c,ref:ex,payName:ex.payName,set,ch,quiet:!ch.length});
       });
-      list.forEach(per=>{if(per.leaveDate||per.isLeave||per.ignored)return;if(!PAY[c].some(p=>p.name===per.payName||baseName(p.name)===baseName(per.payName)))diff.vanished.push({campus:c,payName:per.payName});});
+      // 짝이 안 된 기존 줄 중 같은 사람으로 보이는 것 → 합치기 후보
+      const dropped=new Set();
+      pairs.forEach(({p,ex,key})=>{
+        const dups=list.filter(x=>!used.has(x)&&!dropped.has(x)&&!x.ignored&&((p.formal&&x.formalName===p.formal)||(!x.formalName&&key.includes(personKey(x.payName)))));
+        if(dups.length){dups.forEach(x=>dropped.add(x));diff.merge.push({campus:c,keep:ex,newName:p.name,drop:dups});}
+      });
+      list.forEach(per=>{if(used.has(per)||dropped.has(per)||per.leaveDate||per.isLeave||per.ignored)return;diff.vanished.push({campus:c,ref:per,payName:per.payName});});
     });
+    diff.formalCnt=formalCnt;
     PAY_PENDING={file:file.name,total,campuses:Object.keys(PAY).length,diff};
     showPayrollPreview();
   }catch(e){toast('급여대장 읽기 실패: '+e.message,1);}
 };
 function showPayrollPreview(){
-  const P=PAY_PENDING,d=P.diff,none=!d.added.length&&!d.changed.length&&!d.vanished.length;
+  const P=PAY_PENDING,d=P.diff,shown=d.changed.filter(c=>!c.quiet),none=!d.added.length&&!shown.length&&!d.vanished.length&&!d.merge.length;
   let h=`<div class="ct">💰 급여대장 반영 미리보기 <span class="sub">${esc(P.file)} · ${P.campuses}개 캠퍼스 · ${P.total}명</span></div>`;
+  h+=d.formalCnt?`<div class="box b-info">AM열(더존 이름) ${d.formalCnt}명 읽음 — 급여대장 이름이 (육휴_…)처럼 바뀌어도 같은 사람으로 찾습니다.</div>`:'<div class="box b-warn">AM열(더존 이름)을 읽지 못했습니다. 급여대장 이름으로만 비교합니다.</div>';
+  if(d.merge.length)h+=`<div class="ct" style="margin-top:10px">🧩 같은 사람이 여러 줄로 등록됨 ${d.merge.length}명 <span class="sub">체크하면 한 줄로 합침 (CAPS 연결·메모는 남는 줄로 옮김)</span></div><div class="tw" style="max-height:26vh"><table><thead><tr><th></th><th>캠퍼스</th><th>남길 줄 → 새 이름</th><th>지울 줄</th></tr></thead><tbody>${d.merge.map((m,i)=>`<tr><td><input type="checkbox" id="pmg-${i}" checked></td><td>${esc(m.campus)}</td><td><b>${esc(m.keep.payName)}</b>${m.keep.payName!==m.newName?' → '+esc(m.newName):''}${m.keep.attendName?` <span class="chip c-grn">CAPS ${esc(m.keep.attendName)}</span>`:''}</td><td>${m.drop.map(x=>esc(x.payName)+(x.attendName?` <span class="chip c-gry">CAPS ${esc(x.attendName)}</span>`:'')).join('<br>')}</td></tr>`).join('')}</tbody></table></div>`;
   if(none)h+='<div class="box b-ok">마스터와 다른 내용이 없습니다. 이미 최신입니다.</div>';
   if(d.added.length)h+=`<div class="ct" style="margin-top:10px">🆕 신규 ${d.added.length}명 <label class="hint"><input type="checkbox" checked onchange="document.querySelectorAll('.pnp').forEach(c=>c.checked=this.checked)"> 전체</label></div><div class="tw" style="max-height:28vh"><table><thead><tr><th></th><th>캠퍼스</th><th>이름</th><th>직급</th><th>구분</th><th>입사일</th></tr></thead><tbody>${d.added.map((p,i)=>`<tr><td><input type="checkbox" class="pnp" id="pnp-${i}" checked></td><td>${esc(p.campus)}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.position)}</td><td>${esc(p.div)}</td><td class="mono">${esc(p.hireDate)}</td></tr>`).join('')}</tbody></table></div>`;
-  if(d.changed.length)h+=`<div class="ct" style="margin-top:12px">🔄 변경 ${d.changed.length}명 (자동 적용)</div><div class="tw" style="max-height:22vh"><table><tbody>${d.changed.map(c=>`<tr><td>${esc(c.campus)}</td><td><b>${esc(c.payName)}</b></td><td>${esc(c.ch.join(' / '))}</td></tr>`).join('')}</tbody></table></div>`;
+  if(shown.length)h+=`<div class="ct" style="margin-top:12px">🔄 변경 ${shown.length}명 (자동 적용)</div><div class="tw" style="max-height:22vh"><table><tbody>${shown.map(c=>`<tr><td>${esc(c.campus)}</td><td><b>${esc(c.payName)}</b></td><td>${esc(c.ch.join(' / '))}</td></tr>`).join('')}</tbody></table></div>`;
   if(d.vanished.length)h+=`<div class="ct" style="margin-top:12px">⚠️ 급여대장에서 사라진 ${d.vanished.length}명 <span class="sub">퇴사했다면 퇴사일 입력, 비우면 그대로 둠</span></div><div class="tw" style="max-height:22vh"><table><tbody>${d.vanished.map((v,i)=>`<tr><td>${esc(v.campus)}</td><td><b>${esc(v.payName)}</b></td><td><input type="date" id="pvl-${i}"></td></tr>`).join('')}</tbody></table></div>`;
   h+=`<div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn bg" onclick="closeModal()">취소</button><button class="btn bp" onclick="applyPayroll()">${none?'확인 완료로 기록':'마스터에 반영'}</button></div>`;
   showModal(h);
 }
 window.applyPayroll=async function(){
   const P=PAY_PENDING;if(!P)return;const d=P.diff,aff=new Set();let nN=0,nC=0,nL=0;
-  d.added.forEach((p,i)=>{if(!$('pnp-'+i)?.checked)return;PERSONS[p.campus]=PERSONS[p.campus]||[];if(PERSONS[p.campus].some(x=>x.payName===p.name))return;PERSONS[p.campus].push({payName:p.name,attendName:null,isLeave:p.isLeave,divOverride:p.div,posOverride:p.position,note:'',matchType:'none',campus:p.campus,hireDate:p.hireDate||'',leaveDate:p.leaveDate||'',_isNew:true});aff.add(p.campus);nN++;});
-  d.changed.forEach(c=>{const ex=(PERSONS[c.campus]||[]).find(x=>x.payName===c.payName);if(ex){Object.assign(ex,c.set);aff.add(c.campus);nC++;}});
-  d.vanished.forEach((v,i)=>{const val=$('pvl-'+i)?.value;if(!val)return;const ex=(PERSONS[v.campus]||[]).find(x=>x.payName===v.payName);if(ex){ex.leaveDate=val;aff.add(v.campus);nL++;}});
+  let nM=0;
+  d.merge.forEach((m,i)=>{if(!$('pmg-'+i)?.checked)return;const L=PERSONS[m.campus]||[];
+    m.drop.forEach(x=>{if(!m.keep.attendName&&x.attendName){m.keep.attendName=x.attendName;m.keep.matchType=x.matchType||'manual';}if(x.note&&x.note!==m.keep.note)m.keep.note=[m.keep.note,x.note].filter(Boolean).join(' / ');const k=L.indexOf(x);if(k>=0)L.splice(k,1);});
+    aff.add(m.campus);nM++;});
+  d.added.forEach((p,i)=>{if(!$('pnp-'+i)?.checked)return;PERSONS[p.campus]=PERSONS[p.campus]||[];if(PERSONS[p.campus].some(x=>x.payName===p.name))return;PERSONS[p.campus].push({payName:p.name,formalName:p.formal||'',leaveAuto:p.isLeave||LEAVE_MARK.test(p.name),attendName:null,isLeave:p.isLeave||LEAVE_MARK.test(p.name),divOverride:p.div,posOverride:p.position,note:'',matchType:'none',campus:p.campus,hireDate:p.hireDate||'',leaveDate:p.leaveDate||'',_isNew:true});aff.add(p.campus);nN++;});
+  d.changed.forEach(c=>{Object.assign(c.ref,c.set);aff.add(c.campus);if(!c.quiet)nC++;});
+  d.vanished.forEach((v,i)=>{const val=$('pvl-'+i)?.value;if(!val)return;v.ref.leaveDate=val;aff.add(v.campus);nL++;});
   closeModal();PAY_PENDING=null;
   for(const c of aff){if(!(await savePersons(c)))return;}
   const now=new Date().toISOString();
   CONFIG={...CONFIG,payrollAt:now,payrollFile:P.file};
   try{const{db,doc,setDoc}=window._fb;await setDoc(doc(db,'weekly_config','main'),{payrollAt:now,payrollFile:P.file,payrollBy:user.email},{merge:true});}catch(e){}
-  toast(`급여대장 반영: 신규 ${nN} · 변경 ${nC}${nL?` · 퇴사일 ${nL}`:''}`);refresh();
+  toast(`급여대장 반영: 신규 ${nN} · 변경 ${nC}${nM?` · 중복 합침 ${nM}`:''}${nL?` · 퇴사일 ${nL}`:''}`);refresh();
 };
 
 // ═════════════════════════════════════════════
@@ -862,10 +915,10 @@ function exactPairs(){
   const out=[];const usedE=new Set();
   D.pay.forEach((r,pi)=>{
     if(r.excl||r.st!=='noname')return;
-    const k=normName(r.pay);
-    const c=free.filter(x=>normName(x.e.name)===k&&((x.e.cls==='campus'&&x.e.group===r.group)||(x.e.cls==='unsorted'&&(!x.e.dup||ASSIGN[x.e.key]===r.campus)&&(!x.e.guess||groupKey(x.e.guess)===r.group))));
+    const ks=[personKey(r.pay),r.formal?normName(r.formal):''].filter(Boolean);
+    const c=free.filter(x=>ks.includes(normName(x.e.name))&&((x.e.cls==='campus'&&x.e.group===r.group)||(x.e.cls==='unsorted'&&(!x.e.dup||ASSIGN[x.e.key]===r.campus)&&(!x.e.guess||groupKey(x.e.guess)===r.group))));
     if(c.length!==1||usedE.has(c[0].i))return;
-    const rivals=D.pay.filter(o=>o!==r&&!o.excl&&o.st==='noname'&&normName(o.pay)===k&&(c[0].e.cls==='unsorted'||o.group===r.group));
+    const rivals=D.pay.filter(o=>o!==r&&!o.excl&&o.st==='noname'&&[personKey(o.pay),o.formal?normName(o.formal):''].some(v=>v&&ks.includes(v))&&(c[0].e.cls==='unsorted'||o.group===r.group));
     if(rivals.length)return;
     usedE.add(c[0].i);out.push({pi,ei:c[0].i});
   });
@@ -943,7 +996,7 @@ function peopleTodo(){
       ${ca.length?`<table>${entHead}<tbody>${ca.map(entRow).join('')}</tbody></table>`:'<div class="empty" style="padding:14px">없음 ✅</div>'}
       ${cI.length?`<details><summary>이번 주 기록 없음 ${cI.length}명 (참고)</summary><table>${entHead}<tbody>${cI.map(entRow).join('')}</tbody></table></details>`:''}</div>`;
   }
-  const payRow=x=>`<tr><td><b>${esc(x.r.pay)}</b></td><td>${esc(x.r.campus)}</td><td>${esc(x.r.pos)}</td><td>${x.r.st==='nocaps'?`<span class="hint">현재: <b>${esc(x.r.att)}</b> — ${esc(x.r.why)}</span><br>`:''}<select class="pick edit" onchange="onPayPick(this,${x.i})"><option value="">▼ CAPS 이름 고르기</option>${entryOptions(x.r.group)}<option value="custom">(직접 입력…)</option></select>${x.r.st==='nocaps'?` <button class="btn bg sm edit" onclick="unlinkPay(${x.i})">연결 해제</button>`:''}</td></tr>`;
+  const payRow=x=>`<tr><td><b>${esc(x.r.pay)}</b>${x.r.formal&&x.r.formal!==x.r.pay?`<div class="hint">더존: ${esc(x.r.formal)}</div>`:''}</td><td>${esc(x.r.campus)}</td><td>${esc(x.r.pos)}</td><td>${x.r.st==='nocaps'?`<span class="hint">현재: <b>${esc(x.r.att)}</b> — ${esc(x.r.why)}</span><br>`:''}<select class="pick edit" onchange="onPayPick(this,${x.i})"><option value="">▼ CAPS 이름 고르기</option>${entryOptions(x.r.group)}<option value="custom">(직접 입력…)</option></select>${x.r.st==='nocaps'?`${x.r.oi!=null?` <button class="btn bp sm edit" onclick="linkPair(${x.i},${x.r.oi})">이 사람으로 옮기기</button>`:''} <button class="btn bg sm edit" onclick="unlinkPay(${x.i})">연결 해제</button>`:''}</td></tr>`;
   const payHead='<thead><tr><th>급여대장 이름</th><th>캠퍼스</th><th>직책</th><th>CAPS 이름</th></tr></thead>';
   h+=`<div class="tw" style="margin-bottom:14px"><div class="sec">🟣 급여대장에는 있는데 CAPS 이름이 없는 사람 <span class="chip ${nn.length?'c-red':'c-grn'}">${nn.length}</span><span class="hint">연결 전까지 판정에서 빠집니다</span></div>
     ${nn.length?`<table>${payHead}<tbody>${nn.map(payRow).join('')}</tbody></table>`:'<div class="empty" style="padding:14px">없음 ✅</div>'}</div>`;
@@ -1094,6 +1147,7 @@ async function loadReview(){
 window.loadReview=loadReview;
 function revList(){return ITEMS.filter(i=>(!VCAMP||i.campus===VCAMP)&&(!VFILT||i.status===VFILT)&&(!VQ||(i.name+' '+(i.payName||'')).toLowerCase().includes(VQ)));}
 function renderReview(){
+  if(window.evHide)evHide();
   if(ITEMS_WEEK!==WEEK.key){$('p-review').innerHTML='<div class="card empty">불러오는 중…</div>';return;}
   const run=RUNS.find(r=>r.weekKey===WEEK.key);
   if(!ITEMS.length){$('p-review').innerHTML=`<div class="card empty"><div class="i">📨</div><b>${run&&run.publishedAt?'발행된 건이 모두 정리되었습니다':'이 주차는 아직 소명 요청을 발행하지 않았습니다'}</b><p class="hint">누락 결과에서 "원장 소명 요청 발행"을 누르면 여기서 검토합니다.</p></div>`;return;}
@@ -1115,7 +1169,7 @@ function renderReview(){
     const need=PHOTO_REASONS.has(i.reason);
     return `<tr style="cursor:pointer" onclick="if(!event.target.closest('button'))openRev(${k})"><td>${esc(i.campus)}</td><td><b>${esc(i.name)}</b>${i.payName&&i.payName!==i.name?`<div class="hint">${esc(i.payName)}</div>`:''}</td><td class="mono">${fmtMD(i.date)}</td><td><span class="chip c-red">${KIND[i.kind]||i.kind}</span></td>
       <td>${esc(i.reason||'')}${i.memo?`<div class="hint">${esc(i.memo)}</div>`:''}${i.status==='rejected'&&i.reviewNote?`<div class="hint" style="color:var(--org)">반려: ${esc(i.reviewNote)}</div>`:''}</td>
-      <td>${ev?`<span class="chip c-blu">📎 ${ev}</span>`:i.evidenceCleared?'<span class="hint">정리됨</span>':(need&&i.status!=='open'?'<span class="chip c-red">증빙 없음</span>':'<span class="hint">-</span>')}</td>
+      <td>${ev?`<span class="chip c-blu evh" onmouseenter="evHover(event,${k})" onmousemove="evMove(event)" onmouseleave="evHide()">📎 ${ev}장 🔍</span>`:i.evidenceCleared?'<span class="hint">정리됨</span>':(need&&i.status!=='open'?'<span class="chip c-red">증빙 없음</span>':'<span class="hint">-</span>')}</td>
       <td><span class="st-${i.status}">${STATUS[i.status]||i.status}</span>${i.repliedAt?`<div class="hint">${i.repliedAt.slice(5,16).replace('T',' ')}</div>`:''}</td>
       <td class="edit" style="white-space:nowrap">${i.status==='approved'?`<button class="btn bg sm" onclick="reopenItem(${k})">↩</button>`:`<button class="btn bgr sm" onclick="approveAt(${k})">승인</button> <button class="btn bd2 sm" onclick="rejectAt(${k})">반려</button>`}</td></tr>`;}).join('');
   h+=`<div class="split"><div class="sl">${left}</div><div class="sr">${tool}${list.length?`<table><thead><tr><th>캠퍼스</th><th>이름</th><th>날짜</th><th>기록</th><th>사유 · 메모</th><th>증빙</th><th>상태</th><th class="edit">처리</th></tr></thead><tbody>${rows}</tbody></table>`:'<div class="empty">해당 없음</div>'}</div></div>`;
@@ -1163,6 +1217,25 @@ window.openRev=async function(k){
   if(REVI!==k||!$('ev-box'))return;
   $('ev-box').outerHTML=imgs.length?`<div>${imgs.map(e=>`<img src="${e.data}"><div class="hint" style="text-align:center;margin-bottom:10px">${esc(e.name||'')}</div>`).join('')}</div>`:`<div class="box ${PHOTO_REASONS.has(it.reason)?'b-err':'b-info'}">${it.evidenceCleared?'사진이 정리되었습니다':'첨부된 사진이 없습니다'}</div>`;
 };
+// 증빙에 마우스를 올리면 큰 이미지 (처음 한 번만 내려받고 이후는 바로 표시)
+let _hovK=-1,_hovXY=[0,0];
+window.evHover=async function(ev,k){
+  _hovK=k;_hovXY=[ev.clientX,ev.clientY];const it=REV[k],box=$('hov');
+  const head=`<div class="h"><b>${esc(it.campus)} · ${esc(it.name)} · ${fmtMD(it.date)}</b> <span class="chip c-red">${KIND[it.kind]||it.kind}</span><br><b>${esc(it.reason||'')}</b>${it.memo?' — '+esc(it.memo):''}</div>`;
+  box.innerHTML=head+'<div class="hint">사진 불러오는 중…</div>';box.style.display='block';evPlace();
+  const imgs=await loadEv(it);
+  if(_hovK!==k)return;
+  box.innerHTML=head+(imgs.length?`<div class="imgs">${imgs.map(e=>`<img src="${e.data}">`).join('')}</div>`:'<div class="hint">첨부된 사진이 없습니다</div>');
+  box.querySelectorAll('img').forEach(i=>i.onload=evPlace);evPlace();
+};
+window.evMove=ev=>{_hovXY=[ev.clientX,ev.clientY];evPlace();};
+window.evHide=()=>{_hovK=-1;$('hov').style.display='none';};
+function evPlace(){
+  const b=$('hov');if(b.style.display==='none')return;
+  const [x,y]=_hovXY,w=b.offsetWidth,h=b.offsetHeight,W=innerWidth,H=innerHeight;
+  const left=x>W/2?Math.max(8,x-w-18):Math.min(W-w-8,x+18);
+  b.style.left=left+'px';b.style.top=Math.max(8,Math.min(H-h-8,y-h/2))+'px';
+}
 async function loadEv(it){
   if(EVCACHE[it.id])return EVCACHE[it.id];
   let imgs=[];
