@@ -16,12 +16,12 @@
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
-:root{--green:#ffcd4a;--green-dk:#d4a800;--green-lt:#feefc5;--bg:#f4f6f8;--white:#fff;--border:#dde2ea;--border2:#c8d0db;--text:#1e2a3a;--text2:#4a5568;--text3:#8a96a8;--red:#e53e3e;--orange:#dd6b20;--blue:#3182ce;--teal:#0f766e;--radius:10px}
+:root{--green:#004ea2;--green-dk:#003a7a;--green-lt:#e8f0fb;--bg:#f4f6f8;--white:#fff;--border:#dde2ea;--border2:#c8d0db;--text:#1e2a3a;--text2:#4a5568;--text3:#8a96a8;--red:#e53e3e;--orange:#dd6b20;--blue:#3182ce;--teal:#0f766e;--radius:10px}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.5}
 header{background:var(--green);padding:14px 16px;position:sticky;top:0;z-index:20;box-shadow:0 1px 4px rgba(0,0,0,.12)}
-header h1{font-size:17px;font-weight:700;color:#2d2200}
-header .sub{font-size:12px;color:#5a4a00;margin-top:2px}
+header h1{font-size:17px;font-weight:700;color:#fff}
+header .sub{font-size:12px;color:rgba(255,255,255,.75);margin-top:2px}
 .wrap{max-width:760px;margin:0 auto;padding:14px 12px 120px}
 .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .info{background:#f0f7e8;border:1px solid #c6e0a0;border-radius:var(--radius);padding:11px 13px;font-size:13px;color:var(--text2);margin-bottom:12px}
@@ -29,7 +29,7 @@ header .sub{font-size:12px;color:#5a4a00;margin-top:2px}
 select,input[type=text]{width:100%;background:var(--white);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px 12px;font-size:15px;font-family:inherit;outline:none}
 select:focus,input:focus{border-color:var(--green-dk)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:10px 14px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .15s}
-.btn-primary{background:var(--green);color:#2d2200}.btn-primary:active{background:var(--green-dk)}
+.btn-primary{background:var(--green);color:#fff}.btn-primary:active{background:var(--green-dk)}
 .btn-ghost{background:var(--white);color:var(--text2);border:1px solid var(--border)}
 .btn-sm{padding:7px 10px;font-size:13px}.btn:disabled{opacity:.45}
 .person{margin-bottom:14px}
@@ -42,6 +42,8 @@ select:focus,input:focus{border-color:var(--green-dk)}
 .chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
 .chip-red{background:#fff0f0;color:var(--red)}.chip-blue{background:#ebf4ff;color:var(--blue)}.chip-teal{background:#e6f7f5;color:var(--teal)}.chip-orange{background:#fff4ed;color:var(--orange)}.chip-gray{background:#f4f6f8;color:var(--text2)}
 .hint{font-size:12px;color:var(--text3)}
+.need{font-size:12px;color:var(--red);margin-top:6px}
+.apply{font-size:12px;color:var(--blue);text-decoration:underline;cursor:pointer;background:none;border:none;padding:0;font-family:inherit}
 .rej{font-size:13px;color:var(--orange);background:#fff4ed;border-radius:6px;padding:6px 9px;margin-bottom:8px}
 .row{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
 .thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
@@ -73,9 +75,10 @@ select:focus,input:focus{border-color:var(--green-dk)}
     <select id="week-sel" onchange="renderList()"></select>
   </div>
   <div class="info" id="guide" style="display:none">
-    CAPS 출퇴근 기록이 없거나 한쪽만 있는 날입니다. 건마다 <b>사유를 선택</b>하고 저장해 주세요.
-    지류 연차신청서·근무 확인 자료(사진)가 있으면 첨부하면 검토가 빨라집니다 (건당 2장).
-    본사 승인까지 끝나야 종결됩니다. 반려된 건은 사유를 고쳐 다시 저장하세요.
+    CAPS 출근 또는 퇴근 기록이 없는 날입니다. 건마다 <b>사유를 선택하고 증빙 사진을 첨부</b>한 뒤 저장해 주세요 (건당 3장까지).<br>
+    · 근무했는데 CAPS를 안 찍음 → <b>출근·퇴근 모습이 보이는 CCTV 사진</b><br>
+    · 연차·반차·외근·병가 → <b>기안서(신청서) 사진</b><br>
+    본사 승인까지 끝나야 종결됩니다. 반려된 건은 고쳐서 다시 저장하세요.
   </div>
   <div id="list"></div>
 </div>
@@ -87,11 +90,13 @@ select:focus,input:focus{border-color:var(--green-dk)}
 <div class="toast" id="toast"></div>
 
 <script>
-const REASONS=['지류 연차 (연차신청서)','반차·반반차','CAPS 미체크 (근무함)','외근·출장','교육·행사','비근무요일','병가·공가','기타'];
-const KIND_LABEL={none:'기록 없음',ci_only:'퇴근 누락',co_only:'출근 누락',absent_all:'CAPS에 이름 없음'};
+// 본사 weekly_attendant.html의 REASONS와 같은 목록이어야 함
+const REASONS=['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','교육·행사','병가·공가 (증빙)','비근무요일','기타 (메모 필수)'];
+const PHOTO_REQ=new Set(['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','병가·공가 (증빙)']);
+const KIND_LABEL={none:'기록 없음',ci_only:'퇴근 누락',co_only:'출근 누락',absent_all:'CAPS에 이름 없음',no_caps:'CAPS 미등록'};
 const STATUS_LABEL={open:'미회신',replied:'회신 완료 · 본사 검토 중',approved:'승인 (종결)',rejected:'반려 · 다시 회신 필요'};
 const DOW_KO=['일','월','화','수','목','금','토'];
-const MAX_IMG=2, MAX_EV_BYTES=600*1024, RECENT_WEEKS=8;
+const MAX_IMG=3, MAX_EV_BYTES=750*1024, RECENT_WEEKS=8;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 let TOKEN='',CAMPUS='',ITEMS=[],showDone=false;
@@ -179,7 +184,9 @@ function renderItem(i){
     ${i.status==='rejected'&&i.reviewNote?`<div class="rej">↩ 본사 반려: ${esc(i.reviewNote)}</div>`:''}
     ${ro?`<div style="font-size:14px"><b>${esc(i.reason)}</b>${i.memo?` · ${esc(i.memo)}`:''}</div>${evBlock(i,idx,false)}`:
     `<select onchange="setField(${idx},'_reason',this.value)"><option value="">▼ 사유 선택</option>${REASONS.map(r=>`<option ${i._reason===r?'selected':''}>${r}</option>`).join('')}</select>
-    <div class="row"><input type="text" placeholder="메모 (예: 9/29 연차신청서 제출, 외근 장소 등)" value="${esc(i._memo)}" oninput="setField(${idx},'_memo',this.value)"></div>
+    ${PHOTO_REQ.has(i._reason)&&!evCount(i)?'<div class="need">📷 이 사유는 증빙 사진이 필요합니다</div>':''}
+    <div class="row"><input type="text" placeholder="메모 (예: CCTV 09:02 출근 확인, 10/27 연차 기안 등)" value="${esc(i._memo)}" oninput="setField(${idx},'_memo',this.value)"></div>
+    ${i._reason&&ITEMS.some(o=>o!==i&&o.weekKey===i.weekKey&&o.name===i.name&&o.status!=='approved'&&!o._reason)?`<div class="row"><button class="apply" onclick="applySame(${idx})">↳ ${esc(i.name)}의 사유 없는 다른 날짜에도 이 사유 적용</button></div>`:''}
     <div class="row">
       <label class="btn btn-ghost btn-sm filebtn">📷 사진 촬영<input type="file" accept="image/*" capture="environment" onchange="addImages(${idx},this)"></label>
       <label class="btn btn-ghost btn-sm filebtn">🖼 파일 첨부<input type="file" accept="image/*" multiple onchange="addImages(${idx},this)"></label>
@@ -189,7 +196,10 @@ function renderItem(i){
     ${evBlock(i,idx,true)}`}
   </div>`;
 }
-window.setField=function(idx,f,v){ITEMS[idx][f]=v;ITEMS[idx]._dirty=true;const b=document.querySelector(`#it-${idx} .btn-primary`);if(b)b.textContent='💾 저장';};
+window.setField=function(idx,f,v){ITEMS[idx][f]=v;ITEMS[idx]._dirty=true;if(f==='_reason'){renderList();return;}const b=document.querySelector(`#it-${idx} .btn-primary`);if(b)b.textContent='💾 저장';};
+function evCount(i){return i._evLoaded?i._ev.length:(i.evidenceCount||0);}
+window.applySame=function(idx){const s=ITEMS[idx];let n=0;ITEMS.forEach(o=>{if(o!==s&&o.weekKey===s.weekKey&&o.name===s.name&&o.status!=='approved'&&!o._reason){o._reason=s._reason;if(!o._memo)o._memo=s._memo;o._dirty=true;n++;}});renderList();toast(`${n}건에 적용 — 사진은 건마다 첨부하고 저장해 주세요`);};
+function checkReady(it){if(!it._reason)return '사유를 선택해 주세요';if(PHOTO_REQ.has(it._reason)&&!evCount(it))return `${fmtMD(it.date)} 증빙 사진을 첨부해 주세요`;if(/기타/.test(it._reason)&&!it._memo.trim())return '기타는 메모를 적어 주세요';return '';}
 window.viewImg=function(idx,k){const e=ITEMS[idx]._ev[k];if(!e)return;$('modal-img').src=e.data;$('modal').classList.add('show');};
 window.removeImg=function(idx,k){ITEMS[idx]._ev.splice(k,1);ITEMS[idx]._dirty=true;ITEMS[idx]._evTouched=true;renderList();};
 window.loadEv=async function(idx){
@@ -224,7 +234,7 @@ function resizeImage(file){
       const c=document.createElement('canvas');c.width=w;c.height=h;
       c.getContext('2d').drawImage(img,0,0,w,h);
       let q=0.6,out=c.toDataURL('image/jpeg',q);
-      while(out.length>200*1024&&q>0.35){q-=0.1;out=c.toDataURL('image/jpeg',q);}
+      while(out.length>230*1024&&q>0.35){q-=0.1;out=c.toDataURL('image/jpeg',q);}
       res(out);
     };
     img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('load'));};
@@ -245,7 +255,7 @@ async function persist(it){
 }
 window.saveItem=async function(idx){
   const it=ITEMS[idx];
-  if(!it._reason){toast('사유를 선택해 주세요');return;}
+  const m=checkReady(it);if(m){toast(m);return;}
   try{await persist(it);toast('저장되었습니다');renderList();}
   catch(e){toast(e.message);}
 };
@@ -253,11 +263,11 @@ window.saveAll=async function(){
   const wk=$('week-sel').value;
   const targets=ITEMS.filter(i=>i.weekKey===wk&&i.status!=='approved'&&i._dirty);
   if(!targets.length){toast('저장할 변경 사항이 없습니다');return;}
-  const noReason=targets.filter(i=>!i._reason);
+  const notReady=targets.filter(i=>checkReady(i));
   let ok=0,fail=0;
-  for(const it of targets){ if(!it._reason) continue; try{await persist(it);ok++;}catch(e){fail++;} }
+  for(const it of targets){ if(checkReady(it)) continue; try{await persist(it);ok++;}catch(e){fail++;} }
   renderList();
-  toast(`${ok}건 저장${fail?` · 실패 ${fail}건`:''}${noReason.length?` · 사유 미선택 ${noReason.length}건 제외`:''}`);
+  toast(`${ok}건 저장${fail?` · 실패 ${fail}건`:''}${notReady.length?` · 사유·사진 미완료 ${notReady.length}건 제외`:''}`);
 };
 </script>
 </body>
