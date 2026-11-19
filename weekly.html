@@ -1249,6 +1249,20 @@ function peopleRoster(){
     <span class="sp"></span><span class="hint">초록 = 출퇴근 모두 · 주황 = 한쪽만 · 회색 = 기록 없음 (월~금)</span></div>`;
   return bar+`<div id="rs-body">${rosterBody()}</div>`;
 }
+const POS_LIST=['원장','부원장','AC교수부장','KC교수부장','EC교수부장','교수부장','상담실장','유치부주임','상담교사','유치부교사','원어민HT','원어민강사','원어민교사','조교','사서','POLY안전선생님','미화','본부장','본사','한국인HT','한국인강사','한국인교사','기타'];
+let POS_EDIT=false;
+window.setPos=async function(pi,val){
+  const r=D.pay[pi];if(!r||!canEdit())return;
+  if((r.p.posOverride||'')===val)return;
+  r.p.posOverride=val;
+  if(await savePersons(r.campus))toast(`${r.pay||r.att} 직책 → ${val||'(없음)'}${isSafety(val)?' · 안전선생님 별도 관리로 점검 제외':''}`);
+  refresh();
+};
+function posCell(x){
+  if(!POS_EDIT)return esc(x.r.pos)||'<span class="hint">-</span>';
+  const cur=x.r.pos||'',opts=POS_LIST.includes(cur)||!cur?POS_LIST:[cur,...POS_LIST];
+  return `<select class="edit" style="max-width:150px${cur?'':';border-color:var(--org)'}" onchange="setPos(${x.i},this.value)"><option value="">(없음)</option>${opts.map(o=>`<option ${o===cur?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+}
 function rosterBody(){
   const groups=D.groups;
   const qa=RSA.trim().toLowerCase();
@@ -1258,12 +1272,18 @@ function rosterBody(){
   const qc=RSC.trim().toLowerCase();
   const rows=D.pay.map((r,i)=>({r,i})).filter(x=>x.r.group===ROSTER&&(!qc||hit(qc,x.r.pay,x.r.formal,x.r.att,x.r.pos))).sort((a,b)=>posRank(a.r.pos)-posRank(b.r.pos)||(a.r.pay||a.r.att).localeCompare(b.r.pay||b.r.att,'ko'));
   const extra=D.entries.map((e,i)=>({e,i})).filter(x=>x.e.group===ROSTER&&['join','ask','gone','gonePend'].includes(x.e.cls)&&(!qc||hit(qc,x.e.name)));
-  let right=`<div class="sec">${esc(ROSTER)}${qc?` <span class="hint">"${esc(RSC.trim())}" 검색 결과 ${rows.length+extra.length}건</span>`:''}</div>`;
+  const noPos=rows.filter(x=>!x.r.pos).length;
+  let right=`<div class="row" style="padding:10px 14px;background:var(--pri-lt);border-bottom:2px solid var(--pri)">
+    <b style="font-size:14px;color:var(--pri)">💰 ${esc(ROSTER)} 급여대장 인원</b><span class="chip" style="background:var(--pri);color:#fff;font-size:12.5px;padding:2px 10px">${rows.length}명</span>
+    ${noPos?`<span class="chip c-org">직책 없음 ${noPos}명</span>`:''}${qc?` <span class="hint">"${esc(RSC.trim())}" 검색 결과</span>`:''}
+    <span class="sp"></span><button class="btn ${POS_EDIT?'bp':'bg'} sm edit" onclick="POS_EDIT=!POS_EDIT;rsUpdate()">${POS_EDIT?'✔ 직책 편집 끝내기':'✏️ 직책 편집'}</button></div>`;
   if(qc&&!rows.length&&!extra.length)right+='<div class="empty" style="padding:14px">검색 결과 없음</div>';
-  else right+=`<table><thead><tr><th>급여대장 이름</th><th>직책</th><th>CAPS 이름</th><th>이번 주</th><th>상태</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${x.r.pay?esc(x.r.pay):'<span class="hint">(이름 없음)</span>'}</b>${x.r.campus!==ROSTER?` <span class="hint">· ${esc(x.r.campus)}</span>`:''}${x.r.formal&&x.r.formal!==x.r.pay?`<div class="hint">KCMS ${esc(x.r.formal)}</div>`:''}</td><td>${esc(x.r.pos)}</td><td>${x.r.att?esc(x.r.att):''}</td><td>${weekDots(x.r.entry)}</td><td>${rosterStc(x.r)}</td><td>${x.r.att?`<button class="btn bg sm edit" onclick="unlinkPay(${x.i})">${x.r.pay?'연결 해제':'줄 삭제'}</button>`:''}</td></tr>`).join('')}</tbody></table>`;
+  else right+=`<table><thead><tr><th>급여대장 이름</th><th>직책</th><th>CAPS 이름</th><th>이번 주</th><th>상태</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${x.r.pay?esc(x.r.pay):'<span class="hint">(이름 없음)</span>'}</b>${x.r.campus!==ROSTER?` <span class="hint">· ${esc(x.r.campus)}</span>`:''}${x.r.formal&&x.r.formal!==x.r.pay?`<div class="hint">KCMS ${esc(x.r.formal)}</div>`:''}</td><td>${posCell(x)}</td><td>${x.r.att?esc(x.r.att):''}</td><td>${weekDots(x.r.entry)}</td><td>${rosterStc(x.r)}</td><td>${x.r.att?`<button class="btn bg sm edit" onclick="unlinkPay(${x.i})">${x.r.pay?'연결 해제':'줄 삭제'}</button>`:''}</td></tr>`).join('')}</tbody></table>`;
   const miss=(D.payMissing||[]).map((m,k)=>({m,k})).filter(x=>groupKey(x.m.campus)===ROSTER&&(!qc||hit(qc,x.m.name)));
   if(miss.length)right+=`<div class="sec" style="color:var(--red)">⚠ 급여대장에 있는데 명단에서 빠진 사람 ${miss.length}</div><table><tbody>${miss.map(x=>missingRow(x.m,x.k)).join('')}</tbody></table>`;
-  if(extra.length)right+=`<div class="sec">급여대장에 없는 ${esc(ROSTER)} CAPS 이름 ${extra.length}</div><table><tbody>${extra.map(x=>`<tr><td>${entryLabel(x.e)}</td><td><span class="chip ${x.e.cls==='join'?'c-blu':'c-org'}">${x.e.cls==='join'?'입사 예정자':x.e.cls==='ask'?'이름 확인 불가 (소명)':x.e.cls==='gone'?'퇴사자 미삭제 (소명)':'퇴사자 미삭제 (처리 필요)'}</span></td><td>${weekDots(x.e)}</td></tr>`).join('')}</tbody></table>`;
+  if(extra.length)right+=`<div style="height:18px;background:var(--bg);border-top:1px solid var(--line)"></div><div class="row" style="padding:10px 14px;background:var(--org-lt);border-top:2px solid var(--org);border-bottom:1px solid var(--line)">
+    <b style="font-size:14px;color:var(--org)">🕐 참고 · 급여대장에 없는 ${esc(ROSTER)} CAPS 이름</b><span class="chip" style="background:var(--org);color:#fff;font-size:12.5px;padding:2px 10px">${extra.length}명</span>
+    <span class="hint">입사 예정자·소명 요청 중인 이름 (위 급여대장 인원과 별개)</span></div><table><tbody>${extra.map(x=>`<tr><td>${entryLabel(x.e)}</td><td><span class="chip ${x.e.cls==='join'?'c-blu':'c-org'}">${x.e.cls==='join'?'입사 예정자':x.e.cls==='ask'?'이름 확인 불가 (소명)':x.e.cls==='gone'?'퇴사자 미삭제 (소명)':'퇴사자 미삭제 (처리 필요)'}</span></td><td>${weekDots(x.e)}</td></tr>`).join('')}</tbody></table>`;
   return `<div class="split"><div class="sl">${left}</div><div class="sr">${right}</div></div>`;
 }
 function rosterSearchAll(q,stc){
