@@ -1027,9 +1027,9 @@ function payOptions(groupFirst){
   return gs.map(g=>`<optgroup label="급여대장 · ${esc(g)}${g===first?' (추천)':''}">${by[g].map(x=>`<option value="p:${x.i}">${esc(x.r.pay||'(이름 없음) '+x.r.att)}${x.r.pos?' · '+esc(x.r.pos):''}${x.r.campus!==g?' · '+esc(x.r.campus):''}</option>`).join('')}</optgroup>`).join('');
 }
 function entryOptions(group){
-  const list=D.entries.map((e,i)=>({e,i})).filter(x=>['unsorted','join','ask'].includes(x.e.cls));
+  const list=D.entries.map((e,i)=>({e,i})).filter(x=>!(x.e.cls==='campus'&&x.e.person));
   const mine=list.filter(x=>x.e.group===group||(x.e.cls==='unsorted'&&x.e.guess&&groupKey(x.e.guess)===group)),rest=list.filter(x=>!mine.includes(x));
-  const o=x=>`<option value="e:${x.i}">${esc(x.e.name)}${x.e.empId?' ['+esc(x.e.empId)+']':''} · ${x.e.cls==='join'?'입사 예정자':x.e.cls==='ask'?'확인 불가':'처리 필요'}${x.e.active?'':' (이번 주 기록 없음)'}</option>`;
+  const o=x=>`<option value="e:${x.i}">${esc(x.e.name)}${x.e.empId?' ['+esc(x.e.empId)+']':''} · ${({join:'입사 예정자',ask:'확인 불가',gone:'퇴사자 미삭제',gonePend:'퇴사자 미삭제',ignore:'점검 제외',hq:'본사',unsorted:'처리 필요'})[x.e.cls]||''}${x.e.active?'':' (이번 주 기록 없음)'}</option>`;
   return (mine.length?`<optgroup label="${esc(group)} 쪽 CAPS 이름">${mine.map(o).join('')}</optgroup>`:'')+(rest.length?`<optgroup label="그 외 연결 안 된 CAPS 이름">${rest.map(o).join('')}</optgroup>`:'');
 }
 function campOpts(prefix,first){
@@ -1081,7 +1081,7 @@ function peopleTodo(){
     A.map(x=>`<tr><td>${esc(x.r.campus)}</td><td><b>${x.r.pay?esc(x.r.pay):'<span class="hint">(급여대장 이름 없음)</span>'}</b>${x.r.formal&&x.r.formal!==x.r.pay?`<div class="hint">KCMS ${esc(x.r.formal)}</div>`:''}</td><td>${esc(x.r.pos)}</td><td class="hint">${x.r.st==='nocaps'?`기존 CAPS 이름 "${esc(x.r.att)}" 이번 주 없음`:'CAPS 이름 없음'}</td><td style="white-space:nowrap"><button class="btn bp sm edit" onclick="askPay([${x.i}],true)">소명 요청</button> <select class="pick edit" onchange="onPayPick(this,${x.i})"><option value="">▼ CAPS 이름 연결</option>${entryOptions(x.r.group)}<option value="custom">(직접 입력…)</option></select> <button class="btn bg sm edit" onclick="retirePay(${x.i})">퇴사</button> <button class="btn bg sm edit" onclick="leavePay(${x.i})">휴직</button></td></tr>`).join(''));
   h+=sec('② 퇴사자 미삭제 (CAPS만 있음)',G.length,'캠퍼스 명단에 퇴사일이 저장된 사람인데 CAPS에 이름이 남아 있음',
     `<button class="btn bp sm edit" onclick="askGone([${G.map(x=>x.i)}])">전체 소명 요청</button>`,['캠퍼스','CAPS 이름','명단 기록','이번 주','처리'],
-    G.map(x=>`<tr><td>${esc(x.e.campus)}</td><td>${entryLabel(x.e)}</td><td class="hint">${esc(x.e.why)}</td><td>${weekDots(x.e)}</td><td style="white-space:nowrap"><button class="btn bp sm edit" onclick="askGone([${x.i}])">소명 요청</button> <button class="btn bg sm edit" onclick="setAssignE(${x.i},'__ignore','점검 대상 제외')">점검 대상 제외</button></td></tr>`).join(''));
+    G.map(x=>`<tr><td>${esc(x.e.campus)}</td><td>${entryLabel(x.e)}</td><td class="hint">${esc(x.e.why)}</td><td>${weekDots(x.e)}</td><td style="white-space:nowrap"><button class="btn bp sm edit" onclick="askGone([${x.i}])">소명 요청</button> <button class="btn bg sm edit" onclick="setAssignE(${x.i},'__ignore','점검 대상 제외')">점검 대상 제외</button> <select class="pick edit" onchange="onEntryPick(this,${x.i})"><option value="">▼ 재입사면 급여대장 사람과 연결</option>${payOptions(x.e.campus)}</select></td></tr>`).join(''));
   h+=sec('③ 급여대장 내 이름 확인 불가 (CAPS만 있음)',U.length,'그 외 모든 CAPS 이름 — 급여대장 사람 연결 / 입사 예정자 / 소명 요청 / 점검 대상 제외 / AR센터 / 본사 중 선택','',['CAPS 이름','이번 주','사유','처리'],
     U.map(x=>`<tr><td>${entryLabel(x.e)}</td><td>${weekDots(x.e)}</td><td class="hint">${esc(x.e.why)}${x.e.guess?` · 추천 <b style="color:var(--grn)">${esc(x.e.guess)}</b>`:''}</td><td>${entrySelect(x.i,'todo')}</td></tr>`).join(''));
   return h;
