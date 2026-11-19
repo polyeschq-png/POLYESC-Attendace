@@ -1262,7 +1262,7 @@ window.confirmAddNewPersons=function(){
         payName:p.name, attendName:null, isLeave:p.isLeave||false,
         divOverride:p.div, note:'', matchType:'none', campus:p.campus,
         hireDate:p.hireDate||'', leaveDate:p.leaveDate||'',
-        _isNew:true
+        _isNew:true, addedAt:new Date().toISOString().slice(0,10)
       });
       affectedCampuses.add(p.campus);
     }
@@ -1660,6 +1660,8 @@ window.selectPersonCampus = function(campus) {
 const POS_RULES_W=[[/부원장/,1],[/AC\s*교수부장/i,2],[/KC\s*교수부장/i,3],[/EC\s*교수부장/i,4],[/교수부장/,4.5],[/상담실장/,5],[/유치부\s*주임/,6],[/상담/,7],[/유치부/,8],
   [/원어민\s*HT|native.*\bHT\b/i,9],[/원어민|native/i,10],[/조교/,11],[/사서/,12],[/안전/,13],[/미화/,14],[/원장/,0]];
 function posRankW(pos){const t=String(pos||'').trim();if(!t)return 99;for(const [re,r] of POS_RULES_W)if(re.test(t))return r;return 50;}
+// "신규추가" 표시는 명단에 추가된 날부터 30일까지만 (추가 날짜가 없는 예전 표시는 숨김)
+function isRecentNew(p){if(!p||!p._isNew||!p.addedAt)return false;return (Date.now()-new Date(p.addedAt+'T00:00:00'))/864e5<=30;}
 function renderPersonDetail(campus, tab) {
   const detail = document.getElementById('pm-detail-content');
   if (!detail) return;
@@ -1744,7 +1746,7 @@ function renderPersonDetail(campus, tab) {
     const leaveClass = p.isLeave ? 'is-leave' : '';
     const resignedClass = (resigned||isSkipped) ? 'is-resigned' : '';
     const unmatchClass = !p.attendName && !p.isLeave && !isSkipped && !isNotYetHired(p) && !p.isArCenter ? 'is-unmatched' : '';
-    const newClass = p._isNew ? 'is-new' : '';
+    const newClass = isRecentNew(p) ? 'is-new' : '';
 
     const posOpts = `<option value="원장">원장</option><option value="부원장">부원장</option><option value="본부장">본부장</option><option value="본사">본사</option><option value="교수부장">교수부장</option><option value="상담실장">상담실장</option><option value="유치부주임">유치부주임</option><option value="유치부교사">유치부교사</option><option value="상담교사">상담교사</option><option value="원어민강사">원어민강사</option><option value="원어민교사">원어민교사</option><option value="원어민HT">원어민HT</option><option value="한국인강사">한국인강사</option><option value="한국인교사">한국인교사</option><option value="한국인HT">한국인HT</option><option value="POLY안전선생님">POLY안전선생님</option><option value="사서">사서</option><option value="미화">미화</option><option value="기타">기타</option>`.replace(`value="${curPos}"`,`value="${curPos}" selected`);
     const divOpts = `<option value="정규직">정규직</option><option value="계약직">계약직</option><option value="단기근로">단기근로</option>`.replace(`value="${curDiv}"`,`value="${curDiv}" selected`);
@@ -1752,7 +1754,7 @@ function renderPersonDetail(campus, tab) {
     // data-campus, data-payname 으로 이름 전달 → 특수문자 안전
     const statusBadge = unmatchClass ? '<span class="status-badge unmatched">미매칭</span>'
       : (p.isLeave ? '<span class="status-badge leave">휴직</span>'
-      : (p._isNew  ? '<span class="status-badge new">신규추가</span>' : ''));
+      : (isRecentNew(p)  ? '<span class="status-badge new">신규추가</span>' : ''));
     return `<div class="person-card ${leaveClass} ${resignedClass} ${unmatchClass} ${newClass}"
         data-campus="${esc(campus)}" data-payname="${esc(p.payName)}">
       <div class="pc-body">
@@ -2106,7 +2108,7 @@ window.addNewHireFromResult = function(campus, attendName) {
     matchType: 'manual',
     ignored: false, isLeave: false,
     posOverride:'', divOverride:'', hireDate:'', leaveDate:'',
-    note:'신규입사자(급여대장 미반영)', campus, _isNew: true
+    note:'신규입사자(급여대장 미반영)', campus, _isNew: true, addedAt:new Date().toISOString().slice(0,10)
   });
   savePersonsMaster([campus]);
   RESULTS.del = RESULTS.del.filter(r=>!(r.campus===campus&&r.name===attendName));
