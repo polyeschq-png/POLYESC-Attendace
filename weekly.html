@@ -536,7 +536,7 @@ function derive(full){
     else if(lv&&!e)row.excl=`퇴사 (${lv}) · CAPS 기록 없음`;   // 입퇴사·이번 달 퇴사
     R.pay.push(row);
   });});
-  R.pay.sort((a,b)=>a.campus.localeCompare(b.campus,'ko')||a.pay.localeCompare(b.pay,'ko'));
+  R.pay.sort((a,b)=>a.campus.localeCompare(b.campus,'ko')||posRank(a.pos)-posRank(b.pos)||a.pay.localeCompare(b.pay,'ko'));
   // 전체근로자 명단 중복: 연결 안 된 줄인데 같은 캠퍼스(수지·수지2 묶음)에 같은 사람이 또 있음
   R.pay.forEach(r=>{
     if(r.excl||r.st==='ok')return;
@@ -1074,7 +1074,7 @@ async function autoResolve(){
   _autoBusy=true;_autoSig=sig;
   try{
     const aff=new Set();let a=false;
-    pairs.forEach(({pi,ei})=>{const r=D.pay[pi],e=D.entries[ei];r.p.attendName=e.name;r.p.matchType='auto';delete r.p.capsAsk;if(e.empId)r.p.attendEmp=e.empId;aff.add(r.campus);if(ASSIGN[e.key]){delete ASSIGN[e.key];a=true;}if(ASSIGN_HIRE[e.key]){delete ASSIGN_HIRE[e.key];a=true;}});
+    pairs.forEach(({pi,ei})=>{const r=D.pay[pi],e=D.entries[ei];r.p.attendName=e.name;r.p.matchType='manual';delete r.p.capsAsk;if(e.empId)r.p.attendEmp=e.empId;aff.add(r.campus);if(ASSIGN[e.key]){delete ASSIGN[e.key];a=true;}if(ASSIGN_HIRE[e.key]){delete ASSIGN_HIRE[e.key];a=true;}});
     for(const c of aff)await savePersons(c);if(a)await saveAssign();
     toast(`이름이 같은 ${pairs.length}명 자동 연결`);
   }finally{_autoBusy=false;refresh();}
@@ -1093,7 +1093,7 @@ function payOptions(groupFirst){
   return gs.map(g=>`<optgroup label="급여대장 · ${esc(g)}${g===first?' (추천)':''}">${by[g].map(x=>`<option value="p:${x.i}">${esc(x.r.pay||'(이름 없음) '+x.r.att)}${x.r.pos?' · '+esc(x.r.pos):''}${x.r.campus!==g?' · '+esc(x.r.campus):''}</option>`).join('')}</optgroup>`).join('');
 }
 function entryOptions(group){
-  const list=D.entries.map((e,i)=>({e,i})).filter(x=>!(x.e.cls==='campus'&&x.e.person));
+  const list=D.entries.map((e,i)=>({e,i})).filter(x=>!(x.e.cls==='campus'&&x.e.person)&&x.e.cls!=='hq'&&x.e.cls!=='ignore'); // 본사·점검 제외는 연결 대상 아님
   const mine=list.filter(x=>x.e.group===group||(x.e.cls==='unsorted'&&x.e.guess&&groupKey(x.e.guess)===group)),rest=list.filter(x=>!mine.includes(x));
   const o=x=>`<option value="e:${x.i}">${esc(x.e.name)}${x.e.empId?' ['+esc(x.e.empId)+']':''} · ${({join:'입사 예정자',ask:'확인 불가',gone:'퇴사자 미삭제',gonePend:'퇴사자 미삭제',ignore:'점검 제외',hq:'본사',unsorted:'처리 필요'})[x.e.cls]||''}${x.e.active?'':' (이번 주 기록 없음)'}</option>`;
   return (mine.length?`<optgroup label="${esc(group)} 쪽 CAPS 이름">${mine.map(o).join('')}</optgroup>`:'')+(rest.length?`<optgroup label="그 외 연결 안 된 CAPS 이름">${rest.map(o).join('')}</optgroup>`:'');
@@ -1225,12 +1225,13 @@ function peopleJoin(){
   if(F.length)h+=`<div class="tw"><div class="sec">급여대장에 입사 예정일로 들어온 사람 <span class="chip c-gry">${F.length}</span><span class="hint">입사일 전까지 점검 제외</span></div><table><tbody>${F.map(r=>`<tr><td>${esc(r.campus)}</td><td><b>${esc(r.pay)}</b></td><td>${esc(r.pos)}</td><td class="mono">입사 ${esc(r.h)}</td><td>${r.att?`CAPS ${esc(r.att)}`:'<span class="hint">CAPS 이름 없음</span>'}</td></tr>`).join('')}</tbody></table></div>`;
   return h;
 }
-// 캠퍼스 명단 직책 순서: 원장 > 교수부장 > 상담실장 > 유치부주임 > 상담교사 > 유치부교사 > 원어민 HT > 원어민 > 조교 > 사서 > 미화 > 안전선생님 > 그 외
-const POS_ORDER=[[/원장/,0],[/교수부장/,1],[/상담실장/,2],[/유치부\s*주임/,3],[/상담/,4],[/유치부/,5],[/(원어민|native).*\bHT\b|\bHT\b|head\s*teacher/i,6],[/원어민|native/i,7],[/조교/,8],[/사서/,9],[/미화/,10],[/안전/,11]];
+// 직책 순서 (모든 목록 공통): 원장 > 부원장 > AC 교수부장 > KC 교수부장 > EC 교수부장 > 상담실장 > 유치부주임 > 상담교사 > 유치부교사 > 원어민 HT > 원어민 > 조교 > 사서 > POLY안전선생님 > 미화 > 그 외
+// 위에서부터 차례로 확인 (더 구체적인 직책을 먼저: 부원장→원장, AC/KC/EC 교수부장→교수부장, 상담실장→상담, 유치부주임→유치부, HT→원어민)
+const POS_RULES=[[/부원장/,1],[/AC\s*교수부장/i,2],[/KC\s*교수부장/i,3],[/EC\s*교수부장/i,4],[/교수부장/,4.5],[/상담실장/,5],[/유치부\s*주임/,6],[/상담/,7],[/유치부/,8],
+  [/(원어민|native).*\bHT\b|\bHT\b|head\s*teacher/i,9],[/원어민|native/i,10],[/조교/,11],[/사서/,12],[/안전/,13],[/미화/,14],[/원장/,0]];
 function posRank(pos){
   const t=String(pos||'').trim();if(!t)return 99;
-  // 더 구체적인 직책부터 확인 (예: "교수부장"·"상담실장"은 "원장"보다 먼저)
-  for(const k of [1,2,3,4,5,6,7,8,9,10,11,0]){const [re,r]=POS_ORDER.find(x=>x[1]===k);if(re.test(t))return r;}
+  for(const [re,r] of POS_RULES)if(re.test(t))return r;
   return 50;
 }
 // 검색창: 입력할 때 검색창은 그대로 두고 결과 영역만 다시 그림 (한글 입력이 끊기지 않게)
@@ -1417,7 +1418,7 @@ async function loadReview(){
     }));
   }catch(e){toast('소명 현황 불러오기 실패: '+e.message,1);}
   if(WEEK.key!==wk)return;
-  out.sort((a,b)=>a.campus.localeCompare(b.campus,'ko')||a.name.localeCompare(b.name,'ko')||a.date.localeCompare(b.date));
+  out.sort((a,b)=>a.campus.localeCompare(b.campus,'ko')||posRank(a.position)-posRank(b.position)||a.name.localeCompare(b.name,'ko')||a.date.localeCompare(b.date));
   ITEMS=out;ITEMS_WEEK=wk;if(D)renderBadges();
   if(['review','prep','people'].includes(TAB))renderTab();
 }
