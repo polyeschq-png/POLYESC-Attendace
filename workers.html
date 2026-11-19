@@ -7,14 +7,14 @@
 <link rel="icon" type="image/png" href="Poly_Emblem_Blue_B.png">
 <script type="module">
   import{initializeApp}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js';
-  import{getFirestore,doc,getDoc,setDoc,collection,getDocs,deleteDoc,query,orderBy}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
+  import{getFirestore,doc,getDoc,setDoc,collection,getDocs,deleteDoc,query,orderBy,onSnapshot}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js';
   import{getAuth,signOut,onAuthStateChanged,browserSessionPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/12.12.1/firebase-auth.js';
   const CFG={apiKey:"AIzaSyC78vct5-b9wWwcOkEFVfhELytOky6jlqI",authDomain:"polyesc-attendance.firebaseapp.com",projectId:"polyesc-attendance",storageBucket:"polyesc-attendance.firebasestorage.app",messagingSenderId:"430669631304",appId:"1:430669631304:web:eb06ac4ba8d1d5108fed7d"};
   const app=initializeApp(CFG);
   const db=getFirestore(app);
   const auth=getAuth(app);
   await setPersistence(auth,browserSessionPersistence);
-  window._fb={db,auth,doc,getDoc,setDoc,collection,getDocs,deleteDoc,query,orderBy,signOut,onAuthStateChanged};
+  window._fb={db,auth,doc,getDoc,setDoc,collection,getDocs,deleteDoc,query,orderBy,onSnapshot,signOut,onAuthStateChanged};
   window._fbReady=true;
 </script>
 <style>
@@ -617,6 +617,7 @@ function initApp() {
     document.body.style.opacity='1';
     await loadCampusConfig();  // 캠퍼스 설정(폐업일 등) 로드
     await loadPersonsMaster(); // 인원 마스터 먼저 로드
+    subscribePersonsMaster();  // 이후 주간근태 등 다른 곳에서 바뀐 내용 실시간 반영
     loadHistory();
   });
 }
@@ -996,6 +997,33 @@ window.saveAllPersons = async function(){
   showToast(`✅ 인원관리 저장 완료 (${campuses.length}개 캠퍼스)`,'ok');
   if(statusEl) statusEl.textContent = `마지막 저장: ${ts}`;
 };
+
+// ── 인원 마스터 실시간 반영 ──
+let _pmUnsub=null,_pmPending=false;
+function subscribePersonsMaster(){
+  if(_pmUnsub||!window._fbReady||!currentUser)return;
+  const{db,collection,onSnapshot}=window._fb;
+  _pmUnsub=onSnapshot(collection(db,'workers_persons'),snap=>{
+    const next={};
+    snap.forEach(d=>{const x=d.data();if(x.campus&&Array.isArray(x.persons))next[x.campus]=x.persons;});
+    if(JSON.stringify(next)===JSON.stringify(PERSONS))return;   // 내가 방금 저장한 내용 등 변화 없음
+    PERSONS=next;
+    if(isEditingPersons()){_pmPending=true;return;}
+    rerenderPersons();
+  },e=>console.error('[마스터 실시간 반영 실패]',e));
+}
+function isEditingPersons(){const a=document.activeElement;return !!(a&&a.closest&&a.closest('#panel-persons')&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)&&a.id!=='pm-search');}
+function rerenderPersons(){
+  _pmPending=false;
+  if(personsTab==='leave'){renderLeaveList();}
+  else{
+    renderPersonCampusList();
+    if(personSearchQuery)renderPersonSearchAll();
+    else if(selectedPersonCampus)renderPersonDetail(selectedPersonCampus);
+  }
+  updateUnmatchedBadge();
+}
+document.addEventListener('focusout',()=>{setTimeout(()=>{if(_pmPending&&!isEditingPersons())rerenderPersons();},0);});
 
 async function loadPersonsMaster(){
   if(!window._fbReady||!currentUser) return;
@@ -1580,7 +1608,42 @@ function renderPersonCampusList() {
 let personSearchQuery = '';
 window.onPersonSearch = function(val) {
   personSearchQuery = val.trim().toLowerCase();
-  if(personsTab==='campus' && selectedPersonCampus) renderPersonDetail(selectedPersonCampus);
+  if(personsTab!=='campus') return;
+  if(personSearchQuery) renderPersonSearchAll();
+  else if(selectedPersonCampus) renderPersonDetail(selectedPersonCampus);
+};
+// 전체 캠퍼스에서 이름 검색 (급여대장 이름 · CAPS 이름 · KCMS 이름, 퇴사자 포함)
+function renderPersonSearchAll(){
+  const detail=document.getElementById('pm-detail-content');if(!detail)return;
+  const q=personSearchQuery;
+  const rows=[];
+  sortCampuses(Object.keys(PERSONS)).forEach(c=>(PERSONS[c]||[]).forEach(p=>{
+    if([p.payName,p.attendName,p.formalName].some(x=>x&&String(x).toLowerCase().includes(q)))rows.push({c,p});
+  }));
+  const st=p=>p.ignored?'<span class="status-badge" style="background:#eee;color:#666">무시</span>'
+    :isResigned(p)?'<span class="status-badge" style="background:#eee;color:#666">퇴사</span>'
+    :SKIP_POSITIONS.includes(p.posOverride||'')?'<span class="status-badge" style="background:#eee;color:#666">제외직책</span>'
+    :p.isLeave?'<span class="status-badge leave">휴직</span>'
+    :isNotYetHired(p)?'<span class="status-badge new">입사예정</span>'
+    :p.attendName?'<span class="status-badge" style="background:#e6f7f5;color:#0f766e">매칭</span>'
+    :'<span class="status-badge unmatched">미매칭</span>';
+  detail.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><span style="font-size:15px;font-weight:700">🔍 전체 캠퍼스 검색</span><span style="font-size:12px;color:var(--text3)">"${esc(q)}" ${rows.length}명</span>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:11px" onclick="const i=document.getElementById('pm-search');if(i)i.value='';onPersonSearch('')">✕ 검색 닫기</button></div>
+    ${rows.length?`<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:var(--bg)"><th style="text-align:left;padding:7px 9px">캠퍼스</th><th style="text-align:left;padding:7px 9px">급여대장 이름</th><th style="text-align:left;padding:7px 9px">CAPS 이름</th><th style="text-align:left;padding:7px 9px">직책</th><th style="text-align:left;padding:7px 9px">상태</th><th></th></tr></thead><tbody>
+    ${rows.map(({c,p})=>`<tr style="border-top:1px solid var(--border)"><td style="padding:7px 9px">${esc(c)}</td><td style="padding:7px 9px"><b>${esc(p.payName||'(이름 없음)')}</b>${p.formalName&&p.formalName!==p.payName?`<div style="font-size:11px;color:var(--text3)">KCMS ${esc(p.formalName)}</div>`:''}</td><td style="padding:7px 9px">${esc(p.attendName||'')}</td><td style="padding:7px 9px">${esc(p.posOverride||'')}</td><td style="padding:7px 9px">${st(p)}</td>
+      <td style="padding:7px 9px;text-align:right"><button class="btn btn-ghost btn-sm" style="font-size:11px" data-c="${esc(c)}" data-n="${esc(p.payName||'')}" onclick="openPersonFromSearch(this.dataset.c,this.dataset.n)">카드 열기</button></td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty" style="padding:30px"><p>검색 결과가 없습니다</p></div>'}`;
+}
+// 검색 결과에서 그 사람 카드로 이동
+window.openPersonFromSearch=function(campus,payName){
+  const p=(PERSONS[campus]||[]).find(x=>x.payName===payName);
+  personSearchQuery='';const i=document.getElementById('pm-search');if(i)i.value='';
+  selectedPersonCampus=campus;
+  if(p&&(isResigned(p)||SKIP_POSITIONS.includes(p.posOverride||'')))showResigned=true;
+  const today=new Date().toISOString().slice(0,10);
+  const tab=p&&!p.attendName&&!(p.hireDate>today)&&!p.isArCenter?'unmatched':'matched';
+  renderPersonCampusList();renderPersonDetail(campus,tab);
+  setTimeout(()=>{const card=[...document.querySelectorAll('#pm-cards .person-card')].find(el=>el.dataset.payname===payName);if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.style.outline='3px solid var(--blue,#3182ce)';setTimeout(()=>card.style.outline='',2500);}},50);
 };
 
 window.selectPersonCampus = function(campus) {
@@ -1593,6 +1656,10 @@ window.selectPersonCampus = function(campus) {
   renderPersonDetail(campus);
 };
 
+// 직책 순서: 원장 > 부원장 > AC 교수부장 > KC 교수부장 > EC 교수부장 > 상담실장 > 유치부주임 > 상담교사 > 유치부교사 > 원어민 HT > 원어민 > 조교 > 사서 > POLY안전선생님 > 미화 > 그 외
+const POS_RULES_W=[[/부원장/,1],[/AC\s*교수부장/i,2],[/KC\s*교수부장/i,3],[/EC\s*교수부장/i,4],[/교수부장/,4.5],[/상담실장/,5],[/유치부\s*주임/,6],[/상담/,7],[/유치부/,8],
+  [/원어민\s*HT|native.*\bHT\b/i,9],[/원어민|native/i,10],[/조교/,11],[/사서/,12],[/안전/,13],[/미화/,14],[/원장/,0]];
+function posRankW(pos){const t=String(pos||'').trim();if(!t)return 99;for(const [re,r] of POS_RULES_W)if(re.test(t))return r;return 50;}
 function renderPersonDetail(campus, tab) {
   const detail = document.getElementById('pm-detail-content');
   if (!detail) return;
@@ -1654,9 +1721,13 @@ function renderPersonDetail(campus, tab) {
   if (!cards) return;
 
   const baseList = currentTab === 'matched' ? matched : unmatched;
-  const list = personSearchQuery
+  const list = (personSearchQuery
     ? baseList.filter(p => (p.payName||'').toLowerCase().includes(personSearchQuery) || (p.attendName||'').toLowerCase().includes(personSearchQuery))
-    : baseList;
+    : baseList).slice().sort((a,b)=>{
+      // 직책 순 (주간근태와 같은 순서) → 이름 순. 저장된 순서는 바꾸지 않고 화면에서만 정렬
+      const pa=a.posOverride||(payroll.find(x=>x.name===a.payName)||{}).position||'',pb=b.posOverride||(payroll.find(x=>x.name===b.payName)||{}).position||'';
+      return posRankW(pa)-posRankW(pb)||String(a.payName||'').localeCompare(String(b.payName||''),'ko');
+    });
 
   if (!list.length) {
     cards.innerHTML = '<div class="empty" style="padding:30px"><div class="icon">✅</div><p>' +
