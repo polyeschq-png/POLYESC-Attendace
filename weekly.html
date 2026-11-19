@@ -851,7 +851,10 @@ window.onPayrollFile=async function(input){
       if(hdr<0)return;
       const h=rows[hdr].map(c=>String(c).trim());
       const iFh=h.findIndex(x=>/더존|정식/.test(x)),iF=iFh>=0?iFh:38; // AM열 = 39번째 열
-      const iN=h.findIndex(x=>x.includes('성')&&x.includes('명')),iP=h.findIndex(x=>x.includes('직급')),iD=h.findIndex(x=>x.includes('구분')),iE=h.findIndex(x=>x.includes('사번')||x.includes('사원')),iH=h.findIndex(x=>x.includes('입사일')),iL=h.findIndex(x=>x.includes('퇴사일'));
+      const iL0=h.findIndex(x=>x.includes('퇴사일'));
+      // 직책: 퇴사일 바로 오른쪽 열 (없으면 직책·직급·직위 열)
+      const iP=iL0>=0&&iL0+1<h.length?iL0+1:h.findIndex(x=>/직책|직급|직위/.test(x));
+      const iN=h.findIndex(x=>x.includes('성')&&x.includes('명')),iD=h.findIndex(x=>x.includes('구분')),iE=h.findIndex(x=>x.includes('사번')||x.includes('사원')),iH=h.findIndex(x=>x.includes('입사일')),iL=h.findIndex(x=>x.includes('퇴사일'));
       PAY[campus]=PAY[campus]||[];
       for(let i=hdr+2;i<rows.length;i++){
         const r=rows[i];const name=String(r[iN]||'').trim().replace(/\s+/g,' ');
@@ -859,7 +862,7 @@ window.onPayrollFile=async function(input){
         const div=iD>=0?String(r[iD]||'').trim():'';if(PAY_SKIP_DIVS.has(div))continue;
         const empId=iE>=0?String(r[iE]||'').trim():'';
         const formal=String(r[iF]??'').trim().replace(/\s+/g,' ');
-        PAY[campus].push({name,formal:formal&&!/^\d+$/.test(formal)?formal:'',position:iP>=0?String(r[iP]||'').trim():'',div,empId,hireDate:iH>=0?xlDate(r[iH]):'',leaveDate:iL>=0?xlDate(r[iL]):'',isLeave:empId.includes('휴직')||div.includes('휴직')});
+        PAY[campus].push({name,formal:formal&&!/^\d+$/.test(formal)?formal:'',position:iP>=0&&typeof r[iP]==='string'?r[iP].trim():'',div,empId,hireDate:iH>=0?xlDate(r[iH]):'',leaveDate:iL>=0?xlDate(r[iL]):'',isLeave:empId.includes('휴직')||div.includes('휴직')});
       }
     });
     const total=Object.values(PAY).reduce((a,l)=>a+l.length,0);
@@ -885,6 +888,7 @@ window.onPayrollFile=async function(input){
         const en=p.empId&&!/휴직/.test(p.empId)?p.empId:'';if(en&&ex.empNo!==en)set.empNo=en;
         if(p.formal&&ex.formalName!==p.formal){set.formalName=p.formal;if(ex.formalName)ch.push(`더존 이름 ${ex.formalName} → ${p.formal}`);}
         if(ex.payName!==p.name){set.payName=p.name;ch.push(ex.payName?`급여대장 이름 ${ex.payName} → ${p.name}`:`급여대장 이름 채움 (CAPS ${ex.attendName})`);}
+        if(p.position&&(ex.posOverride||'')!==p.position){ch.push(`직책 ${ex.posOverride||'없음'} → ${p.position}`);set.posOverride=p.position;}
         if(p.hireDate&&ex.hireDate!==p.hireDate){ch.push(`입사일 ${ex.hireDate||'없음'} → ${p.hireDate}`);set.hireDate=p.hireDate;}
         if(p.leaveDate&&ex.leaveDate!==p.leaveDate){ch.push(`퇴사일 ${ex.leaveDate||'없음'} → ${p.leaveDate}`);set.leaveDate=p.leaveDate;}
         const onLeave=p.isLeave||LEAVE_MARK.test(p.name);
@@ -1278,7 +1282,7 @@ function rosterBody(){
     ${noPos?`<span class="chip c-org">직책 없음 ${noPos}명</span>`:''}${qc?` <span class="hint">"${esc(RSC.trim())}" 검색 결과</span>`:''}
     <span class="sp"></span><button class="btn ${POS_EDIT?'bp':'bg'} sm edit" onclick="POS_EDIT=!POS_EDIT;rsUpdate()">${POS_EDIT?'✔ 직책 편집 끝내기':'✏️ 직책 편집'}</button></div>`;
   if(qc&&!rows.length&&!extra.length)right+='<div class="empty" style="padding:14px">검색 결과 없음</div>';
-  else right+=`<table><thead><tr><th>급여대장 이름</th><th>직책</th><th>CAPS 이름</th><th>이번 주</th><th>상태</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${x.r.pay?esc(x.r.pay):'<span class="hint">(이름 없음)</span>'}</b>${x.r.campus!==ROSTER?` <span class="hint">· ${esc(x.r.campus)}</span>`:''}${x.r.formal&&x.r.formal!==x.r.pay?`<div class="hint">KCMS ${esc(x.r.formal)}</div>`:''}</td><td>${posCell(x)}</td><td>${x.r.att?esc(x.r.att):''}</td><td>${weekDots(x.r.entry)}</td><td>${rosterStc(x.r)}</td><td>${x.r.att?`<button class="btn bg sm edit" onclick="unlinkPay(${x.i})">${x.r.pay?'연결 해제':'줄 삭제'}</button>`:''}</td></tr>`).join('')}</tbody></table>`;
+  else right+=`<table><thead><tr><th>급여대장 이름</th><th>직책</th><th>입사일</th><th>퇴사일</th><th>CAPS 이름</th><th>이번 주</th><th>상태</th><th></th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${x.r.pay?esc(x.r.pay):'<span class="hint">(이름 없음)</span>'}</b>${x.r.campus!==ROSTER?` <span class="hint">· ${esc(x.r.campus)}</span>`:''}${x.r.formal&&x.r.formal!==x.r.pay?`<div class="hint">KCMS ${esc(x.r.formal)}</div>`:''}</td><td>${posCell(x)}</td><td class="mono" style="white-space:nowrap">${x.r.h?esc(x.r.h):'<span class="hint">-</span>'}</td><td class="mono" style="white-space:nowrap">${x.r.lv?`<span style="color:var(--red)">${esc(x.r.lv)}</span>`:'<span class="hint">-</span>'}</td><td>${x.r.att?esc(x.r.att):''}</td><td>${weekDots(x.r.entry)}</td><td>${rosterStc(x.r)}</td><td>${x.r.att?`<button class="btn bg sm edit" onclick="unlinkPay(${x.i})">${x.r.pay?'연결 해제':'줄 삭제'}</button>`:''}</td></tr>`).join('')}</tbody></table>`;
   const miss=(D.payMissing||[]).map((m,k)=>({m,k})).filter(x=>groupKey(x.m.campus)===ROSTER&&(!qc||hit(qc,x.m.name)));
   if(miss.length)right+=`<div class="sec" style="color:var(--red)">⚠ 급여대장에 있는데 명단에서 빠진 사람 ${miss.length}</div><table><tbody>${miss.map(x=>missingRow(x.m,x.k)).join('')}</tbody></table>`;
   if(extra.length)right+=`<div style="height:18px;background:var(--bg);border-top:1px solid var(--line)"></div><div class="row" style="padding:10px 14px;background:var(--org-lt);border-top:2px solid var(--org);border-bottom:1px solid var(--line)">
