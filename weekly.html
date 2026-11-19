@@ -927,7 +927,7 @@ window.applyPayroll=async function(){
   d.merge.forEach((m,i)=>{if(!$('pmg-'+i)?.checked)return;const L=PERSONS[m.campus]||[];
     m.drop.forEach(x=>{if(!m.keep.attendName&&x.attendName){m.keep.attendName=x.attendName;m.keep.matchType=x.matchType||'manual';}if(x.note&&x.note!==m.keep.note)m.keep.note=[m.keep.note,x.note].filter(Boolean).join(' / ');const k=L.indexOf(x);if(k>=0)L.splice(k,1);});
     aff.add(m.campus);nM++;});
-  d.added.forEach((p,i)=>{if(!$('pnp-'+i)?.checked)return;PERSONS[p.campus]=PERSONS[p.campus]||[];if(PERSONS[p.campus].some(x=>x.payName===p.name))return;addedNow.push(p.campus+'|n|'+p.name);PERSONS[p.campus].push({payName:p.name,formalName:p.formal||'',empNo:p.empId&&!/휴직/.test(p.empId)?p.empId:'',leaveAuto:p.isLeave||LEAVE_MARK.test(p.name),attendName:null,isLeave:p.isLeave||LEAVE_MARK.test(p.name),divOverride:p.div,posOverride:p.position,note:'',matchType:'none',campus:p.campus,hireDate:p.hireDate||'',leaveDate:p.leaveDate||'',_isNew:true});aff.add(p.campus);nN++;});
+  d.added.forEach((p,i)=>{if(!$('pnp-'+i)?.checked)return;PERSONS[p.campus]=PERSONS[p.campus]||[];if(PERSONS[p.campus].some(x=>x.payName===p.name))return;addedNow.push(p.campus+'|n|'+p.name);PERSONS[p.campus].push({payName:p.name,formalName:p.formal||'',empNo:p.empId&&!/휴직/.test(p.empId)?p.empId:'',leaveAuto:p.isLeave||LEAVE_MARK.test(p.name),attendName:null,isLeave:p.isLeave||LEAVE_MARK.test(p.name),divOverride:p.div,posOverride:p.position,note:'',matchType:'none',campus:p.campus,hireDate:p.hireDate||'',leaveDate:p.leaveDate||'',_isNew:true,addedAt:ymd(new Date())});aff.add(p.campus);nN++;});
   d.changed.forEach(c=>{Object.assign(c.ref,c.set);aff.add(c.campus);if(!c.quiet)nC++;});
   d.vanished.forEach((v,i)=>{const val=$('pvl-'+i)?.value;if(!val)return;v.ref.leaveDate=val;aff.add(v.campus);nL++;});
   closeModal();PAY_PENDING=null;
@@ -1187,7 +1187,7 @@ async function autoFixMissing(){
     D.payMissing.forEach(m=>{
       if(m.why==='ignored'){m.rec.ignored=false;delete m.rec.ignoredAt;aff.add(m.campus);}
       else if(m.why==='unassigned'){const L=PERSONS['미분류']||[],i=L.indexOf(m.rec);if(i>=0)L.splice(i,1);m.rec.campus=m.campus;(PERSONS[m.campus]=PERSONS[m.campus]||[]).push(m.rec);aff.add('미분류');aff.add(m.campus);}
-      else{(PERSONS[m.campus]=PERSONS[m.campus]||[]).push({payName:m.name,formalName:'',attendName:null,isLeave:LEAVE_MARK.test(m.name),leaveAuto:LEAVE_MARK.test(m.name),divOverride:'',posOverride:'',note:'급여대장 기준 자동 추가',matchType:'none',campus:m.campus,hireDate:'',leaveDate:''});aff.add(m.campus);}
+      else{(PERSONS[m.campus]=PERSONS[m.campus]||[]).push({payName:m.name,formalName:'',attendName:null,isLeave:LEAVE_MARK.test(m.name),leaveAuto:LEAVE_MARK.test(m.name),divOverride:'',posOverride:'',note:'급여대장 기준 자동 추가',matchType:'none',campus:m.campus,hireDate:'',leaveDate:'',_isNew:true,addedAt:ymd(new Date())});aff.add(m.campus);}
     });
     for(const c of aff)await savePersons(c);
     toast(`급여대장에 있는데 명단에서 빠져 있던 ${D.payMissing.length}명을 명단에 넣었습니다`);
@@ -1197,7 +1197,7 @@ window.fixMissing=async function(k){
   const m=D.payMissing[k];if(!m||!canEdit())return;
   if(m.why==='ignored'){m.rec.ignored=false;delete m.rec.ignoredAt;await savePersons(m.campus);toast(`${m.campus} ${m.name} 무시 해제`);}
   else if(m.why==='unassigned'){const L=PERSONS['미분류']||[],i=L.indexOf(m.rec);if(i>=0)L.splice(i,1);m.rec.campus=m.campus;(PERSONS[m.campus]=PERSONS[m.campus]||[]).push(m.rec);await savePersons('미분류');await savePersons(m.campus);toast(`${m.name} → ${m.campus} 이동`);}
-  else{(PERSONS[m.campus]=PERSONS[m.campus]||[]).push({payName:m.name,formalName:'',attendName:null,isLeave:LEAVE_MARK.test(m.name),leaveAuto:LEAVE_MARK.test(m.name),divOverride:'',posOverride:'',note:'',matchType:'none',campus:m.campus,hireDate:'',leaveDate:''});await savePersons(m.campus);toast(`${m.campus} ${m.name} 명단에 추가`);}
+  else{(PERSONS[m.campus]=PERSONS[m.campus]||[]).push({payName:m.name,formalName:'',attendName:null,isLeave:LEAVE_MARK.test(m.name),leaveAuto:LEAVE_MARK.test(m.name),divOverride:'',posOverride:'',note:'',matchType:'none',campus:m.campus,hireDate:'',leaveDate:'',_isNew:true,addedAt:ymd(new Date())});await savePersons(m.campus);toast(`${m.campus} ${m.name} 명단에 추가`);}
   refresh();
 };
 const MISS_WHY={ignored:'전체근로자에서 무시(삭제완료) 처리돼 있음',unassigned:"전체근로자 '미분류'에 들어가 있음",missing:'캠퍼스 명단에 줄이 없음'};
