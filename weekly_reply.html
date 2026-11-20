@@ -93,7 +93,12 @@ select:focus,input:focus{border-color:var(--green-dk)}
 // 본사 weekly_attendant.html의 REASONS와 같은 목록이어야 함
 const REASONS=['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','교육·행사','병가·공가 (증빙)','비근무요일','기타 (메모 필수)'];
 const PHOTO_REQ=new Set(['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','병가·공가 (증빙)']);
-const KIND_LABEL={none:'기록 없음',ci_only:'퇴근 누락',co_only:'출근 누락',absent_all:'CAPS에 이름 없음',no_caps:'CAPS 미등록'};
+const KIND_LABEL={none:'기록 없음',ci_only:'퇴근 누락',co_only:'출근 누락',absent_all:'CAPS에 이름 없음',no_caps:'CAPS 미등록',need_id:'CAPS ID 생성 필요',not_deleted:'퇴사자 CAPS 삭제 필요',unknown:'급여대장 내 이름 확인 불가'};
+// 인원 단위 확인 요청 (본사 weekly_attendant.html의 PERSON_REASONS와 같은 목록)
+const PERSON_REASONS={need_id:['CAPS ID 추가함 (메모에 CAPS 이름)','이번 달 퇴사자','휴직 중','기타 (메모 필수)'],not_deleted:['CAPS에서 삭제함','재직 중 (메모에 설명)','기타 (메모 필수)'],unknown:['퇴사자 — CAPS에서 삭제함','입사 예정자','외부 소속 (우리 회사 아님)','급여대장 이름 다름 (메모에 이름)','기타 (메모 필수)']};
+const PERSON_GUIDE={need_id:'급여대장에는 있는데 CAPS에서 이름을 찾을 수 없습니다. CAPS ID를 만들었다면 메모에 CAPS에 등록한 이름을 적어 주세요.',not_deleted:'퇴사한 분인데 CAPS에 이름이 남아 있습니다. CAPS에서 삭제해 주세요.',unknown:'CAPS에 있는 이름인데 급여대장에서 확인되지 않습니다. 누구인지 알려 주세요.'};
+const reasonsFor=i=>i.scope==='person'?(PERSON_REASONS[i.kind]||REASONS):REASONS;
+const MEMO_REQ=/메모에|기타/;
 const STATUS_LABEL={open:'미회신',replied:'회신 완료 · 본사 검토 중',approved:'승인 (종결)',rejected:'반려 · 다시 회신 필요'};
 const DOW_KO=['일','월','화','수','목','금','토'];
 const MAX_IMG=3, MAX_EV_BYTES=750*1024, RECENT_WEEKS=8;
@@ -179,14 +184,15 @@ function renderItem(i){
   const ro=i.status==='approved';
   const chip={open:'chip-red',replied:'chip-blue',approved:'chip-teal',rejected:'chip-orange'}[i.status]||'chip-gray';
   return `<div class="item ${i.status}" id="it-${idx}">
-    <div class="item-top"><span class="date">${fmtMD(i.date)}</span><span class="chip chip-red">${KIND_LABEL[i.kind]||i.kind}</span>${i.ci?`<span class="hint">출근 ${esc(i.ci)}</span>`:''}${i.co?`<span class="hint">퇴근 ${esc(i.co)}</span>`:''}<span style="flex:1"></span><span class="chip ${chip}">${STATUS_LABEL[i.status]||i.status}</span></div>
+    <div class="item-top"><span class="date">${i.scope==='person'?'인원 확인':fmtMD(i.date)}</span><span class="chip chip-red">${KIND_LABEL[i.kind]||i.kind}</span>${i.ci?`<span class="hint">출근 ${esc(i.ci)}</span>`:''}${i.co?`<span class="hint">퇴근 ${esc(i.co)}</span>`:''}<span style="flex:1"></span><span class="chip ${chip}">${STATUS_LABEL[i.status]||i.status}</span></div>
     ${i.hint?`<div class="hint" style="margin-bottom:6px">ℹ️ ${esc(i.hint)}</div>`:''}
     ${i.status==='rejected'&&i.reviewNote?`<div class="rej">↩ 본사 반려: ${esc(i.reviewNote)}</div>`:''}
     ${ro?`<div style="font-size:14px"><b>${esc(i.reason)}</b>${i.memo?` · ${esc(i.memo)}`:''}</div>${evBlock(i,idx,false)}`:
-    `<select onchange="setField(${idx},'_reason',this.value)"><option value="">▼ 사유 선택</option>${REASONS.map(r=>`<option ${i._reason===r?'selected':''}>${r}</option>`).join('')}</select>
+    `<select onchange="setField(${idx},'_reason',this.value)"><option value="">▼ 사유 선택</option>${reasonsFor(i).map(r=>`<option ${i._reason===r?'selected':''}>${r}</option>`).join('')}</select>
+    ${i.scope==='person'?`<div class="hint" style="margin-top:6px">ℹ️ ${PERSON_GUIDE[i.kind]||''}</div>`:''}
     ${PHOTO_REQ.has(i._reason)&&!evCount(i)?'<div class="need">📷 이 사유는 증빙 사진이 필요합니다</div>':''}
-    <div class="row"><input type="text" placeholder="메모 (예: CCTV 09:02 출근 확인, 10/27 연차 기안 등)" value="${esc(i._memo)}" oninput="setField(${idx},'_memo',this.value)"></div>
-    ${i._reason&&ITEMS.some(o=>o!==i&&o.weekKey===i.weekKey&&o.name===i.name&&o.status!=='approved'&&!o._reason)?`<div class="row"><button class="apply" onclick="applySame(${idx})">↳ ${esc(i.name)}의 사유 없는 다른 날짜에도 이 사유 적용</button></div>`:''}
+    <div class="row"><input type="text" placeholder="${i.scope==='person'?'메모 (예: CAPS 이름 Annie Kim으로 추가)':'메모 (예: CCTV 09:02 출근 확인, 10/27 연차 기안 등)'}" value="${esc(i._memo)}" oninput="setField(${idx},'_memo',this.value)"></div>
+    ${i._reason&&ITEMS.some(o=>o!==i&&(o.scope||'day')===(i.scope||'day')&&o.weekKey===i.weekKey&&o.name===i.name&&o.status!=='approved'&&!o._reason)?`<div class="row"><button class="apply" onclick="applySame(${idx})">↳ ${esc(i.name)}의 사유 없는 다른 날짜에도 이 사유 적용</button></div>`:''}
     <div class="row">
       <label class="btn btn-ghost btn-sm filebtn">📷 사진 촬영<input type="file" accept="image/*" capture="environment" onchange="addImages(${idx},this)"></label>
       <label class="btn btn-ghost btn-sm filebtn">🖼 파일 첨부<input type="file" accept="image/*" multiple onchange="addImages(${idx},this)"></label>
@@ -198,8 +204,8 @@ function renderItem(i){
 }
 window.setField=function(idx,f,v){ITEMS[idx][f]=v;ITEMS[idx]._dirty=true;if(f==='_reason'){renderList();return;}const b=document.querySelector(`#it-${idx} .btn-primary`);if(b)b.textContent='💾 저장';};
 function evCount(i){return i._evLoaded?i._ev.length:(i.evidenceCount||0);}
-window.applySame=function(idx){const s=ITEMS[idx];let n=0;ITEMS.forEach(o=>{if(o!==s&&o.weekKey===s.weekKey&&o.name===s.name&&o.status!=='approved'&&!o._reason){o._reason=s._reason;if(!o._memo)o._memo=s._memo;o._dirty=true;n++;}});renderList();toast(`${n}건에 적용 — 사진은 건마다 첨부하고 저장해 주세요`);};
-function checkReady(it){if(!it._reason)return '사유를 선택해 주세요';if(PHOTO_REQ.has(it._reason)&&!evCount(it))return `${fmtMD(it.date)} 증빙 사진을 첨부해 주세요`;if(/기타/.test(it._reason)&&!it._memo.trim())return '기타는 메모를 적어 주세요';return '';}
+window.applySame=function(idx){const s=ITEMS[idx];let n=0;ITEMS.forEach(o=>{if(o!==s&&(o.scope||'day')===(s.scope||'day')&&o.weekKey===s.weekKey&&o.name===s.name&&o.status!=='approved'&&!o._reason){o._reason=s._reason;if(!o._memo)o._memo=s._memo;o._dirty=true;n++;}});renderList();toast(`${n}건에 적용 — 사진은 건마다 첨부하고 저장해 주세요`);};
+function checkReady(it){if(!it._reason)return '사유를 선택해 주세요';if(PHOTO_REQ.has(it._reason)&&!evCount(it))return `${fmtMD(it.date)} 증빙 사진을 첨부해 주세요`;if(MEMO_REQ.test(it._reason)&&!it._memo.trim())return `${it.name}: 메모를 적어 주세요`;return '';}
 window.viewImg=function(idx,k){const e=ITEMS[idx]._ev[k];if(!e)return;$('modal-img').src=e.data;$('modal').classList.add('show');};
 window.removeImg=function(idx,k){ITEMS[idx]._ev.splice(k,1);ITEMS[idx]._dirty=true;ITEMS[idx]._evTouched=true;renderList();};
 window.loadEv=async function(idx){
