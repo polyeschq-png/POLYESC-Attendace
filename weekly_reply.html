@@ -34,6 +34,14 @@ header .sub{font-size:12px;color:rgba(255,255,255,.75);margin-top:2px}
 .col .empty{padding:30px 10px;text-align:center;color:var(--text3);font-size:14px}
 .item.rejected{background:#fff8f1;border:2px solid var(--orange);border-left:6px solid var(--orange)}
 .item.open{border-left:6px solid var(--red)}
+.tsec{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;margin:16px 0 8px;font-weight:700;font-size:14px}
+.tsec:first-child{margin-top:0}
+.tsec .c{margin-left:auto;font-size:13px;background:#fff;border-radius:99px;padding:1px 10px}
+.tsec .d{font-weight:400;font-size:12px;opacity:.85}
+.t-day{background:#eef4ff;color:#1f4fa8;border-left:5px solid #2b6fd6}
+.t-need_id{background:#fff4e5;color:#a35400;border-left:5px solid #dd6b20}
+.t-not_deleted{background:#f3eefc;color:#5b2fb0;border-left:5px solid #6d3fd1}
+.t-unknown{background:#f1f3f6;color:#3b4656;border-left:5px solid #8a96a8}
 .rejtag{display:inline-block;background:var(--orange);color:#fff;font-size:12px;font-weight:700;border-radius:4px;padding:2px 8px}
 .mini{font-size:14px;margin-top:2px}
 .btn-del{background:#fff;color:var(--red);border:1px solid #f5c2c2}
@@ -193,6 +201,25 @@ function groupByName(items,renderer){
   return Object.keys(by).sort((a,b)=>a.localeCompare(b,'ko')).map(n=>{const its=by[n].sort((a,b)=>a.date.localeCompare(b.date));
     return `<div class="person"><div class="person-h">👤 ${esc(n)} <span class="cnt">${its.length}건</span></div>${its.map(renderer).join('')}</div>`;}).join('');
 }
+const TYPES=[
+  {k:'day',t:'📅 출퇴근 누락',d:'날짜별로 사유와 증빙(CCTV·기안서)을 올려 주세요',f:i=>i.scope!=='person'},
+  {k:'need_id',t:'🆔 CAPS ID 생성 필요',d:'CAPS에 등록한 이름을 메모에 적어 주세요',f:i=>i.scope==='person'&&i.kind==='need_id'},
+  {k:'not_deleted',t:'🗑 퇴사자 CAPS 삭제 필요',d:'CAPS에서 삭제해 주세요',f:i=>i.scope==='person'&&i.kind==='not_deleted'},
+  {k:'unknown',t:'❓ 급여대장 내 이름 확인 불가',d:'누구인지 알려 주세요',f:i=>i.scope==='person'&&i.kind!=='need_id'&&i.kind!=='not_deleted'}];
+function bySection(items,renderer,todo){
+  return TYPES.map(T=>{
+    const its=items.filter(T.f);if(!its.length)return '';
+    // 처리할 건: 반려를 먼저
+    const rej=todo?its.filter(i=>i.status==='rejected'):[],rest=todo?its.filter(i=>i.status!=='rejected'):its;
+    // 같은 사람은 한 곳에 모으고, 반려가 있는 사람·반려 건을 먼저
+    const by={};its.forEach(i=>{(by[i.name]=by[i.name]||[]).push(i);});
+    const hasRej=n=>by[n].some(i=>i.status==='rejected');
+    const people=Object.keys(by).sort((a,b)=>(hasRej(b)-hasRej(a))||a.localeCompare(b,'ko')).map(n=>{
+      const l=by[n].sort((a,b)=>((b.status==='rejected')-(a.status==='rejected'))||a.date.localeCompare(b.date));
+      return `<div class="person"><div class="person-h">👤 ${esc(n)} <span class="cnt">${l.length}건</span></div>${l.map(renderer).join('')}</div>`;}).join('');
+    return `<div class="tsec t-${T.k}">${T.t}${todo?`<span class="d">${T.d}</span>`:''}<span class="c">${its.length}건${rej.length?` · 반려 ${rej.length}`:''}</span></div>`+people;
+  }).join('');
+}
 function renderList(){
   const wk=$('week-sel').value;
   // 저장·지우기 후에도 주차 목록 표시(🔴/✅, 남은 건수)를 최신으로
@@ -206,10 +233,10 @@ function renderList(){
   $('h-sub').textContent=`${list.length}건 중 처리할 건 ${todo.length}건 (미회신 ${nOpen} · 반려 ${nRej}) · 승인 ${nOk}건`;
   $('prog-text').textContent=`처리 ${done.length}/${list.length}건 · 승인 ${nOk}건`;
   $('prog-bar').style.width=list.length?Math.round(done.length/list.length*100)+'%':'0';
-  // 왼쪽: 반려 먼저, 그다음 미회신
-  const left=todo.length?(nRej?`<div class="hint" style="color:var(--orange);font-weight:700;margin:0 2px 6px">↩ 반려 — 다시 처리 ${nRej}건</div>${groupByName(todo.filter(i=>i.status==='rejected'),renderItem)}`:'')+(nOpen?`<div class="hint" style="color:var(--red);font-weight:700;margin:${nRej?'14px':'0'} 2px 6px">● 미회신 ${nOpen}건</div>${groupByName(todo.filter(i=>i.status==='open'),renderItem)}`:''):'<div class="empty">✅ 처리할 건이 없습니다</div>';
+  // 종류별로 나눠서 보여 줌: 출퇴근 누락 / CAPS ID 생성 필요 / 퇴사자 CAPS 삭제 필요 / 급여대장 내 이름 확인 불가
+  const left=todo.length?bySection(todo,renderItem,true):'<div class="empty">✅ 처리할 건이 없습니다</div>';
   const shownDone=done.filter(i=>i.status==='replied'||showDone);
-  const right=(shownDone.length?groupByName(shownDone,renderDone):'<div class="empty">아직 처리한 건이 없습니다</div>')
+  const right=(shownDone.length?bySection(shownDone,renderDone,false):'<div class="empty">아직 처리한 건이 없습니다</div>')
     +(nOk?`<div class="done-toggle" onclick="showDone=!showDone;renderList()">${showDone?'승인 완료 숨기기':`승인 완료 ${nOk}건 보기`}</div>`:'');
   $('list').innerHTML=`<div class="cols">
     <div class="col"><div class="colh todo"><b>📝 처리할 건</b><span class="n">${todo.length}</span><span style="font-size:12px">미회신 ${nOpen} · 반려 ${nRej}</span></div><div class="colb">${left}</div></div>
