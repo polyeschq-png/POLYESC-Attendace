@@ -249,7 +249,7 @@ const PERSON_REASONS={need_id:['CAPS ID 추가함 (메모에 CAPS 이름)','이�
 const reasonsFor=it=>it&&it.scope==='person'?(PERSON_REASONS[it.kind]||REASONS):REASONS;
 const dateLabel=it=>it.scope==='person'?'<span class="chip c-org">인원 확인</span>':fmtMD(it.date);
 const STATUS={open:'미회신',replied:'회신됨',approved:'승인',rejected:'반려'};
-// 원장 페이지(weekly_campus_reply.html)와 같은 목록이어야 함
+// 원장 페이지(weekly_reply.html)와 같은 목록이어야 함
 const REASONS=['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','교육·행사','병가·공가 (증빙)','비근무요일','기타 (메모 필수)'];
 const PHOTO_REASONS=new Set(['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','병가·공가 (증빙)','지류 연차 (연차신청서)','반차·반반차','CAPS 미체크 (근무함)','외근·출장','병가·공가']);
 const LV_URL='https://swxjbawcpzhmrwwppcva.supabase.co';
@@ -334,7 +334,7 @@ function initApp(){
   const{auth,onAuthStateChanged}=window._fb;
   onAuthStateChanged(auth,async u=>{
     if(!u){
-      if(location.protocol==='file:'){document.body.style.opacity=1;document.querySelector('.content').innerHTML='<div class="card"><div class="empty"><div class="i">🔒</div><b>GitHub에 올린 뒤 로그인해서 사용하세요</b><p class="hint">weekly_attendant.html · weekly_campus_reply.html 을 저장소 루트에 올리고 사이트 주소로 접속합니다.</p></div></div>';return;}
+      if(location.protocol==='file:'){document.body.style.opacity=1;document.querySelector('.content').innerHTML='<div class="card"><div class="empty"><div class="i">🔒</div><b>GitHub에 올린 뒤 로그인해서 사용하세요</b><p class="hint">weekly_attendant.html · weekly_reply.html 을 저장소 루트에 올리고 사이트 주소로 접속합니다.</p></div></div>';return;}
       location.href='index.html';return;
     }
     user=u;
@@ -384,7 +384,16 @@ function renderTab(){
 let _rq=0;
 function refresh(){
   if(_rq||!READY)return;
-  _rq=requestAnimationFrame(()=>{_rq=0;if(!WEEK)return;D=derive();renderBadges();if(['prep','people','result'].includes(TAB))renderTab();autoFixMissing().then(autoResolve);});
+  _rq=requestAnimationFrame(()=>{_rq=0;if(!WEEK)return;D=derive();restoreAnalysis();renderBadges();if(['prep','people','result'].includes(TAB))renderTab();autoFixMissing().then(autoResolve);});
+}
+// 분석한 적 있는 주로 돌아오면(다른 주차·새로고침 후) 저장된 파일·분류로 다시 계산해서 누락 결과를 되살림
+function restoreAnalysis(){
+  if(!D||!D.hasCaps||!D.payroll||!Object.keys(PERSONS).length)return;
+  const run=RUNS.find(r=>r.weekKey===WEEK.key);if(!run||!(run.analysis||run.publishedAt))return;
+  if(ANA&&ANA.week===WEEK.key&&!(ANA.restored&&D.stale))return;   // 직접 분석한 결과는 그대로 둠
+  const r=derive(true);
+  ANA={week:WEEK.key,soe:r.soe,check:r.check,auto:r.auto,excl:r.excl,warn:r.warn,sig:r.sig,at:r.anaAt,restored:true};
+  D=derive();
 }
 function renderBadges(){
   const bp=$('bd-people');bp.textContent=D.todo;bp.classList.toggle('hot',D.todo>0);
@@ -664,7 +673,7 @@ window.runAnalysis=async function(){
   if(!CAPS.files.length){toast('CAPS 파일을 먼저 올리세요',1);return;}
   if(D.todo&&!confirm(`인원 분류 "처리 필요" ${D.todo}명이 남아 있습니다. 이 사람들은 판정에서 빠집니다.\n그래도 분석할까요?\n[취소]를 누르면 인원 분류로 이동합니다.`)){PSUB='todo';switchTab('people');return;}
   const r=derive(true);
-  ANA={week:WEEK.key,soe:r.soe,check:r.check,auto:r.auto,excl:r.excl,warn:r.warn,sig:r.sig,at:r.anaAt};
+  ANA={week:WEEK.key,soe:r.soe,check:r.check,auto:r.auto,excl:r.excl,warn:r.warn,sig:r.sig,at:r.anaAt,restored:false};
   D=derive(false);renderBadges();
   if(canEdit()){try{await saveRunSummary();}catch(e){}}
   toast(`분석 완료: 소명 필요 ${r.soe.length} · 짧은 근무 ${r.check.length} · 연차 종결 ${r.auto.length}`);
@@ -1364,6 +1373,7 @@ function renderResult(){
   const run=RUNS.find(r=>r.weekKey===WEEK.key);
   let h=`<div class="kpis">${Object.keys(lbl).map(k=>`<div class="kpi ${RTAB===k?'on':''}" onclick="RTAB='${k}';renderResult()"><div class="v" style="color:${lbl[k][1]}">${L[k].length}</div><div class="l">${lbl[k][0]}</div></div>`).join('')}
     <div class="sp"></div><div class="row" style="align-self:center"><button class="btn ${D.stale?'bp':'bg'}" onclick="runAnalysis()">🔍 다시 분석</button><button class="btn bg" onclick="exportResult()">⬇ 엑셀</button><button class="btn bp edit" onclick="publish()">📨 원장 소명 요청 발행${run&&run.publishedAt?' (다시)':''}</button></div></div>`;
+  if(ANA&&ANA.restored)h+=`<div class="box b-info">이 주는 전에 분석한 주라 저장된 CAPS·연차 파일과 인원 분류로 다시 계산해 보여 줍니다. ${(RUNS.find(r=>r.weekKey===WEEK.key)||{}).publishedAt?'발행 후 인원 분류를 바꿨다면 발행 당시와 다를 수 있습니다.':''}</div>`;
   if(D.stale)h+=`<div class="box b-err">분석한 뒤에 인원 분류·파일·기준이 바뀌었습니다. 아래는 ${D.anaAt.toTimeString().slice(0,5)} 분석 결과입니다. 최신으로 보려면 "다시 분석"을 누르세요.</div>`;
   if(D.warn.length)h+=`<div class="box b-warn">${D.warn.map(esc).join('<br>')}${D.todo?` <button class="btn bp sm" onclick="switchTab('people')">인원 분류로</button>`:''}</div>`;
   if(RTAB==='check')h+='<div class="box b-info">출퇴근은 모두 찍혔지만 체류시간이 기준보다 짧은 날입니다. 소명 요청 대상은 아니고 본사 확인용입니다.</div>';
@@ -1593,7 +1603,7 @@ window.exportReview=async function(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(ITEMS.map(i=>({주차:i.weekKey,캠퍼스:i.campus,이름:i.name,급여대장이름:i.payName,직책:i.position,날짜:i.date,요일:i.dow,기록:KIND[i.kind]||i.kind,사유:i.reason,메모:i.memo,증빙수:i.evidenceCount||0,상태:STATUS[i.status]||i.status,회신시각:i.repliedAt||'',검토자:i.reviewedBy||'',반려사유:i.reviewNote||''}))),'소명현황');
   XLSX.writeFile(wb,`주간근태_${WEEK.start}_소명현황.xlsx`);
 };
-function linkFor(c){const t=TOKENS[c];return t?location.href.replace(/[^\/]*$/,'')+'weekly_campus_reply.html?t='+t:'';}
+function linkFor(c){const t=TOKENS[c];return t?location.href.replace(/[^\/]*$/,'')+'weekly_reply.html?t='+t:'';}
 window.copyLink=c=>{const l=linkFor(c);if(!l){toast('링크가 아직 없습니다',1);return;}navigator.clipboard.writeText(l).then(()=>toast(`${c} 링크 복사됨`));};
 window.copyMail=function(c){
   const list=ITEMS.filter(i=>i.campus===c&&(i.status==='open'||i.status==='rejected'));
