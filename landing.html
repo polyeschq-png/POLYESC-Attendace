@@ -160,6 +160,7 @@
     .card-hq     .bg { background-color: #0d2f6e; }
     .card-campus .bg { background-color: #0d3a20; }
     .card-all    .bg { background-color: #2a0f40; }
+    .card-weekly .bg { background-color: #1a3a2a; }
     .card-perm   .bg { background-color: #1a0a3a; }
     .slide-card .overlay {
       position: absolute; inset: 0;
@@ -352,6 +353,15 @@
         </div>
       </div>
 
+      <div class="slide-card card-weekly" onclick="goTo('weekly')">
+        <div class="bg"></div><div class="overlay"></div>
+        <div class="card-content">
+          <div class="card-sub">Weekly Check</div>
+          <div class="card-title">주간 근태 점검</div>
+          <div class="card-desc">매주 CAPS 출퇴근 기록<br>누락·미매칭 확인 및 소명</div>
+        </div>
+      </div>
+
       <div class="slide-card card-perm" id="card-permissions"
            onclick="goTo('permissions')" style="display:none">
         <div class="bg"></div><div class="overlay"></div>
@@ -422,6 +432,7 @@
       'card-hq':     'HQ프로그램용.png',
       'card-campus': '캠퍼스프로그램용.png',
       'card-all':    '전체근로자용.png',
+      'card-weekly': '주간근태용.png',
       'card-perm':   '권한관리용.png'
     };
     document.querySelectorAll('.slide-card').forEach(function(card) {
@@ -462,10 +473,10 @@
     }
     btnPrev.addEventListener('click', function(e) { e.stopPropagation(); if (curOffset > 0) moveTo(curOffset - 1); });
     btnNext.addEventListener('click', function(e) { e.stopPropagation(); if (curOffset < maxOffset) moveTo(curOffset + 1); });
-    updateSlider(3);
+    updateSlider(4);
 
     function goTo(type) {
-      var map = { hq: 'hq.html', campus: 'campus.html', all: 'workers.html', permissions: 'permissions.html' };
+      var map = { hq: 'hq.html', campus: 'campus.html', all: 'workers.html', weekly: 'weekly.html', permissions: 'permissions.html' };
       if (map[type]) window.location.href = map[type];
     }
 
@@ -542,10 +553,10 @@
       document.getElementById('user-role-label').textContent = ROLE_LABELS[role] || '📊 리포트';
 
       // 슬라이더 카드 수
-      let cardCount = 3;
+      let cardCount = 4;
       if (role === 'owner') {
         document.getElementById('card-permissions').style.display = '';
-        cardCount = 4;
+        cardCount = 5;
 
         // 종 아이콘 표시 + 실시간 알림 구독
         document.getElementById('bell-wrap').style.display = 'flex';
