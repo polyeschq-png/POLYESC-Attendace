@@ -101,7 +101,7 @@ select:focus,input:focus{border-color:var(--green-dk)}
     CAPS 출근 또는 퇴근 기록이 없는 날입니다. 건마다 <b>사유를 선택하고 증빙 사진을 첨부</b>한 뒤 저장해 주세요 (건당 3장까지).<br>
     · 근무했는데 CAPS를 안 찍음 → <b>출근·퇴근 모습이 보이는 CCTV 사진</b><br>
     · 연차·반차·외근·병가 → <b>기안서(신청서) 사진</b><br>
-    <b>왼쪽 = 아직 처리할 건</b>(미회신·반려) · <b>오른쪽 = 처리한 건</b>(본사 검토 중·승인). 잘못 회신한 건은 오른쪽에서 <b>수정</b>하거나 <b>회신 지우기</b>를 누르세요.
+    <b>왼쪽 = 아직 처리할 건</b>(미회신·반려) · <b>오른쪽 = 처리한 건</b>(본사 검토 중·승인). 잘못 회신한 건은 오른쪽에서 <b>🗑 회신 지우기</b>를 누르면 사진까지 지워지고 왼쪽 처리할 건으로 돌아갑니다.
   </div>
   <div id="list"></div>
 </div>
@@ -224,7 +224,7 @@ function renderDone(i){
     <div class="item-top"><span class="date">${i.scope==='person'?'인원 확인':fmtMD(i.date)}</span><span class="chip chip-red">${KIND_LABEL[i.kind]||i.kind}</span><span style="flex:1"></span><span class="chip ${ok?'chip-teal':'chip-blue'}">${STATUS_LABEL[i.status]||i.status}</span></div>
     <div class="mini"><b>${esc(i.reason)}</b>${i.memo?` · ${esc(i.memo)}`:''}</div>
     ${evBlock(i,idx,false)}
-    ${ok?'':`<div class="row"><span style="flex:1"></span><button class="btn btn-ghost btn-sm" onclick="editDone(${idx})">✏️ 수정</button><button class="btn btn-del btn-sm" onclick="clearReply(${idx})">🗑 회신 지우기</button></div>`}
+    ${ok?'':`<div class="row"><span style="flex:1"></span><button class="btn btn-del btn-sm" onclick="clearReply(${idx})">🗑 회신 지우기</button></div>`}
   </div>`;
 }
 window.editDone=function(idx){const it=ITEMS[idx];it._editing=true;it._reason=it.reason||'';it._memo=it.memo||'';renderList();};
