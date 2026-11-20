@@ -74,6 +74,15 @@ select:focus,input:focus{border-color:var(--green-dk)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .done-toggle{font-size:13px;color:var(--text2);cursor:pointer;text-decoration:underline;margin:4px 2px 10px}
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center;padding:10px}
+.pend-bg{position:fixed;inset:0;background:rgba(15,22,35,.55);z-index:150;display:none;align-items:center;justify-content:center;padding:14px}
+.pend-bg.show{display:flex}
+.pend{background:#fff;border-radius:12px;max-width:440px;width:100%;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.pend h2{font-size:17px;color:var(--red);margin-bottom:6px}
+.pend .wk{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #f5c2c2;background:#fff5f5;border-radius:8px;margin-top:8px}
+.pend .wk b{flex:1;font-size:14px}
+#week-sel.has-open{color:var(--red);font-weight:700;border-color:var(--red)}
+#week-sel option.open{color:var(--red);font-weight:700}
+#week-sel option.done{color:var(--text)}
 .modal-bg.show{display:flex}.modal-bg img{max-width:100%;max-height:90vh;border-radius:8px}
 </style>
 </head>
@@ -101,6 +110,7 @@ select:focus,input:focus{border-color:var(--green-dk)}
   <button class="btn btn-primary" onclick="saveAll()">💾 모두 저장</button>
 </div>
 <div class="modal-bg" id="modal" onclick="this.classList.remove('show')"><img id="modal-img" src=""></div>
+<div class="pend-bg" id="pend"><div class="pend" id="pend-box"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -156,11 +166,27 @@ async function loadItems(){
   if(!weeks.length){$('h-sub').textContent='소명 요청 없음';$('msg').innerHTML='<div class="info">현재 소명이 필요한 건이 없습니다.</div>';return;}
   const sel=$('week-sel');
   const cur=sel.value;
-  sel.innerHTML=weeks.map(w=>{const it=ITEMS.find(i=>i.weekKey===w);const o=ITEMS.filter(i=>i.weekKey===w&&(i.status==='open'||i.status==='rejected')).length;return `<option value="${w}">${fmtMD(it.weekStart||w)} ~ ${fmtMD(it.weekEnd||w)} ${o?`· 미회신 ${o}건`:'· 완료'}</option>`;}).join('');
+  sel.innerHTML=weeks.map(w=>{const it=ITEMS.find(i=>i.weekKey===w);const c=pendOf(w);return `<option value="${w}" class="${c.total?'open':'done'}">${c.total?'🔴 ':'✅ '}${fmtMD(it.weekStart||w)} ~ ${fmtMD(it.weekEnd||w)} ${c.total?'· '+[c.open?`미회신 ${c.open}건`:'',c.rej?`반려 ${c.rej}건`:''].filter(Boolean).join(' · '):'· 완료'}</option>`;}).join('');
   const firstOpen=weeks.find(w=>ITEMS.some(i=>i.weekKey===w&&(i.status==='open'||i.status==='rejected')));
   sel.value=(cur&&weeks.includes(cur))?cur:(firstOpen||weeks[0]);
   $('week-card').style.display='block';$('guide').style.display='block';$('footer').style.display='flex';
   renderList();
+  if(!cur)showPending(weeks);   // 페이지를 열 때마다 남은 건 알림
+}
+function pendOf(w){const l=ITEMS.filter(i=>i.weekKey===w);const open=l.filter(i=>i.status==='open').length,rej=l.filter(i=>i.status==='rejected').length;return {open,rej,total:open+rej};}
+function weekLabel(w){const it=ITEMS.find(i=>i.weekKey===w)||{};return `${fmtMD(it.weekStart||w)} ~ ${fmtMD(it.weekEnd||w)}`;}
+// 미회신·반려가 남은 주차 알림 팝업
+function showPending(weeks){
+  const left=weeks.filter(w=>pendOf(w).total);
+  if(!left.length)return;
+  const sum=left.reduce((a,w)=>a+pendOf(w).total,0);
+  $('pend-box').innerHTML=`<h2>⚠️ 처리하지 않은 소명이 ${sum}건 있습니다</h2>
+    <div class="hint" style="font-size:13px">아래 주차의 미회신·반려 건을 처리해 주세요. 본사 승인까지 끝나야 종결됩니다.</div>
+    ${left.map(w=>{const c=pendOf(w);return `<div class="wk"><b>${weekLabel(w)}</b>${c.open?`<span class="chip chip-red">미회신 ${c.open}</span>`:''}${c.rej?`<span class="chip chip-orange">반려 ${c.rej}</span>`:''}<button class="btn btn-primary btn-sm" onclick="goWeek('${w}')">보기</button></div>`;}).join('')}
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn btn-ghost" onclick="$('pend').classList.remove('show')">닫기</button></div>`;
+  $('pend').classList.add('show');
+}
+window.goWeek=function(w){$('week-sel').value=w;$('pend').classList.remove('show');renderList();window.scrollTo({top:0,behavior:'smooth'});
 }
 function groupByName(items,renderer){
   const by={};items.forEach(i=>{(by[i.name]=by[i.name]||[]).push(i);});
@@ -169,6 +195,9 @@ function groupByName(items,renderer){
 }
 function renderList(){
   const wk=$('week-sel').value;
+  // 저장·지우기 후에도 주차 목록 표시(🔴/✅, 남은 건수)를 최신으로
+  [...$('week-sel').options].forEach(o=>{const c=pendOf(o.value);o.className=c.total?'open':'done';o.textContent=`${c.total?'🔴 ':'✅ '}${weekLabel(o.value)} ${c.total?'· '+[c.open?`미회신 ${c.open}건`:'',c.rej?`반려 ${c.rej}건`:''].filter(Boolean).join(' · '):'· 완료'}`;});
+  $('week-sel').classList.toggle('has-open',pendOf(wk).total>0);
   const list=ITEMS.filter(i=>i.weekKey===wk);
   const isTodo=i=>i.status==='open'||i.status==='rejected';
   const todo=list.filter(isTodo),done=list.filter(i=>!isTodo(i));
