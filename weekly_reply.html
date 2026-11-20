@@ -22,7 +22,21 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 header{background:var(--green);padding:14px 16px;position:sticky;top:0;z-index:20;box-shadow:0 1px 4px rgba(0,0,0,.12)}
 header h1{font-size:17px;font-weight:700;color:#fff}
 header .sub{font-size:12px;color:rgba(255,255,255,.75);margin-top:2px}
-.wrap{max-width:760px;margin:0 auto;padding:14px 12px 120px}
+.wrap{max-width:1280px;margin:0 auto;padding:14px 12px 120px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.col{background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.colh{padding:12px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.colh b{font-size:16px}.colh .n{font-size:20px;font-weight:700}
+.colh.todo{background:#fff0f0;border-bottom:3px solid var(--red);color:var(--red)}
+.colh.done{background:#e6f7f5;border-bottom:3px solid var(--teal);color:var(--teal)}
+.colb{padding:12px}
+.col .empty{padding:30px 10px;text-align:center;color:var(--text3);font-size:14px}
+.item.rejected{background:#fff8f1;border:2px solid var(--orange);border-left:6px solid var(--orange)}
+.item.open{border-left:6px solid var(--red)}
+.rejtag{display:inline-block;background:var(--orange);color:#fff;font-size:12px;font-weight:700;border-radius:4px;padding:2px 8px}
+.mini{font-size:14px;margin-top:2px}
+.btn-del{background:#fff;color:var(--red);border:1px solid #f5c2c2}
 .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .info{background:#f0f7e8;border:1px solid #c6e0a0;border-radius:var(--radius);padding:11px 13px;font-size:13px;color:var(--text2);margin-bottom:12px}
 .err{background:#fff0f0;border:1px solid #fecaca;border-radius:var(--radius);padding:11px 13px;font-size:13px;color:var(--red);margin-bottom:12px}
@@ -78,7 +92,7 @@ select:focus,input:focus{border-color:var(--green-dk)}
     CAPS 출근 또는 퇴근 기록이 없는 날입니다. 건마다 <b>사유를 선택하고 증빙 사진을 첨부</b>한 뒤 저장해 주세요 (건당 3장까지).<br>
     · 근무했는데 CAPS를 안 찍음 → <b>출근·퇴근 모습이 보이는 CCTV 사진</b><br>
     · 연차·반차·외근·병가 → <b>기안서(신청서) 사진</b><br>
-    본사 승인까지 끝나야 종결됩니다. 반려된 건은 고쳐서 다시 저장하세요.
+    <b>왼쪽 = 아직 처리할 건</b>(미회신·반려) · <b>오른쪽 = 처리한 건</b>(본사 검토 중·승인). 잘못 회신한 건은 오른쪽에서 <b>수정</b>하거나 <b>회신 지우기</b>를 누르세요.
   </div>
   <div id="list"></div>
 </div>
@@ -91,7 +105,7 @@ select:focus,input:focus{border-color:var(--green-dk)}
 
 <script>
 // 본사 weekly_attendant.html의 REASONS와 같은 목록이어야 함
-const REASONS=['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','교육·행사','병가·공가 (증빙)','비근무요일','기타 (메모 필수)'];
+const REASONS=['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','교육·행사','병가·공가 (증빙)','셔틀 탑승','비근무요일','기타 (메모 필수)'];
 const PHOTO_REQ=new Set(['CAPS 미체크 (근무함) — CCTV 사진','연차 (기안서·연차신청서)','반차·반반차 (기안서)','외근·출장 (기안서)','병가·공가 (증빙)']);
 const KIND_LABEL={none:'기록 없음',ci_only:'퇴근 누락',co_only:'출근 누락',absent_all:'CAPS에 이름 없음',no_caps:'CAPS 미등록',need_id:'CAPS ID 생성 필요',not_deleted:'퇴사자 CAPS 삭제 필요',unknown:'급여대장 내 이름 확인 불가'};
 // 인원 단위 확인 요청 (본사 weekly_attendant.html의 PERSON_REASONS와 같은 목록)
@@ -148,32 +162,56 @@ async function loadItems(){
   $('week-card').style.display='block';$('guide').style.display='block';$('footer').style.display='flex';
   renderList();
 }
+function groupByName(items,renderer){
+  const by={};items.forEach(i=>{(by[i.name]=by[i.name]||[]).push(i);});
+  return Object.keys(by).sort((a,b)=>a.localeCompare(b,'ko')).map(n=>{const its=by[n].sort((a,b)=>a.date.localeCompare(b.date));
+    return `<div class="person"><div class="person-h">👤 ${esc(n)} <span class="cnt">${its.length}건</span></div>${its.map(renderer).join('')}</div>`;}).join('');
+}
 function renderList(){
   const wk=$('week-sel').value;
   const list=ITEMS.filter(i=>i.weekKey===wk);
-  const open=list.filter(i=>i.status==='open'||i.status==='rejected').length;
-  const done=list.filter(i=>i.status==='approved').length;
-  $('h-sub').textContent=`${list.length}건 중 미회신 ${open}건 · 승인 ${done}건`;
-  $('prog-text').textContent=`회신 ${list.length-open}/${list.length}건 · 승인 ${done}건`;
-  $('prog-bar').style.width=list.length?Math.round((list.length-open)/list.length*100)+'%':'0';
-  const byName={};
-  list.forEach(i=>{(byName[i.name]=byName[i.name]||[]).push(i);});
-  const names=Object.keys(byName).sort((a,b)=>{
-    const oa=byName[a].some(i=>i.status!=='approved'),ob=byName[b].some(i=>i.status!=='approved');
-    if(oa!==ob) return oa?-1:1; return a.localeCompare(b,'ko');
-  });
-  let html='';
-  names.forEach(n=>{
-    const its=byName[n].sort((a,b)=>a.date.localeCompare(b.date));
-    const allDone=its.every(i=>i.status==='approved');
-    if(allDone&&!showDone) return;
-    html+=`<div class="person"><div class="person-h">👤 ${esc(n)} <span class="cnt">${its.length}건</span></div>${its.map(renderItem).join('')}</div>`;
-  });
-  const hiddenDone=names.filter(n=>byName[n].every(i=>i.status==='approved')).length;
-  if(hiddenDone&&!showDone) html+=`<div class="done-toggle" onclick="showDone=true;renderList()">승인 완료된 ${hiddenDone}명 보기</div>`;
-  if(showDone&&hiddenDone) html+=`<div class="done-toggle" onclick="showDone=false;renderList()">승인 완료 숨기기</div>`;
-  $('list').innerHTML=html||'<div class="info">이 주차는 모두 종결되었습니다.</div>';
+  const isTodo=i=>i.status==='open'||i.status==='rejected';
+  const todo=list.filter(isTodo),done=list.filter(i=>!isTodo(i));
+  const nOpen=todo.filter(i=>i.status==='open').length,nRej=todo.filter(i=>i.status==='rejected').length;
+  const nRep=done.filter(i=>i.status==='replied').length,nOk=done.filter(i=>i.status==='approved').length;
+  $('h-sub').textContent=`${list.length}건 중 처리할 건 ${todo.length}건 (미회신 ${nOpen} · 반려 ${nRej}) · 승인 ${nOk}건`;
+  $('prog-text').textContent=`처리 ${done.length}/${list.length}건 · 승인 ${nOk}건`;
+  $('prog-bar').style.width=list.length?Math.round(done.length/list.length*100)+'%':'0';
+  // 왼쪽: 반려 먼저, 그다음 미회신
+  const left=todo.length?(nRej?`<div class="hint" style="color:var(--orange);font-weight:700;margin:0 2px 6px">↩ 반려 — 다시 처리 ${nRej}건</div>${groupByName(todo.filter(i=>i.status==='rejected'),renderItem)}`:'')+(nOpen?`<div class="hint" style="color:var(--red);font-weight:700;margin:${nRej?'14px':'0'} 2px 6px">● 미회신 ${nOpen}건</div>${groupByName(todo.filter(i=>i.status==='open'),renderItem)}`:''):'<div class="empty">✅ 처리할 건이 없습니다</div>';
+  const shownDone=done.filter(i=>i.status==='replied'||showDone);
+  const right=(shownDone.length?groupByName(shownDone,renderDone):'<div class="empty">아직 처리한 건이 없습니다</div>')
+    +(nOk?`<div class="done-toggle" onclick="showDone=!showDone;renderList()">${showDone?'승인 완료 숨기기':`승인 완료 ${nOk}건 보기`}</div>`:'');
+  $('list').innerHTML=`<div class="cols">
+    <div class="col"><div class="colh todo"><b>📝 처리할 건</b><span class="n">${todo.length}</span><span style="font-size:12px">미회신 ${nOpen} · 반려 ${nRej}</span></div><div class="colb">${left}</div></div>
+    <div class="col"><div class="colh done"><b>✅ 처리한 건</b><span class="n">${done.length}</span><span style="font-size:12px">본사 검토 중 ${nRep} · 승인 ${nOk}</span></div><div class="colb">${right}</div></div>
+  </div>`;
 }
+// 오른쪽(처리한 건): 보기 전용 + 수정 / 회신 지우기
+function renderDone(i){
+  if(i._editing)return renderItem(i);
+  const idx=ITEMS.indexOf(i),ok=i.status==='approved';
+  return `<div class="item ${i.status}" id="it-${idx}">
+    <div class="item-top"><span class="date">${i.scope==='person'?'인원 확인':fmtMD(i.date)}</span><span class="chip chip-red">${KIND_LABEL[i.kind]||i.kind}</span><span style="flex:1"></span><span class="chip ${ok?'chip-teal':'chip-blue'}">${STATUS_LABEL[i.status]||i.status}</span></div>
+    <div class="mini"><b>${esc(i.reason)}</b>${i.memo?` · ${esc(i.memo)}`:''}</div>
+    ${evBlock(i,idx,false)}
+    ${ok?'':`<div class="row"><span style="flex:1"></span><button class="btn btn-ghost btn-sm" onclick="editDone(${idx})">✏️ 수정</button><button class="btn btn-del btn-sm" onclick="clearReply(${idx})">🗑 회신 지우기</button></div>`}
+  </div>`;
+}
+window.editDone=function(idx){const it=ITEMS[idx];it._editing=true;it._reason=it.reason||'';it._memo=it.memo||'';renderList();};
+window.cancelEdit=function(idx){const it=ITEMS[idx];it._editing=false;it._dirty=false;it._reason=it.reason||'';it._memo=it.memo||'';if(it._evTouched){it._evLoaded=false;it._ev=[];it._evTouched=false;}renderList();};
+// 잘못 넣은 회신 지우기 → 미회신으로 되돌림 (사유·메모·사진 삭제)
+window.clearReply=async function(idx){
+  const it=ITEMS[idx];
+  if(!confirm(`${it.name} ${it.scope==='person'?'(인원 확인)':fmtMD(it.date)} 회신을 지울까요?\n사유·메모·사진이 모두 지워지고 "미회신"으로 돌아갑니다.`))return;
+  const{db,doc,updateDoc}=window._fb;
+  try{
+    if((it.evidenceCount||0)>0||(it._ev||[]).length){await updateDoc(doc(db,'weekly_campus',TOKEN,'items',it.id+'__ev'),{images:[],updatedAt:new Date().toISOString()});}
+    await updateDoc(doc(db,'weekly_campus',TOKEN,'items',it.id),{reason:'',memo:'',evidenceCount:0,status:'open',repliedAt:'',repliedBy:'',clearedAt:new Date().toISOString()});
+    Object.assign(it,{reason:'',memo:'',evidenceCount:0,status:'open',_reason:'',_memo:'',_ev:[],_evLoaded:true,_evTouched:false,_dirty:false,_editing:false});
+    toast('회신을 지웠습니다 — 왼쪽 "처리할 건"으로 옮겨졌습니다');renderList();
+  }catch(e){toast('지우기 실패 — 새로고침 후 다시 시도해 주세요');}
+};
 function evBlock(i,idx,editable){
   if(!i._evLoaded) return `<div class="thumbs"><span class="chip chip-gray">📎 사진 ${i.evidenceCount}장</span><button class="btn btn-ghost btn-sm" onclick="loadEv(${idx})">보기</button></div>`;
   if(!i._ev.length) return '';
@@ -186,7 +224,7 @@ function renderItem(i){
   return `<div class="item ${i.status}" id="it-${idx}">
     <div class="item-top"><span class="date">${i.scope==='person'?'인원 확인':fmtMD(i.date)}</span><span class="chip chip-red">${KIND_LABEL[i.kind]||i.kind}</span>${i.ci?`<span class="hint">출근 ${esc(i.ci)}</span>`:''}${i.co?`<span class="hint">퇴근 ${esc(i.co)}</span>`:''}<span style="flex:1"></span><span class="chip ${chip}">${STATUS_LABEL[i.status]||i.status}</span></div>
     ${i.hint?`<div class="hint" style="margin-bottom:6px">ℹ️ ${esc(i.hint)}</div>`:''}
-    ${i.status==='rejected'&&i.reviewNote?`<div class="rej">↩ 본사 반려: ${esc(i.reviewNote)}</div>`:''}
+    ${i.status==='rejected'?`<div class="rej"><span class="rejtag">↩ 반려됨 · 다시 처리</span> ${esc(i.reviewNote||'')}</div>`:''}
     ${ro?`<div style="font-size:14px"><b>${esc(i.reason)}</b>${i.memo?` · ${esc(i.memo)}`:''}</div>${evBlock(i,idx,false)}`:
     `<select onchange="setField(${idx},'_reason',this.value)"><option value="">▼ 사유 선택</option>${reasonsFor(i).map(r=>`<option ${i._reason===r?'selected':''}>${r}</option>`).join('')}</select>
     ${i.scope==='person'?`<div class="hint" style="margin-top:6px">ℹ️ ${PERSON_GUIDE[i.kind]||''}</div>`:''}
@@ -194,10 +232,9 @@ function renderItem(i){
     <div class="row"><input type="text" placeholder="${i.scope==='person'?'메모 (예: CAPS 이름 Annie Kim으로 추가)':'메모 (예: CCTV 09:02 출근 확인, 10/27 연차 기안 등)'}" value="${esc(i._memo)}" oninput="setField(${idx},'_memo',this.value)"></div>
     ${i._reason&&ITEMS.some(o=>o!==i&&(o.scope||'day')===(i.scope||'day')&&o.weekKey===i.weekKey&&o.name===i.name&&o.status!=='approved'&&!o._reason)?`<div class="row"><button class="apply" onclick="applySame(${idx})">↳ ${esc(i.name)}의 사유 없는 다른 날짜에도 이 사유 적용</button></div>`:''}
     <div class="row">
-      <label class="btn btn-ghost btn-sm filebtn">📷 사진 촬영<input type="file" accept="image/*" capture="environment" onchange="addImages(${idx},this)"></label>
-      <label class="btn btn-ghost btn-sm filebtn">🖼 파일 첨부<input type="file" accept="image/*" multiple onchange="addImages(${idx},this)"></label>
+      <label class="btn btn-ghost btn-sm filebtn">📎 사진·파일 첨부<input type="file" accept="image/*" multiple onchange="addImages(${idx},this)"></label>
       <span style="flex:1"></span>
-      <button class="btn btn-primary btn-sm" onclick="saveItem(${idx})">${i._dirty?'💾 저장':'✔ 저장됨'}</button>
+      ${i._editing?`<button class="btn btn-ghost btn-sm" onclick="cancelEdit(${idx})">취소</button>`:''}<button class="btn btn-primary btn-sm" onclick="saveItem(${idx})">${i._dirty?'💾 저장':'✔ 저장됨'}</button>
     </div>
     ${evBlock(i,idx,true)}`}
   </div>`;
@@ -256,7 +293,7 @@ async function persist(it){
     catch(e){ throw new Error('사진 저장 실패 — 인사팀에 이 주차 소명요청을 다시 발행해 달라고 요청해 주세요'); }
   }
   await updateDoc(doc(db,'weekly_campus',TOKEN,'items',it.id),{reason:it._reason,memo:it._memo,evidenceCount:it._evLoaded?it._ev.length:(it.evidenceCount||0),status:'replied',repliedAt:new Date().toISOString(),repliedBy:'campus'});
-  it.reason=it._reason;it.memo=it._memo;it.status='replied';it._dirty=false;it._evTouched=false;
+  it.reason=it._reason;it.memo=it._memo;it.status='replied';it._dirty=false;it._evTouched=false;it._editing=false;
   if(it._evLoaded) it.evidenceCount=it._ev.length;
 }
 window.saveItem=async function(idx){
