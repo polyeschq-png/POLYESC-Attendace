@@ -1714,8 +1714,34 @@ async function loadRuns(){try{const{db,collection,getDocs}=window._fb;const s=aw
 function renderHistory(){
   if(!RUNS.length){$('p-history').innerHTML='<div class="card empty"><div class="i">💾</div><b>기록이 없습니다</b><p class="hint">파일을 올리고 분석하면 그 주차가 기록됩니다.</p></div>';return;}
   $('p-history').innerHTML=`<div class="box b-info">CAPS·연차 파일은 올리는 순간, 분석 요약은 분석할 때 자동 저장되고, 소명 회신·사진·승인 기록은 계속 남습니다. 주차를 누르면 그 주로 이동합니다. 사진이 저장 용량(무료 1GB)을 차지하므로 검토가 끝난 주차는 <b>🧹 사진 정리</b>로 승인 건의 사진만 지울 수 있습니다.</div>
-  <div class="tw"><table><thead><tr><th>주차</th><th>소명 필요</th><th>짧은 근무</th><th>분류 미처리</th><th>발행</th><th>최근 저장</th><th></th></tr></thead><tbody>${RUNS.map(r=>{const a=r.analysis||{};return `<tr style="${r.weekKey===WEEK.key?'background:var(--pri-lt)':''}"><td class="mono"><b>${fmtMD(r.start)} ~ ${fmtMD(r.end)}</b></td><td>${a.soe??'-'}</td><td>${a.check??'-'}</td><td>${a.unmatched?`<span class="chip c-red">${a.unmatched}</span>`:'0'}</td><td>${r.publishedAt?`<span class="chip c-grn">${r.total}건 · ${r.publishedAt.slice(5,10)}</span>`:'<span class="chip c-gry">미발행</span>'}</td><td class="mono">${(r.savedAt||r.publishedAt||'').slice(0,16).replace('T',' ')}</td><td style="white-space:nowrap"><button class="btn bg sm" onclick="setWeek('${r.start}').then(()=>switchTab('prep'))">📂 열기</button> ${r.publishedAt?`<button class="btn bg sm" onclick="setWeek('${r.start}').then(()=>switchTab('review'))">📨 검토</button> <button class="btn bg sm edit" onclick="cleanupEv('${r.weekKey}')">🧹 사진 정리</button>`:''}</td></tr>`;}).join('')}</tbody></table></div>`;
+  <div class="tw"><table><thead><tr><th>주차</th><th>소명 필요</th><th>짧은 근무</th><th>분류 미처리</th><th>발행</th><th>최근 저장</th><th></th></tr></thead><tbody>${RUNS.map(r=>{const a=r.analysis||{};return `<tr style="${r.weekKey===WEEK.key?'background:var(--pri-lt)':''}"><td class="mono"><b>${fmtMD(r.start)} ~ ${fmtMD(r.end)}</b></td><td>${a.soe??'-'}</td><td>${a.check??'-'}</td><td>${a.unmatched?`<span class="chip c-red">${a.unmatched}</span>`:'0'}</td><td>${r.publishedAt?`<span class="chip c-grn">${r.total}건 · ${r.publishedAt.slice(5,10)}</span>`:'<span class="chip c-gry">미발행</span>'}</td><td class="mono">${(r.savedAt||r.publishedAt||'').slice(0,16).replace('T',' ')}</td><td style="white-space:nowrap"><button class="btn bg sm" onclick="setWeek('${r.start}').then(()=>switchTab('prep'))">📂 열기</button> ${r.publishedAt?`<button class="btn bg sm" onclick="setWeek('${r.start}').then(()=>switchTab('review'))">📨 검토</button> <button class="btn bg sm edit" onclick="cleanupEv('${r.weekKey}')">🧹 사진 정리</button>`:''} <button class="btn bd2 sm edit" onclick="deleteWeek('${r.weekKey}')">🗑 삭제</button></td></tr>`;}).join('')}</tbody></table></div>`;
 }
+// 주차 기록 삭제: 기록·올린 파일·(발행했다면) 원장 소명 건·회신·사진까지 모두
+window.deleteWeek=async function(wk){
+  if(!canEdit())return;
+  const r=RUNS.find(x=>x.weekKey===wk)||{start:wk,end:wk};
+  const label=`${fmtMD(r.start||wk)} ~ ${fmtMD(r.end||wk)}`;
+  if(!confirm(`${label} 주차 기록을 삭제할까요?\n\n지워지는 것: 주차 기록, 이 주에 올린 CAPS·연차 파일${r.publishedAt?', 원장님께 발행한 소명 건과 회신·사진 (원장 페이지에서도 사라짐)':''}\n\n인원 분류·캠퍼스 명단·급여대장은 지워지지 않습니다. 되돌릴 수 없습니다.`))return;
+  if(r.publishedAt&&!confirm(`정말 삭제할까요?\n${label} 원장님 회신과 사진까지 모두 지워집니다.`))return;
+  const{db,doc,collection,getDocs,query,where,writeBatch,deleteDoc}=window._fb;
+  stamp('주차 삭제 중…');let n=0;
+  try{
+    let b=writeBatch(db),c=0;const del=async ref=>{b.delete(ref);c++;n++;if(c>=400){await b.commit();b=writeBatch(db);c=0;}};
+    for(const t of Object.values(TOKENS)){
+      const col=collection(db,'weekly_campus',t,'items');
+      const [a,e]=await Promise.all([getDocs(query(col,where('weekKey','==',wk))),getDocs(query(col,where('evWeek','==',wk)))]);
+      const ids=new Set();a.forEach(d=>{ids.add(d.id);ids.add(d.id+'__ev');});e.forEach(d=>ids.add(d.id));
+      for(const id of ids)await del(doc(col,id));
+    }
+    const caps=await getDocs(query(collection(db,'weekly_caps'),where('weekKey','==',wk)));
+    for(const d of caps.docs)await del(doc(db,'weekly_caps',d.id));
+    await del(doc(db,'weekly_leaves',wk));await del(doc(db,'weekly_runs',wk));
+    if(c)await b.commit();
+    RUNS=RUNS.filter(x=>x.weekKey!==wk);
+    if(WEEK&&WEEK.key===wk){CAPS={files:[]};LEAVES=[];ITEMS=[];ITEMS_WEEK='';ANA=null;D=derive();renderBadges();}
+    toast(`${label} 주차 기록 삭제 완료`);stamp('삭제 완료');renderHistory();
+  }catch(e){toast('삭제 실패: '+e.message,1);stamp('삭제 실패');}
+};
 window.cleanupEv=async function(wk){
   if(!confirm(`${fmtMD(wk)} 주차의 "승인" 건 사진을 모두 지웁니다. 사유·메모·승인 기록은 남습니다. 되돌릴 수 없습니다.`))return;
   const{db,doc,collection,getDocs,query,where,writeBatch}=window._fb;let n=0;
